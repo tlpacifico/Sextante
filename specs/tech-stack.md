@@ -297,6 +297,12 @@ Sextante.sln
 
 ## 15. Deployment
 
+> **Timing**: o stack está pronto a deployar a partir da Phase 0
+> (Dockerfile + compose + LettuceEncrypt configurados, runbook no
+> README), mas o **primeiro deploy à VPS** é executado em **Phase 6**
+> (pré-dogfooding), não em Phase 0. Phase 0 valida o stack apenas
+> localmente.
+
 - **Docker Compose** (1 VPS).
 - **Containers**: `api` (ASP.NET + Hangfire workers + Angular static via wwwroot) + `postgres`.
 - **Volumes**: `pgdata`, `letsencrypt-certs` (LettuceEncrypt), `logs`.

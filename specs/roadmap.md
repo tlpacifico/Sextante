@@ -19,16 +19,15 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 ### Phase 0 — Setup do scaffold
 
-- [ ] Solução .NET 10 (`Sextante.sln`) com `global.json`, `Directory.Build.props`, `Directory.Packages.props`.
+- [ ] Solução .NET 10 (`Sextante.slnx`) com `global.json`, `Directory.Build.props`, `Directory.Packages.props`.
 - [ ] Estrutura de pastas (`src/Bootstrap/Host`, `src/BuildingBlocks/{SharedKernel,Messaging,Infrastructure}`, `src/Modules/{Identity,Financial}`, `src/Web`).
 - [ ] Projetos Angular (`Sextante.Web`) com build Angular CLI a copiar para `wwwroot` do Host.
 - [ ] `Dockerfile` multi-stage (Node → .NET SDK → ASP.NET runtime).
 - [ ] `docker-compose.yml` com `api` + `postgres` + volumes.
 - [ ] `appsettings.json` + `.env.example`.
 - [ ] CI básico (GitHub Actions): build, test, format check.
-- [ ] Deploy VPS dummy (página "It works").
 
-**Saída**: navegar para `https://<vps>.<domain>/` mostra página inicial servida pelo Host; `https://<vps>.<domain>/api/health` retorna 200.
+**Saída**: `docker compose up` localmente serve a landing Angular em `http://localhost/` e `http://localhost/api/health` retorna `200`. Primeiro deploy à VPS é diferido para a Phase 6 (pré-dogfooding).
 
 ### Phase 1 — Auth + Multi-tenancy 🛡️
 
@@ -98,14 +97,17 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 **Saída**: utilizador define renda mensal e ela aparece automaticamente no dia 1; tem 3 metas configuradas e o dashboard mostra progresso.
 
-### Phase 6 — Polish + Dogfooding 🛡️
+### Phase 6 — Polish + Deploy + Dogfooding 🛡️
 
 - [ ] Export CSV das transações.
 - [ ] Banner persistente para confirmar email (não bloqueante).
+- [ ] Decidir provider SMTP (VPS direto vs SendGrid/Mailgun) com base em testes reais de spam folder.
+- [ ] **Provisionar VPS** (provider, sizing, registo DNS A para o domínio público).
+- [ ] **Primeiro deploy production** via `docker compose` na VPS; LettuceEncrypt emite certificado Let's Encrypt na 1ª request HTTPS.
+- [ ] **Validação live**: `https://<dominio>/` renderiza a landing, `/api/health` retorna `200`, certificado emitido por Let's Encrypt.
+- [ ] README de deploy atualizado (refletir provider, domínio e sizing efetivamente escolhidos).
 - [ ] Backups automatizados (`pg_dump` por schema, retenção 30 dias).
 - [ ] **1 restore de teste** documentado.
-- [ ] README de deploy atualizado.
-- [ ] Decidir provider SMTP (VPS direto vs SendGrid/Mailgun) com base em testes reais de spam folder.
 - [ ] **Dogfooding 1 mês**: utilizador importa extrato bancário do último mês e categoriza tudo; recorrentes do mês configuradas; pelo menos 3 metas a mostrar progresso; nenhum reabrir de Excel ou outra app financeira durante 1 mês.
 
 **Saída**: critério de Done do MVP cumprido (`mission.md` §6).

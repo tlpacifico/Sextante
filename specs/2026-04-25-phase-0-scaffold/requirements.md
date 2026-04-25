@@ -2,15 +2,19 @@
 
 ## Goal
 
-Estabelecer um monorepo .NET 10 + Angular **deployable a uma VPS real sobre
-HTTPS** via Docker Compose, com gates de CI (build/test/format) em vigor
-e um endpoint `/api/health` no-op. É a fundação que a Phase 1 (Auth +
-multi-tenancy) vai estender — não tenta resolver nada do que vem depois,
-apenas garantir que existe terreno seguro para construir.
+Estabelecer um monorepo .NET 10 + Angular **pronto para deploy** via
+Docker Compose (Host + Postgres + LettuceEncrypt configurados, runbook
+no README), com gates de CI (build/test/format) em vigor e um endpoint
+`/api/health` no-op. É a fundação que a Phase 1 (Auth + multi-tenancy)
+vai estender — não tenta resolver nada do que vem depois, apenas
+garantir que existe terreno seguro para construir.
 
 A `mission.md` §6 diz que o MVP só está completo quando o utilizador usa
 o sistema 1 mês completo sem reabrir Excel — e o dogfooding requer um
-sistema **deployed**. Phase 0 é o primeiro passo nessa direção.
+sistema **deployed**. Phase 0 entrega o stack pronto a deployar; o
+**primeiro deploy à VPS** é responsabilidade da Phase 6 (pré-dogfooding),
+para evitar arrastar gestão de DNS, certificados e exposição pública
+durante as Phases 1–5 onde a prioridade é iteração local.
 
 ## In scope
 
@@ -31,9 +35,11 @@ sistema **deployed**. Phase 0 é o primeiro passo nessa direção.
 - `.env.example` + `appsettings.json`.
 - GitHub Actions CI (`.github/workflows/ci.yml`) com 3 jobs: `build`,
   `test`, `format`.
-- LettuceEncrypt configurado no Host, ativo apenas em `Production`.
-- Primeiro deploy manual à VPS, com domínio HTTPS reachable.
-- Secção "Deploy" no `README.md`.
+- LettuceEncrypt configurado no Host, ativo apenas em `Production`
+  quando `LETSENCRYPT__EMAIL` e `LETSENCRYPT__DOMAINNAME` estão
+  preenchidos (config dormente até Phase 6).
+- Secção "Deploy" no `README.md` como **runbook** — passos para o
+  primeiro deploy, mas execução real fica para a Phase 6.
 
 ## Out of scope
 
@@ -49,6 +55,14 @@ sistema **deployed**. Phase 0 é o primeiro passo nessa direção.
   integração).
 - **Identity / `MapIdentityApi` / signup customizado / refresh tokens**
   — Phase 1.
+- **Primeiro deploy à VPS** (provisioning, DNS A record, emissão Let's
+  Encrypt, validação live HTTPS) — **diferido para a Phase 6**.
+  *Why*: `mission.md` §6 acopla "deployed" com "1 mês de dogfooding";
+  faz sentido executar ambos no mesmo bloco operacional, e poupa às
+  Phases 1–5 a fricção de manter um endpoint público vivo.
+  **How to apply**: o stack Docker fica pronto em Phase 0 e validado
+  localmente; o `docker compose up` na VPS é a primeira tarefa
+  operacional da Phase 6.
 - **CD pipeline.** Deploy é manual nesta fase. Documentado, não
   automatizado.
 - **Seq / OpenTelemetry / Prometheus / Grafana.** Pós-MVP (tech-stack
@@ -95,9 +109,8 @@ sistema **deployed**. Phase 0 é o primeiro passo nessa direção.
 
 ## Open questions
 
-- **VPS provider, sizing e DNS** são decisões de stakeholder fora do
-  scope SDD. Surgem no `README.md` (secção Deploy) como inputs do
-  utilizador na hora do deploy, mas não são enforcement da Phase 0.
+- **VPS provider, sizing e DNS** migram para o spec da Phase 6 quando
+  ela for arrancada. Não são enforcement da Phase 0.
 - **Versão exata do Angular LTS** à data do scaffold — usar a que
   `ng new` resolver no momento; pinning estrito não é necessário em
   Phase 0.

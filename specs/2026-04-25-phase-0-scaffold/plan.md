@@ -114,27 +114,19 @@
 - 7.4 Job `format`: `dotnet format --verify-no-changes`.
 - 7.5 Cache para `~/.nuget/packages` e `node_modules`.
 
-## 8. VPS deployment (manual, primeira vez)
+## 8. Phase close-out
 
-- 8.1 Secção "Deploy" no `README.md`: provisionar VPS, instalar Docker +
-  compose plugin, clonar o repo, `cp .env.example .env` e preencher
-  segredos.
-- 8.2 Passos SSH: `docker compose build` (primeira vez) ou `docker compose
-  pull` (depois de CI publicar imagem) + `docker compose up -d`.
-- 8.3 Emissão TLS na primeira vez: registo DNS A do domínio aponta para
-  o IP da VPS, portas `80` e `443` abertas, LettuceEncrypt obtém o cert
-  no primeiro request HTTPS.
-- 8.4 Verificar live: browser para `https://<domain>/` mostra a página
-  Angular; `curl -I https://<domain>/api/health` devolve `200`.
-- 8.5 CD via GitHub Actions **fora de scope** — só documentar fluxo
-  manual.
-
-## 9. Phase close-out
-
-- 9.1 Atualizar `specs/roadmap.md`: marcar checkboxes da Phase 0 como
+- 8.1 Atualizar `specs/roadmap.md`: marcar checkboxes da Phase 0 como
   concluídos via conversa com o agente (AGENTS.md §2 rule 1 — nunca
   editar `specs/*` à mão).
-- 9.2 Correr a skill `changelog` para adicionar entrada `2026-04-25`
+- 8.2 Correr a skill `changelog` para adicionar entrada `2026-04-25`
   com sumário dos commits da Phase 0.
-- 9.3 Commit `Mark phase 0 as complete` (AGENTS.md §5).
-- 9.4 Abrir PR `phase-0-scaffold` → `main`; merge depois de CI verde.
+- 8.3 Commit `Mark phase 0 as complete` (AGENTS.md §5).
+- 8.4 Abrir PR `phase-0-scaffold` → `main`; merge depois de CI verde.
+
+> **Nota**: o primeiro deploy à VPS — provisioning, DNS, emissão de cert
+> Let's Encrypt, validação live HTTPS — é responsabilidade da **Phase 6**
+> (pré-dogfooding), não da Phase 0. Toda a infra de deploy fica pronta
+> aqui (Dockerfile, compose, LettuceEncrypt em config, runbook no
+> README), mas o comando `docker compose up` na VPS só corre quando
+> chegarmos à Phase 6. Justificação em `requirements.md` *Out of scope*.

@@ -225,7 +225,7 @@ cd src/Web/Sextante.Web && npm start
 
 ## Deploy (manual, primeira vez)
 
-> Phase 0 não inclui CD automático — o GitHub Actions corre apenas build/test/format. O primeiro deploy é manual e documentado aqui.
+> Este bloco é runbook. O **primeiro deploy à VPS é executado em Phase 6** (pré-dogfooding), não em Phase 0 — Phase 0 entrega o stack `docker compose` validado localmente. CD automático fica fora do MVP; o GitHub Actions corre apenas `build`, `test`, `format`.
 
 ### 1. Provisionar VPS
 
