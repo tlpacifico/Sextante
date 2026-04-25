@@ -17,7 +17,7 @@
 | Mensageria inter-módulos | **Wolverine** com transport PostgreSQL | Outbox transacional built-in, schema `messaging` |
 | Auth | **ASP.NET Core Identity + `MapIdentityApi`** | Custom signup que orquestra User+Tenant+Membership atomicamente |
 | TLS | **Kestrel + LettuceEncrypt** | Let's Encrypt automático, sem reverse proxy externo |
-| Frontend | **Angular (LTS)** | Servido pelo próprio Host .NET via `UseStaticFiles + MapFallbackToFile` |
+| Frontend | **Angular 21 LTS + PrimeNG + Tailwind CSS** | Components: PrimeNG (incl. Chart). Layout/utilities: Tailwind. State: Angular Signals. Servido pelo Host .NET via `UseStaticFiles + MapFallbackToFile`. Detalhe em §19. |
 | Hosting | **VPS própria via Docker Compose** | 1 container API+Hangfire+Angular, 1 container Postgres |
 | Logs | **Serilog → ficheiro** com rotação | Seq opcional pós-MVP. Sem PII em texto claro. |
 | Containerização | Docker + Docker Compose | Dockerfile multi-stage (Node→.NET→runtime) |
@@ -98,6 +98,23 @@ Sextante.sln
 - Comandos: imperativo (`CreateTransactionCommand`).
 - Eventos: passado (`TransactionCreated`, `RecurringRuleTriggered`).
 - Eventos de integração: passado + sufixo (`TransactionCreatedIntegrationEvent`).
+
+### 3.5 Despacho in-process de comandos e queries (CQRS)
+
+- **Comandos e queries dentro de um módulo são despachados via Wolverine**
+  (mesma infra do messaging inter-módulos descrita em §11). **Sem `MediatR`.**
+- Handler discovery por convenção (`[WolverineHandler]` ou descoberta
+  automática por nome). Um handler por comando/query.
+- Middleware pipeline (logging estruturado, validação, transação, métricas)
+  configurada uma única vez no Host e aplicada a todos os handlers.
+- **Justificação**: Wolverine (Jeremy Miller) suporta nativamente mediação
+  in-process **e** messaging out-of-process com o mesmo modelo mental.
+  Empilhar `MediatR` em cima duplica DI, descoberta de handlers e pipeline
+  behaviors sem ganho — ver ADR-010 (pendente, escrever na Phase 1a).
+- **Application services não são proibidos**: para lógica trivial sem
+  pipeline (ex.: leitura simples de configuração) pode-se chamar serviços
+  diretamente. O critério é: tem regras transversais (logging, tx,
+  validação)? → comando/query via Wolverine. Caso contrário → serviço.
 
 > Detalhe completo: `Vault: 02.3 - Arquitetura - Modular Monolith.md`.
 
@@ -258,6 +275,10 @@ Sextante.sln
 - **Outbox transacional**: mensagens publicadas dentro do `SaveChangesAsync` ficam na mesma transação que os dados de domínio.
 - Workers correm in-process com a API.
 - `LISTEN/NOTIFY` para wakeup imediato; `SELECT ... FOR UPDATE SKIP LOCKED` para concorrência.
+- **Wolverine cobre dois papéis com a mesma infra**:
+  1. Mediação in-process de comandos e queries dentro de cada módulo (CQRS) — ver §3.5.
+  2. Messaging inter-módulos com outbox transacional (esta secção).
+  Mesma descoberta de handlers, mesmo pipeline de middleware. Sem `MediatR` em paralelo.
 
 > Detalhe completo: `Vault: ADRs/ADR-006 - Messaging.md`.
 
@@ -339,6 +360,12 @@ Sextante.sln
 | Storage do access token | Memória + Authorization header |
 | Lifetime do access token | 15 min |
 | Lifetime do refresh token | 7 dias com rotation |
+| CQRS dispatch (in-process) | **Wolverine** (sem `MediatR`); mesma infra do messaging inter-módulos |
+| Frontend UI library | **PrimeNG** (componentes) + **Tailwind CSS** (layout/utilities) |
+| Frontend state management | **Angular Signals + services** (sem NgRx no MVP) |
+| Frontend forms | Reactive Forms |
+| Chart library | **PrimeNG Chart** (Chart.js por baixo) |
+| Versão Angular | **21 LTS** (upgrade do 19 que entrou no scaffold da Phase 0) |
 
 ---
 
@@ -356,6 +383,52 @@ Sextante.sln
 - **ADR-007 Versionamento da API**: adiado. Escrever quando se introduzir versionamento.
 - **ADR-008 Provider de cotações**: para Fase 2. Avaliação comparativa Brapi (BR) + Yahoo Finance/Alpha Vantage (intl) quando começar Sub-fase 2.2.
 - **ADR-009 Soft delete vs hard delete**: **resolvido nesta Constitution** (soft-delete uniforme). Escrever ADR formal quando for tocada a primeira feature que elimine entidades (Sprint 2 ou 3) para registar o porquê.
+- **ADR-010 CQRS via Wolverine**: registar a decisão de usar Wolverine como mediator in-process (sem `MediatR`). Escrever na **Phase 1a**, antes de assentar os primeiros handlers do módulo Identity. Inputs em §3.5 e §11.
+- **ADR-011 Frontend UI stack (PrimeNG + Tailwind + Signals)**: registar a escolha de UI library, state management e versão Angular. Escrever no kickoff da **Phase 1b**, antes de adicionar dependências ao `package.json`. Inputs em §19.
+
+---
+
+## 19. Frontend stack (Angular)
+
+> Esta secção é **invariante** para o MVP. Mudanças (substituir PrimeNG, adicionar NgRx, baixar versão do Angular) só via Replanning.
+
+### 19.1 Stack consolidado
+
+| Camada | Tecnologia | Notas |
+|--------|-----------|-------|
+| Framework | **Angular 21 LTS** | Standalone components, signal-based reactivity nativa |
+| UI components | **PrimeNG** | DataTable, Calendar, MultiSelect, Dropdown, Dialog, Toast, Chart. Tema default. License MIT. |
+| Layout / utilities | **Tailwind CSS** | Convive com PrimeNG (preflight ajustado). Layout, spacing, responsividade. |
+| Charts | **PrimeNG Chart** (Chart.js) | Suficiente para line / bar / pie / donut do dashboard e budgets. |
+| Forms | **Reactive Forms** | Adequado a validação financeira (cross-field, async, custom validators). |
+| State management | **Angular Signals + services** | Sem NgRx. Signals nativos cobrem auth, tenant ativo, filtros, paginação. |
+| HTTP | `HttpClient` + `HttpInterceptor` | Interceptor anexa `Authorization: Bearer <access>` e faz auto-refresh em 401. |
+| i18n | `@angular/localize` | Estrutura PT-PT desde Phase 0; extensível a EN/PT-BR pós-MVP sem refactor. |
+| Routing | Angular Router + lazy modules | Auth guard usa Signal de auth state (não Observable). |
+| Build | Angular CLI + esbuild | Output copiado para `wwwroot` do Host (.NET) via MSBuild target. |
+
+### 19.2 Princípios
+
+- **Standalone components only**: zero `NgModule` em código novo.
+- **Signals primeiro**: `signal()`, `computed()`, `effect()` antes de RxJS. RxJS apenas onde já é idiomático (HTTP, debounce).
+- **Reactive Forms primeiro**: nada de Template-driven em formulários financeiros.
+- **PrimeNG não é decorativo**: se precisas de DataTable / Calendar / MultiSelect / Chart, usa PrimeNG. Não construir à mão concorrentes.
+- **Tailwind não substitui PrimeNG**: usa Tailwind para layout (grid, flex, spacing, responsivo) e cores neutras. Componentes interativos vêm da PrimeNG.
+- **Sem CSS frameworks paralelos**: nada de Bootstrap, Bulma, Material em paralelo. PrimeNG + Tailwind é o conjunto.
+
+### 19.3 Decisões deferidas (escrever ADR-011 na Phase 1b)
+
+- Tema PrimeNG concreto (Lara / Aura / outro) — escolher na Phase 1b com base em legibilidade do dashboard.
+- Estratégia de dark mode — provavelmente Tailwind `dark:` + PrimeNG dual theme; decidir em Phase 1b.
+- Storybook — fora do MVP. Reavaliar quando o número de componentes próprios passar de ~20.
+
+### 19.4 Hosting (lembrete — sem mudança vs ADR-005)
+
+- Build do Angular roda dentro do Dockerfile multi-stage (stage `node:lts-alpine`).
+- Output servido pelo Host .NET via `UseStaticFiles + MapFallbackToFile("index.html")`.
+- Sem CDN externa, sem reverse proxy. TLS direto pelo Kestrel + LettuceEncrypt (§1).
+
+> Detalhe completo (componente a componente): a escrever em `Vault: 04 - Arquitetura - Frontend.md` durante Phase 1b.
 
 ---
 

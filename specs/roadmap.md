@@ -29,7 +29,9 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 **Saída**: `docker compose up` localmente serve a landing Angular em `http://localhost/` e `http://localhost/api/health` retorna `200`. Primeiro deploy à VPS é diferido para a Phase 6 (pré-dogfooding).
 
-### Phase 1 — Auth + Multi-tenancy 🛡️
+### Phase 1a — Auth backend + Multi-tenancy 🛡️
+
+> Branch: `phase-1a-auth-backend`. Validação por integration tests + curl, **sem UI**.
 
 - [ ] Módulo `Identity` (5 projetos) com schema `shared`.
 - [ ] `AppUser`, `Tenant`, `Membership`, `Roles`.
@@ -40,12 +42,28 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 - [ ] `ITenantContext` em `Identity.PublicApi`, com fail-loud se claim falta.
 - [ ] PostgreSQL Row-Level Security setup (role app sem `BYPASSRLS`, role migrations com).
 - [ ] `DbConnectionInterceptor` para `SET app.current_tenant_id`.
+- [ ] **Wolverine** registado no Host como mediator in-process + bus inter-módulos (tech-stack §3.5 e §11).
+- [ ] **Escrever ADR-010** (CQRS via Wolverine) em `docs/adr/` antes de assentar os primeiros handlers.
 - [ ] Testes de arquitetura (NetArchTest) a validar regras de dependência.
 - [ ] **Suite de testes de multi-tenancy** (read/write/delete cross-tenant; insert auto-popula `TenantId`; query sem `TenantContext` lança).
-- [ ] UI Angular: signup, login, refresh, logout, esqueci-me da password.
-- [ ] Refresh token em httpOnly cookie; access token em memória.
 
-**Saída**: dois utilizadores conseguem registar-se, fazer login, e nenhum vê dados do outro (mesmo em endpoints que usem SQL raw, graças a RLS).
+**Saída**: dois utilizadores conseguem registar-se, fazer login, e via integration tests / curl nenhum vê dados do outro (mesmo em endpoints que usem SQL raw, graças a RLS). Refresh token cookie/access token in-memory são exercitados via integration tests; UI fica para 1b.
+
+### Phase 1b — Auth UI (Angular) 🛡️
+
+> Branch: `phase-1b-auth-ui`. Constrói em cima da API estável da Phase 1a.
+
+- [ ] Upgrade Angular 19 → **Angular 21 LTS** (com bump de TypeScript / CLI / build-angular alinhados).
+- [ ] Adicionar **PrimeNG**, **PrimeIcons**, **Chart.js** (peer da PrimeNG Chart) e **Tailwind CSS** (+ `postcss`, `autoprefixer`) ao `package.json`. Configurar tema PrimeNG default + Tailwind preflight a coexistir (tech-stack §19).
+- [ ] **Escrever ADR-011** (Frontend UI stack: PrimeNG + Tailwind + Signals) em `docs/adr/` antes de adicionar dependências.
+- [ ] Layout shell com PrimeNG: header (tenant ativo + menu user), sidenav placeholder, toast outlet.
+- [ ] Páginas `/signup`, `/login`, `/forgot-password`, `/reset-password` com Reactive Forms e validação PT-PT.
+- [ ] `HttpInterceptor` anexa `Authorization: Bearer <access>` e faz auto-refresh em 401 contra `/api/auth/refresh`.
+- [ ] Refresh token em **httpOnly cookie** (set pelo backend); access token em memória via Signal.
+- [ ] Auth guard usa Signal de auth state — redireciona para `/login` se vazio.
+- [ ] E2E manual: signup → login → request protegida → logout → refresh expirado força re-login (com browser real, não só integration tests).
+
+**Saída**: utilizador completa o fluxo de auth inteiro pelo browser; sessão persiste através de refresh do browser via httpOnly cookie. PrimeNG + Tailwind operacionais como base para Phase 2+.
 
 ### Phase 2 — Categorias + Contas + Transações manuais + Dashboard mínimo
 
