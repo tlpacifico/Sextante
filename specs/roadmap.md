@@ -19,13 +19,13 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 ### Phase 0 — Setup do scaffold
 
-- [ ] Solução .NET 10 (`Sextante.slnx`) com `global.json`, `Directory.Build.props`, `Directory.Packages.props`.
-- [ ] Estrutura de pastas (`src/Bootstrap/Host`, `src/BuildingBlocks/{SharedKernel,Messaging,Infrastructure}`, `src/Modules/{Identity,Financial}`, `src/Web`).
-- [ ] Projetos Angular (`Sextante.Web`) com build Angular CLI a copiar para `wwwroot` do Host.
-- [ ] `Dockerfile` multi-stage (Node → .NET SDK → ASP.NET runtime).
-- [ ] `docker-compose.yml` com `api` + `postgres` + volumes.
-- [ ] `appsettings.json` + `.env.example`.
-- [ ] CI básico (GitHub Actions): build, test, format check.
+- [x] Solução .NET 10 (`Sextante.slnx`) com `global.json`, `Directory.Build.props`, `Directory.Packages.props`.
+- [x] Estrutura de pastas (`src/Bootstrap/Host`, `src/BuildingBlocks/{SharedKernel,Messaging,Infrastructure}`, `src/Modules/{Identity,Financial}`, `src/Web`).
+- [x] Projetos Angular (`Sextante.Web`) com build Angular CLI a copiar para `wwwroot` do Host.
+- [x] `Dockerfile` multi-stage (Node → .NET SDK → ASP.NET runtime).
+- [x] `docker-compose.yml` com `api` + `postgres` + volumes.
+- [x] `appsettings.json` + `.env.example`.
+- [x] CI básico (GitHub Actions): build, test, format check.
 
 **Saída**: `docker compose up` localmente serve a landing Angular em `http://localhost/` e `http://localhost/api/health` retorna `200`. Primeiro deploy à VPS é diferido para a Phase 6 (pré-dogfooding).
 
