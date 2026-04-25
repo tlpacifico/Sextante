@@ -1,6 +1,6 @@
 # Mission
 
-> O *porquê* do Sistema Financeiro: visão, audiência, princípios, não-objetivos e métrica de sucesso.
+> O *porquê* do Sextante: visão, audiência, princípios, não-objetivos e métrica de sucesso.
 
 ---
 

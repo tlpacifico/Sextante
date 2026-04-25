@@ -1,0 +1,54 @@
+name: sextante
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sextante-api:latest
+    container_name: sextante-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:80;https://+:443}
+      LettuceEncrypt__EmailAddress: ${LETSENCRYPT__EMAIL:-}
+      LettuceEncrypt__DomainNames__0: ${LETSENCRYPT__DOMAINNAME:-}
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=${POSTGRES_USER:-app};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - letsencrypt-certs:/var/letsencrypt-certs
+      - logs:/app/logs
+    networks:
+      - internal
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: sextante-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sextante}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-sextante}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+volumes:
+  pgdata:
+  letsencrypt-certs:
+  logs:
+
+networks:
+  internal:
+    driver: bridge

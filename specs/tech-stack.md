@@ -30,19 +30,19 @@
 Modular Monolith com 5 projetos por módulo + bootstrap + building blocks.
 
 ```
-SistemaFinanceiro.sln
+Sextante.sln
 ├── global.json                                     # SDK 10.0.x rollForward latestFeature
 ├── Directory.Build.props                            # net10.0, Nullable=enable, TreatWarningsAsErrors=true
 ├── Directory.Packages.props                         # Central Package Management
 │
 ├── src/
 │   ├── Bootstrap/
-│   │   └── SistemaFinanceiro.Host/                  # ASP.NET Core entry point + wwwroot do Angular
+│   │   └── Sextante.Host/                  # ASP.NET Core entry point + wwwroot do Angular
 │   │
 │   ├── BuildingBlocks/
-│   │   ├── SistemaFinanceiro.SharedKernel/          # Money, TenantId, Currency, primitives
-│   │   ├── SistemaFinanceiro.Messaging/             # Contratos de mensagens + abstrações Wolverine
-│   │   └── SistemaFinanceiro.Infrastructure/        # EF Core base, Hangfire setup, auth, logging
+│   │   ├── Sextante.SharedKernel/          # Money, TenantId, Currency, primitives
+│   │   ├── Sextante.Messaging/             # Contratos de mensagens + abstrações Wolverine
+│   │   └── Sextante.Infrastructure/        # EF Core base, Hangfire setup, auth, logging
 │   │
 │   ├── Modules/
 │   │   ├── Identity/                                 # 5 projetos: Api / Application / Domain / Infrastructure / PublicApi
@@ -50,14 +50,14 @@ SistemaFinanceiro.sln
 │   │   └── Investment/                               # 5 projetos (Fase 2)
 │   │
 │   └── Web/
-│       └── SistemaFinanceiro.Web/                    # Angular app (build copia para wwwroot do Host)
+│       └── Sextante.Web/                    # Angular app (build copia para wwwroot do Host)
 │
 └── tests/
-    ├── SistemaFinanceiro.SharedKernel.Tests/
+    ├── Sextante.SharedKernel.Tests/
     ├── Modules/<Module>.Domain.Tests/
     ├── Modules/<Module>.Application.Tests/
-    ├── SistemaFinanceiro.ArchitectureTests/          # NetArchTest força regras de isolamento
-    └── SistemaFinanceiro.IntegrationTests/            # End-to-end + multi-tenancy obrigatórios
+    ├── Sextante.ArchitectureTests/          # NetArchTest força regras de isolamento
+    └── Sextante.IntegrationTests/            # End-to-end + multi-tenancy obrigatórios
 ```
 
 > Detalhe completo de `csproj` references e `Directory.Build.props`: `Vault: 02.1 - Arquitetura - Visão Geral.md` secção 3.
@@ -287,8 +287,8 @@ SistemaFinanceiro.sln
 |------|-------------|---------------------|
 | Domain unit | `<Module>.Domain.Tests` | Para toda regra de negócio |
 | Application unit | `<Module>.Application.Tests` | Para handlers com lógica não-trivial |
-| Architecture | `SistemaFinanceiro.ArchitectureTests` | Sempre (no CI) — força regras §3.1 |
-| Integration | `SistemaFinanceiro.IntegrationTests` | Para CRUD end-to-end + multi-tenancy obrigatório desde Sprint 1 |
+| Architecture | `Sextante.ArchitectureTests` | Sempre (no CI) — força regras §3.1 |
+| Integration | `Sextante.IntegrationTests` | Para CRUD end-to-end + multi-tenancy obrigatório desde Sprint 1 |
 
 - Integration tests usam `WebApplicationFactory` + Testcontainers PostgreSQL para isolamento e velocidade.
 - Multi-tenancy: testes da §4.7 são bloqueadores de release.

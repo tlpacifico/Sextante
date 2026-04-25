@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Bootstrap/">
+    <Project Path="src/Bootstrap/Sextante.Host/Sextante.Host.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sextante.ArchitectureTests/Sextante.ArchitectureTests.csproj" />
+  </Folder>
+</Solution>

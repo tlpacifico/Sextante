@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Sextante.Host</RootNamespace>
+    <AssemblyName>Sextante.Host</AssemblyName>
+    <UserSecretsId>sextante-host</UserSecretsId>
+
+    <SpaRoot>..\..\Web\Sextante.Web\</SpaRoot>
+    <SpaWwwRoot>$(MSBuildThisFileDirectory)wwwroot\</SpaWwwRoot>
+    <SkipAngularBuild Condition="'$(SkipAngularBuild)' == ''">false</SkipAngularBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="LettuceEncrypt" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Don't try to glob wwwroot at evaluation time. Angular populates it during the BuildAngular
+         target below; an explicit Copy then mirrors the output into $(OutDir)wwwroot. -->
+    <Content Remove="wwwroot\**\*" />
+  </ItemGroup>
+
+  <Target Name="BuildAngular"
+          BeforeTargets="Build"
+          Condition=" '$(Configuration)' == 'Release' AND '$(SkipAngularBuild)' != 'true' AND Exists('$(SpaRoot)package.json') ">
+    <Message Importance="high" Text="Building Angular SPA from $(SpaRoot)" />
+    <Exec Command="npm ci" WorkingDirectory="$(SpaRoot)" />
+    <Exec Command="npm run build -- --configuration=production" WorkingDirectory="$(SpaRoot)" />
+    <ItemGroup>
+      <_AngularBuiltFiles Include="$(SpaWwwRoot)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_AngularBuiltFiles)"
+          DestinationFiles="@(_AngularBuiltFiles->'$(OutDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="PublishAngular"
+          BeforeTargets="ComputeFilesToPublish"
+          Condition=" '$(SkipAngularBuild)' != 'true' AND Exists('$(SpaRoot)package.json') ">
+    <Message Importance="high" Text="Publishing Angular SPA from $(SpaRoot)" />
+    <Exec Command="npm ci" WorkingDirectory="$(SpaRoot)" />
+    <Exec Command="npm run build -- --configuration=production" WorkingDirectory="$(SpaRoot)" />
+    <ItemGroup>
+      <_AngularFiles Include="$(SpaWwwRoot)**\*" />
+      <ResolvedFileToPublish Include="@(_AngularFiles->'%(FullPath)')">
+        <RelativePath>wwwroot\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+</Project>

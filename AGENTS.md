@@ -1,4 +1,4 @@
-# Agent rules — Sistema Financeiro
+# Agent rules — Sextante
 
 > Regras globais para qualquer agent (Claude Code, Cursor, Copilot, etc.) que trabalhe neste repo. Lê este ficheiro **e** `specs/mission.md` + `specs/tech-stack.md` + `specs/roadmap.md` antes de qualquer trabalho.
 

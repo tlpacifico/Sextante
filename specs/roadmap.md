@@ -19,9 +19,9 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 ### Phase 0 — Setup do scaffold
 
-- [ ] Solução .NET 10 (`SistemaFinanceiro.sln`) com `global.json`, `Directory.Build.props`, `Directory.Packages.props`.
+- [ ] Solução .NET 10 (`Sextante.sln`) com `global.json`, `Directory.Build.props`, `Directory.Packages.props`.
 - [ ] Estrutura de pastas (`src/Bootstrap/Host`, `src/BuildingBlocks/{SharedKernel,Messaging,Infrastructure}`, `src/Modules/{Identity,Financial}`, `src/Web`).
-- [ ] Projetos Angular (`SistemaFinanceiro.Web`) com build Angular CLI a copiar para `wwwroot` do Host.
+- [ ] Projetos Angular (`Sextante.Web`) com build Angular CLI a copiar para `wwwroot` do Host.
 - [ ] `Dockerfile` multi-stage (Node → .NET SDK → ASP.NET runtime).
 - [ ] `docker-compose.yml` com `api` + `postgres` + volumes.
 - [ ] `appsettings.json` + `.env.example`.

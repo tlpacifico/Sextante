@@ -1,6 +1,7 @@
-# Sistema Financeiro
+# Sextante
 
-> SaaS de **gestão financeira pessoal + carteira de investimentos**, hosted em VPS própria.
+> Sistema de **gestão financeira pessoal + carteira de investimentos**, hosted em VPS própria.
+> Cada um navega por critérios próprios — daí o nome.
 > Stack: **.NET 10 + PostgreSQL 16 + Angular**, **Modular Monolith**, multi-tenant.
 
 Este `README.md` é o **input de stakeholders** para a Constitution SDD (`specs/mission.md`, `specs/tech-stack.md`, `specs/roadmap.md`). A documentação canónica detalhada vive no Obsidian Vault — ver secção *Referências canónicas* no fim.
@@ -181,6 +182,110 @@ Ver requisitos funcionais e arquitetura para o contexto. A Constitution deve **d
 | Hangfire jobs sem contexto de tenant | Médio (geração errada) | Wrapper `TenantAwareJob` desde início |
 | Scope creep para investimento | Alto (atraso) | MVP scope é fonte de verdade |
 | VPS down sem backup | Catastrófico | Backup automatizado + 1 restore de teste antes do dogfooding |
+
+---
+
+## Desenvolvimento local
+
+Pré-requisitos:
+
+- .NET 10 SDK (`dotnet --list-sdks` deve listar `10.0.x`).
+- Node LTS (≥ 22) e npm.
+- Docker + Docker Compose v2.
+
+Setup inicial:
+
+```bash
+# .NET
+dotnet restore Sextante.slnx
+
+# Angular
+cd src/Web/Sextante.Web
+npm install
+cd -
+
+# Build full release (Angular + .NET) e tests
+dotnet build Sextante.slnx -c Release
+dotnet test  Sextante.slnx -c Release --no-build
+```
+
+Para iterar localmente sem rebuild Angular cada vez, usar:
+
+```bash
+# .NET com Angular skip
+dotnet run --project src/Bootstrap/Sextante.Host -p:SkipAngularBuild=true
+
+# Em paralelo, Angular dev server (proxy futuro pode ser adicionado em Phase 1)
+cd src/Web/Sextante.Web && npm start
+```
+
+`docker compose up --build` corre o sistema inteiro localmente: Angular é construído na stage 1, o Host publica em Release na stage 2, e o container final escuta em `http://localhost:80` e `https://localhost:443` (sem cert válido localmente; `http://localhost/api/health` deve devolver `200`).
+
+---
+
+## Deploy (manual, primeira vez)
+
+> Phase 0 não inclui CD automático — o GitHub Actions corre apenas build/test/format. O primeiro deploy é manual e documentado aqui.
+
+### 1. Provisionar VPS
+
+- Qualquer VPS Linux com pelo menos 2 vCPU, 2 GB RAM, 20 GB disco.
+- DNS: criar registo `A` para o domínio (ex.: `financas.exemplo.pt`) a apontar para o IP público da VPS.
+- Firewall: abrir portas `80/tcp` e `443/tcp` (LettuceEncrypt precisa de HTTP-01 challenge na 80; tráfego normal vai pela 443).
+
+### 2. Instalar Docker e Compose plugin
+
+```bash
+# Ubuntu / Debian
+sudo apt update && sudo apt install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list
+sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo usermod -aG docker "$USER"   # logout/login depois disto
+```
+
+### 3. Clonar o repo e configurar `.env`
+
+```bash
+git clone https://github.com/<owner>/<repo>.git sextante
+cd sextante
+cp .env.example .env
+# Editar .env e preencher:
+#   POSTGRES_PASSWORD=<gerar com: openssl rand -base64 32>
+#   LETSENCRYPT__EMAIL=<email para a conta ACME>
+#   LETSENCRYPT__DOMAINNAME=<domínio público que aponta para esta VPS>
+```
+
+### 4. Build e arranque
+
+```bash
+docker compose build
+docker compose up -d
+docker compose logs -f api
+```
+
+Na primeira request HTTPS (browser ou `curl -I https://<dominio>/`) o LettuceEncrypt obtém o certificado de Let's Encrypt e persiste-o no volume `letsencrypt-certs`. Renovação é automática.
+
+### 5. Verificação live
+
+```bash
+# Browser: https://<dominio>/  → mostra a landing PT-PT do Angular.
+curl -I https://<dominio>/api/health     # → HTTP/2 200
+openssl s_client -connect <dominio>:443 -servername <dominio> </dev/null 2>/dev/null \
+  | openssl x509 -noout -issuer            # → issuer Let's Encrypt
+```
+
+### Operações comuns
+
+```bash
+docker compose pull                      # depois de o CI publicar imagens
+docker compose up -d --no-deps api       # reiniciar só a API
+docker compose logs -f api               # tail live
+docker compose exec postgres psql -U app sextante
+```
+
+> CD via GitHub Actions e backups automatizados (`pg_dump` por schema com retenção 30 dias + 1 restore de teste) ficam fora da Phase 0 — Phase 6 (dogfooding).
 
 ---
 

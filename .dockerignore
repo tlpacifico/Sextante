@@ -1,0 +1,39 @@
+# Build outputs
+**/bin/
+**/obj/
+**/dist/
+**/.angular/
+**/node_modules/
+src/Bootstrap/Sextante.Host/wwwroot/
+
+# IDE / editor
+.vs/
+.vscode/
+.idea/
+
+# Git / repo metadata
+.git/
+.github/
+.gitignore
+.gitattributes
+.dockerignore
+
+# Logs / temporary
+logs/
+*.log
+
+# Local secrets and overrides
+.env
+.env.local
+appsettings.Development.json
+appsettings.Local.json
+
+# Tests output
+TestResults/
+
+# Documentation that doesn't influence build
+specs/
+docs/
+README.md
+AGENTS.md
+CHANGELOG.md

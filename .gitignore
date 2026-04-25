@@ -61,6 +61,10 @@ node_modules/
 dist/
 .angular/
 .npm/
+
+# Angular SPA output is generated into the Host's wwwroot at build time.
+src/Bootstrap/Sextante.Host/wwwroot/*
+!src/Bootstrap/Sextante.Host/wwwroot/.gitkeep
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -83,6 +87,11 @@ testem.log
 !.vscode/tasks.json
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Claude Code per-user state (settings.local.json, command transcripts).
+# Shared settings, if any, live in .claude/settings.json and remain tracked.
+.claude/settings.local.json
+.claude/projects/
 *.swp
 *.swo
 *~
