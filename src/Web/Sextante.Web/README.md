@@ -1,59 +1,90 @@
-# SextanteWeb
+# Sextante.Web
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.24.
+Frontend Angular do Sextante. Phase 1b moveu a stack para
+**Angular 21 LTS + PrimeNG (preset Aura) + Tailwind CSS + Signals**.
+Decisões e alternativas discutidas ficam documentadas em
+[`docs/adr/ADR-011-frontend-ui-stack.md`](../../../docs/adr/ADR-011-frontend-ui-stack.md).
 
-## Development server
+## Regra de ouro de styling
 
-To start a local development server, run:
+> **Tailwind para layout / spacing / responsividade; PrimeNG para
+> componentes interativos; nunca os dois a estilizar o mesmo elemento.**
 
-```bash
-ng serve
-```
+`tech-stack.md` §19.2. Tradução prática:
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- Wrappers, grids, spacing, breakpoints, typography utilities ⇒ Tailwind
+  (`flex`, `grid`, `gap-4`, `md:p-6`, `text-sm`).
+- Botões, inputs, dialogs, menus, toasts, tabelas, charts ⇒ PrimeNG
+  (`p-button`, `p-inputText`, `p-dialog`, `p-menubar`, `p-toast`,
+  `p-treetable`, `p-chart`).
+- **Nunca** redefinir cores ou bordas de um componente PrimeNG via
+  Tailwind utilities. Usar tokens Aura (`--p-primary-500`,
+  `--p-surface-700`) ou customizar o preset via `definePreset(...)`.
 
-## Code scaffolding
+## Dark mode
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+`ThemeService` (`app/core/theme.service.ts`) mantém um `signal<boolean>
+isDark` persistido em `localStorage` (`sextante.theme`). Toggle
+adiciona / remove a classe `.dark` em `document.documentElement`.
+A inicialização segue: `localStorage` → `prefers-color-scheme: dark`
+→ `light`.
 
-```bash
-ng generate component component-name
-```
+A classe `.dark` é resolvida pelo Aura preset (`darkModeSelector:
+'.dark'` em `app.config.ts`) e por Tailwind (`darkMode: 'class'` em
+`tailwind.config.js`).
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Inner-loop dev (npm start)
 
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+Para iterar sobre o frontend sem ter de re-buildar o Host a cada
+alteração, correr Angular dev server e Host em paralelo:
 
 ```bash
-ng test
+# Terminal 1 — backend
+docker compose up postgres -d
+cd src/Bootstrap/Sextante.Host
+dotnet run
+
+# Terminal 2 — frontend
+cd src/Web/Sextante.Web
+npm start  # http://localhost:4200/
 ```
 
-## Running end-to-end tests
+A `proxy.conf.json` (a adicionar quando necessário) mapeia
+`/api/*` para o Host. Em desenvolvimento o cookie `refresh_token`
+é emitido com `Secure=false` (porque `IsHttps=false` em `localhost`);
+em produção mantém-se sempre `Secure=true`.
 
-For end-to-end (e2e) testing, run:
+Para builds de produção embutidos no Host (single-binary):
 
 ```bash
-ng e2e
+dotnet build -c Release    # dispara `npm run build` + copia para wwwroot/
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+A flag MSBuild `-p:SkipAngularBuild=true` salta o passo do `npm run
+build` (CI usa-a no job de testes para evitar instalar Node).
 
-## Additional Resources
+## Testing
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+```bash
+npm test -- --watch=false --browsers=ChromeHeadless
+```
+
+CI corre o mesmo comando.
+
+## Build
+
+```bash
+npm run build -- --configuration=production
+```
+
+Output vai para `../../Bootstrap/Sextante.Host/wwwroot/` (configurado em
+`angular.json`).
+
+## Component scaffolding
+
+Standalone components only — sem `NgModule` em código novo. Reactive
+Forms only para forms de domínio (`FormsModule` / `ngModel` proibido).
+
+```bash
+ng generate component features/<feature>/<name> --standalone --change-detection=OnPush
+```

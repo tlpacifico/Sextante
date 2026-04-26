@@ -23,21 +23,12 @@ psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
     --set migrations_password="$SEXTANTE_MIGRATIONS_PASSWORD" \
     --set app_password="$SEXTANTE_APP_PASSWORD" \
     --set db_name="$POSTGRES_DB" <<'EOSQL'
-DO $bootstrap$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'sextante_migrations') THEN
-        EXECUTE format('CREATE ROLE sextante_migrations BYPASSRLS LOGIN PASSWORD %L', :'migrations_password');
-    ELSE
-        EXECUTE format('ALTER ROLE sextante_migrations WITH LOGIN PASSWORD %L', :'migrations_password');
-    END IF;
-
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'sextante_app') THEN
-        EXECUTE format('CREATE ROLE sextante_app NOBYPASSRLS LOGIN PASSWORD %L', :'app_password');
-    ELSE
-        EXECUTE format('ALTER ROLE sextante_app WITH LOGIN PASSWORD %L', :'app_password');
-    END IF;
-END
-$bootstrap$;
+-- psql variables (:'name') substitute at top-level only — never inside
+-- DO/PL/pgSQL blocks. Init scripts only run on first boot (volume init),
+-- so plain CREATE ROLE is sufficient; idempotency would require psql
+-- \gexec gymnastics for no real benefit.
+CREATE ROLE sextante_migrations BYPASSRLS LOGIN PASSWORD :'migrations_password';
+CREATE ROLE sextante_app NOBYPASSRLS LOGIN PASSWORD :'app_password';
 
 -- Ownership da BD para sextante_migrations: simplifica DDL (CREATE SCHEMA,
 -- CREATE TABLE) e evita corner cases do Postgres 15+ com permissões em

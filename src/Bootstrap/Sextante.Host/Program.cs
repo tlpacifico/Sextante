@@ -170,6 +170,12 @@ try
     app.UseAuthorization();
     app.UseRateLimiter();
 
+    // Phase 1b — emite o refresh token como cookie httpOnly e injecta o
+    // valor do cookie no body de /api/auth/refresh quando o request não
+    // o trouxer. Tem de estar registado depois de UseRouting (implícito)
+    // e antes dos endpoints do Identity para wrappar as suas respostas.
+    app.UseRefreshTokenCookie();
+
     app.MapOpenApi("/openapi/v1.json");
 
     app.MapGet("/api/health", () => Results.Ok(new HealthResponse("ok", DateTimeOffset.UtcNow)))
