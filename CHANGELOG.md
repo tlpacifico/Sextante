@@ -12,7 +12,9 @@
 - `MapIdentityApi<AppUser>()` em `/api/auth/*` + custom `POST /api/auth/signup` (User + Tenant + Membership atómicos)
 - `NotImplementedEmailSender` stub para endpoints email-dependentes (Phase 1b/Phase 6 substitui)
 - Architecture tests (NetArchTest) codificam tabela §3.1 do tech-stack — 9 testes verdes
-- Integration tests com Testcontainers Postgres — 6 testes verdes (signup, multi-tenancy, RLS no DB layer)
+- Integration tests com Testcontainers Postgres — 7 testes verdes (signup, multi-tenancy, RLS no DB layer, regressão pool leak)
+- Sub-agent deep review verde — fechados 4 findings HIGH: RLS em Tenants, defesa contra pool connection leak, factory de claims via privileged connection, signup com ordem de save consistente
+- Mark phase 1a as complete
 
 ## 2026-04-25
 
