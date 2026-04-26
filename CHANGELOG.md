@@ -17,6 +17,9 @@
 - Integration tests com Testcontainers Postgres — cobrem signup, multi-tenancy (incluindo assert do SqlState `42501` da RLS policy), regressão pool leak via WebApplicationFactory, login → JWT com `tenant_id` claim, e auto-população de `TenantId` pelo interceptor
 - Sub-agent deep review verde (round 1 fechou findings HIGH RLS-em-Tenants, pool leak, claims via privileged conn, ordem de save no signup; round 2 endureceu critical/high adicionais — ver sub-agent log)
 - Mark phase 1a as complete
+- Implementar Phase 1a — Auth backend + Multi-tenancy
+- Fechar findings HIGH do sub-agent review
+- Endurecer Phase 1a — round 2 sub-agent review
 
 ### Pendentes para Phase 2 (registados em ADR-010 §"Pendentes")
 
