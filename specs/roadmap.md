@@ -33,19 +33,19 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 > Branch: `phase-1a-auth-backend`. Validação por integration tests + curl, **sem UI**.
 
-- [ ] Módulo `Identity` (5 projetos) com schema `shared`.
-- [ ] `AppUser`, `Tenant`, `Membership`, `Roles`.
-- [ ] `IdentityDbContext` + migration inicial.
-- [ ] `MapIdentityApi<AppUser>()` em `/api/auth/...`.
-- [ ] Custom `POST /api/auth/signup` orquestrando User + Tenant + Membership(Owner) atomicamente.
-- [ ] `TenantAwareClaimsPrincipalFactory` injetando `tenant_id` e `tenant_role` no JWT.
-- [ ] `ITenantContext` em `Identity.PublicApi`, com fail-loud se claim falta.
-- [ ] PostgreSQL Row-Level Security setup (role app sem `BYPASSRLS`, role migrations com).
-- [ ] `DbConnectionInterceptor` para `SET app.current_tenant_id`.
-- [ ] **Wolverine** registado no Host como mediator in-process + bus inter-módulos (tech-stack §3.5 e §11).
-- [ ] **Escrever ADR-010** (CQRS via Wolverine) em `docs/adr/` antes de assentar os primeiros handlers.
-- [ ] Testes de arquitetura (NetArchTest) a validar regras de dependência.
-- [ ] **Suite de testes de multi-tenancy** (read/write/delete cross-tenant; insert auto-popula `TenantId`; query sem `TenantContext` lança).
+- [x] Módulo `Identity` (5 projetos) com schema `shared`.
+- [x] `AppUser`, `Tenant`, `Membership`, `Roles`.
+- [x] `IdentityDbContext` + migration inicial.
+- [x] `MapIdentityApi<AppUser>()` em `/api/auth/...`.
+- [x] Custom `POST /api/auth/signup` orquestrando User + Tenant + Membership(Owner) atomicamente.
+- [x] `TenantAwareClaimsPrincipalFactory` injetando `tenant_id` e `tenant_role` no JWT.
+- [x] `ITenantContext` em `Identity.PublicApi`, com fail-loud se claim falta.
+- [x] PostgreSQL Row-Level Security setup (role app sem `BYPASSRLS`, role migrations com).
+- [x] `DbConnectionInterceptor` para `SET app.current_tenant_id`.
+- [x] **Wolverine** registado no Host como mediator in-process + bus inter-módulos (tech-stack §3.5 e §11).
+- [x] **Escrever ADR-010** (CQRS via Wolverine) em `docs/adr/` antes de assentar os primeiros handlers.
+- [x] Testes de arquitetura (NetArchTest) a validar regras de dependência.
+- [x] **Suite de testes de multi-tenancy** (read/write/delete cross-tenant; insert auto-popula `TenantId`; query sem `TenantContext` lança).
 
 **Saída**: dois utilizadores conseguem registar-se, fazer login, e via integration tests / curl nenhum vê dados do outro (mesmo em endpoints que usem SQL raw, graças a RLS). Refresh token cookie/access token in-memory são exercitados via integration tests; UI fica para 1b.
 

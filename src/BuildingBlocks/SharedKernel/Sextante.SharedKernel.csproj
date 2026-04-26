@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sextante.SharedKernel</RootNamespace>
+    <AssemblyName>Sextante.SharedKernel</AssemblyName>
+  </PropertyGroup>
+
+</Project>

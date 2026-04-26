@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sextante.Modules.Identity.Application</RootNamespace>
+    <AssemblyName>Sextante.Modules.Identity.Application</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sextante.Modules.Identity.Domain\Sextante.Modules.Identity.Domain.csproj" />
+    <ProjectReference Include="..\Sextante.Modules.Identity.PublicApi\Sextante.Modules.Identity.PublicApi.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\SharedKernel\Sextante.SharedKernel.csproj" />
+  </ItemGroup>
+
+</Project>

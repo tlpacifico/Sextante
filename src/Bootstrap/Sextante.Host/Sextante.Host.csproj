@@ -15,6 +15,15 @@
     <PackageReference Include="Serilog.Sinks.File" />
     <PackageReference Include="LettuceEncrypt" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.PostgreSQL" />
+    <PackageReference Include="WolverineFx.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Modules\Identity\Sextante.Modules.Identity.Api\Sextante.Modules.Identity.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Identity\Sextante.Modules.Identity.Application\Sextante.Modules.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\Modules\Identity\Sextante.Modules.Identity.Infrastructure\Sextante.Modules.Identity.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

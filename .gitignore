@@ -109,6 +109,7 @@ Thumbs.db
 appsettings.Development.json
 appsettings.Local.json
 secrets.json
+dev-jwt-key.bin
 
 # ============================================================
 # Docker

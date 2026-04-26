@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sextante.Modules.Identity.PublicApi</RootNamespace>
+    <AssemblyName>Sextante.Modules.Identity.PublicApi</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\SharedKernel\Sextante.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Messaging\Sextante.Messaging.csproj" />
+  </ItemGroup>
+
+</Project>

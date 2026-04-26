@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sextante.Messaging</RootNamespace>
+    <AssemblyName>Sextante.Messaging</AssemblyName>
+  </PropertyGroup>
+
+</Project>

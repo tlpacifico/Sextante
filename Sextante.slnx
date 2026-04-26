@@ -3,7 +3,19 @@
   <Folder Name="/src/Bootstrap/">
     <Project Path="src/Bootstrap/Sextante.Host/Sextante.Host.csproj" />
   </Folder>
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/SharedKernel/Sextante.SharedKernel.csproj" />
+    <Project Path="src/BuildingBlocks/Messaging/Sextante.Messaging.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/Sextante.Modules.Identity.Domain/Sextante.Modules.Identity.Domain.csproj" />
+    <Project Path="src/Modules/Identity/Sextante.Modules.Identity.Application/Sextante.Modules.Identity.Application.csproj" />
+    <Project Path="src/Modules/Identity/Sextante.Modules.Identity.Infrastructure/Sextante.Modules.Identity.Infrastructure.csproj" />
+    <Project Path="src/Modules/Identity/Sextante.Modules.Identity.Api/Sextante.Modules.Identity.Api.csproj" />
+    <Project Path="src/Modules/Identity/Sextante.Modules.Identity.PublicApi/Sextante.Modules.Identity.PublicApi.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Sextante.ArchitectureTests/Sextante.ArchitectureTests.csproj" />
+    <Project Path="tests/Sextante.IntegrationTests/Sextante.IntegrationTests.csproj" />
   </Folder>
 </Solution>

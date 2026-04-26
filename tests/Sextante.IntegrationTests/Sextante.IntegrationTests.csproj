@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>Sextante.ArchitectureTests</RootNamespace>
-    <AssemblyName>Sextante.ArchitectureTests</AssemblyName>
+    <RootNamespace>Sextante.IntegrationTests</RootNamespace>
+    <AssemblyName>Sextante.IntegrationTests</AssemblyName>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -12,19 +12,27 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="coverlet.collector" />
-    <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="FluentAssertions" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Bootstrap\Sextante.Host\Sextante.Host.csproj" />
     <ProjectReference Include="..\..\src\Modules\Identity\Sextante.Modules.Identity.Domain\Sextante.Modules.Identity.Domain.csproj" />
-    <ProjectReference Include="..\..\src\Modules\Identity\Sextante.Modules.Identity.Application\Sextante.Modules.Identity.Application.csproj" />
     <ProjectReference Include="..\..\src\Modules\Identity\Sextante.Modules.Identity.Infrastructure\Sextante.Modules.Identity.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\Modules\Identity\Sextante.Modules.Identity.Api\Sextante.Modules.Identity.Api.csproj" />
     <ProjectReference Include="..\..\src\Modules\Identity\Sextante.Modules.Identity.PublicApi\Sextante.Modules.Identity.PublicApi.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\SharedKernel\Sextante.SharedKernel.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -16,7 +16,9 @@ services:
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:80;https://+:443}
       LettuceEncrypt__EmailAddress: ${LETSENCRYPT__EMAIL:-}
       LettuceEncrypt__DomainNames__0: ${LETSENCRYPT__DOMAINNAME:-}
-      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=${POSTGRES_USER:-app};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      ConnectionStrings__Migration: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_migrations;Password=${SEXTANTE_MIGRATIONS_PASSWORD:-changeme_migrations}
+      ConnectionStrings__App: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_app;Password=${SEXTANTE_APP_PASSWORD:-changeme_app}
+      JWT__SIGNING_KEY: ${JWT__SIGNING_KEY:?JWT__SIGNING_KEY must be set}
     ports:
       - "80:80"
       - "443:443"
@@ -32,12 +34,13 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-sextante}
-      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-sextante}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sextante}"]
       interval: 10s
       timeout: 5s
       retries: 5
