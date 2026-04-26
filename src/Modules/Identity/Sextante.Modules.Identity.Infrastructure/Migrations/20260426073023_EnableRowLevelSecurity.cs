@@ -46,8 +46,10 @@ namespace Sextante.Modules.Identity.Infrastructure.Migrations
                     ON DELETE CASCADE;
                 """);
 
-            // 3. RLS na tabela tenant-owned. FORCE garante que mesmo o owner
+            // 3. RLS nas tabelas tenant-owned. FORCE garante que mesmo o owner
             //    da tabela passa pela policy (defesa em profundidade).
+            //    A coluna que identifica o tenant difere entre Memberships
+            //    (FK tenant_id) e Tenants (a própria PK Id).
             migrationBuilder.Sql("""
                 ALTER TABLE shared."Memberships" ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE shared."Memberships" FORCE ROW LEVEL SECURITY;
@@ -55,12 +57,21 @@ namespace Sextante.Modules.Identity.Infrastructure.Migrations
                 CREATE POLICY tenant_isolation ON shared."Memberships"
                     USING (tenant_id = current_setting('app.current_tenant_id', false)::uuid)
                     WITH CHECK (tenant_id = current_setting('app.current_tenant_id', false)::uuid);
+
+                ALTER TABLE shared."Tenants" ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE shared."Tenants" FORCE ROW LEVEL SECURITY;
+
+                CREATE POLICY tenant_self_isolation ON shared."Tenants"
+                    USING ("Id" = current_setting('app.current_tenant_id', false)::uuid)
+                    WITH CHECK ("Id" = current_setting('app.current_tenant_id', false)::uuid);
                 """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("""DROP POLICY IF EXISTS tenant_self_isolation ON shared."Tenants";""");
+            migrationBuilder.Sql("""ALTER TABLE shared."Tenants" DISABLE ROW LEVEL SECURITY;""");
             migrationBuilder.Sql("""DROP POLICY IF EXISTS tenant_isolation ON shared."Memberships";""");
             migrationBuilder.Sql("""ALTER TABLE shared."Memberships" DISABLE ROW LEVEL SECURITY;""");
             migrationBuilder.Sql("""ALTER TABLE shared."Memberships" DROP CONSTRAINT IF EXISTS "FK_Memberships_Tenants_TenantId";""");

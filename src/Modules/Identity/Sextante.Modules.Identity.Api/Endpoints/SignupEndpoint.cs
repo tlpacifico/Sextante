@@ -54,7 +54,21 @@ public static class SignupEndpoint
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        // 1. Cria AppUser via Identity.
+        var tenant = new Tenant
+        {
+            Id = GuidV7.NewId(),
+            Name = request.TenantName,
+        };
+
+        // Sobrepõe o GUC sentinel definido no checkout do pool. set_config(.., true)
+        // limita o scope a esta transação; o pool-level interceptor reescreve no
+        // próximo checkout (defesa contra leak entre tenants).
+        await db.Database.ExecuteSqlRawAsync(
+            "SELECT set_config('app.current_tenant_id', {0}, true)",
+            new object[] { tenant.Id.ToString() },
+            ct);
+
+        // 1. Cria AppUser via Identity. SaveChanges interno junta-se à tx.
         var user = new AppUser
         {
             Id = GuidV7.NewId(),
@@ -69,24 +83,14 @@ public static class SignupEndpoint
                 e => new[] { e.Description }));
         }
 
-        // 2. Cria Tenant.
-        var tenant = new Tenant
-        {
-            Id = GuidV7.NewId(),
-            Name = request.TenantName,
-        };
+        // 2. Cria Tenant — RLS WITH CHECK passa porque current_tenant_id == tenant.Id.
+        //    Save imediato: a FK SQL Memberships.tenant_id → Tenants.Id não está no
+        //    modelo EF (TenantId é value object); sem este flush, EF reordena os
+        //    INSERTs e o constraint da DB dispara.
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync(ct);
 
-        // 3. Define o tenant ativo na connection — necessário para a policy
-        //    RLS WITH CHECK que valida o INSERT em Memberships. set_config(.., true)
-        //    limita o scope ao transaction corrente.
-        await db.Database.ExecuteSqlRawAsync(
-            "SELECT set_config('app.current_tenant_id', {0}, true)",
-            new object[] { tenant.Id.ToString() },
-            ct);
-
-        // 4. Cria Membership(Owner).
+        // 3. Cria Membership(Owner) e persiste na mesma tx.
         var membership = new Membership
         {
             Id = GuidV7.NewId(),
@@ -97,15 +101,17 @@ public static class SignupEndpoint
         db.Memberships.Add(membership);
         await db.SaveChangesAsync(ct);
 
-        // 5. Publica integration event. Storage Wolverine fica no schema messaging
-        //    da mesma BD; o INSERT na outbox participa nesta tx via Postgres.
+        await tx.CommitAsync(ct);
+
+        // 4. Publica integration event pós-commit. Phase 1a: at-most-once
+        //    (sem subscriber). Phase 2 (módulo Financial) refactoriza para
+        //    handler Wolverine, onde Policies.AutoApplyTransactions garante
+        //    outbox transacional nativa.
         await bus.PublishAsync(new UserRegisteredIntegrationEvent(
             user.Id,
             tenant.Id,
             user.Email!,
             DateTimeOffset.UtcNow));
-
-        await tx.CommitAsync(ct);
 
         return Results.Created($"/api/auth/manage/info", new SignupResponse(user.Id, tenant.Id));
     }

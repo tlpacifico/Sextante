@@ -1,7 +1,6 @@
 using System.Data.Common;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Npgsql;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 
 namespace Sextante.Modules.Identity.Infrastructure.Persistence;
@@ -11,16 +10,25 @@ namespace Sextante.Modules.Identity.Infrastructure.Persistence;
 /// de connection do pool, alimentando a policy RLS <c>tenant_isolation</c>.
 /// </summary>
 /// <remarks>
-/// <para>Apenas executa quando há <see cref="HttpContext"/> autenticado;
-/// requests anonymous (signup, login pré-auth) ficam sem
-/// <c>app.current_tenant_id</c> e a RLS bloqueia qualquer query a tabelas
-/// tenant-owned (fail-loud).</para>
-/// <para>Migrations correm fora do pipeline HTTP, com o role
-/// <c>sextante_migrations</c> que tem <c>BYPASSRLS</c> — não precisam do
-/// <c>SET</c>.</para>
+/// <para>Defesa contra leak entre tenants via pool reuse: a interceptor
+/// corre <strong>sempre</strong> em <c>ConnectionOpenedAsync</c> e
+/// reescreve o GUC. Para requests autenticadas, escreve o tenant atual;
+/// para requests anonymous (signup, login pré-auth, health checks),
+/// escreve o "sentinel UUID" zero, que nenhuma row real iguala — RLS
+/// devolve sempre vazio.</para>
+/// <para>O signup endpoint sobrepõe explicitamente o GUC para o tenant
+/// recém-criado dentro do scope da transação (<c>set_config(..., true)</c>)
+/// antes de inserir Tenant + Membership.</para>
 /// </remarks>
 public sealed class TenantConnectionInterceptor : DbConnectionInterceptor
 {
+    /// <summary>
+    /// UUID sentinel usado quando não há tenant. Garantido por construção
+    /// que nenhum <see cref="Sextante.SharedKernel.GuidV7.NewId"/> bate com
+    /// este valor (Guid v7 inclui timestamp non-zero).
+    /// </summary>
+    public static readonly Guid AnonymousTenantSentinel = Guid.Empty;
+
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ITenantContext _tenantContext;
 
@@ -37,13 +45,7 @@ public sealed class TenantConnectionInterceptor : DbConnectionInterceptor
         ConnectionEndEventData eventData,
         CancellationToken cancellationToken = default)
     {
-        if (!ShouldApplyTenant())
-        {
-            await base.ConnectionOpenedAsync(connection, eventData, cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        var tenantId = _tenantContext.TenantId.Value;
+        var tenantId = ResolveTenantOrSentinel();
         await SetTenantAsync(connection, tenantId, cancellationToken).ConfigureAwait(false);
 
         await base.ConnectionOpenedAsync(connection, eventData, cancellationToken).ConfigureAwait(false);
@@ -53,22 +55,31 @@ public sealed class TenantConnectionInterceptor : DbConnectionInterceptor
         DbConnection connection,
         ConnectionEndEventData eventData)
     {
-        if (!ShouldApplyTenant())
-        {
-            base.ConnectionOpened(connection, eventData);
-            return;
-        }
-
-        var tenantId = _tenantContext.TenantId.Value;
+        var tenantId = ResolveTenantOrSentinel();
         SetTenant(connection, tenantId);
 
         base.ConnectionOpened(connection, eventData);
     }
 
-    private bool ShouldApplyTenant()
+    private Guid ResolveTenantOrSentinel()
     {
         var http = _httpContextAccessor.HttpContext;
-        return http?.User.Identity?.IsAuthenticated == true;
+        if (http?.User.Identity?.IsAuthenticated != true)
+        {
+            return AnonymousTenantSentinel;
+        }
+
+        try
+        {
+            return _tenantContext.TenantId.Value;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Request autenticada sem claim tenant_id — fail-safe para o
+            // sentinel; o pipeline da request vai falhar mais adiante quando
+            // o handler tentar resolver ITenantContext.
+            return AnonymousTenantSentinel;
+        }
     }
 
     private static async Task SetTenantAsync(DbConnection connection, Guid tenantId, CancellationToken cancellationToken)

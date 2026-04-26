@@ -123,3 +123,13 @@ builder.Host.UseWolverine(opts =>
   compose (produção). Decisão final em ADR de DB roles a futuro.
 - **Subscriber do `UserRegisteredIntegrationEvent`** — Phase 2 (módulo
   Financial faz seed de categorias).
+- **Refactor signup para handler Wolverine** — em Phase 1a o endpoint
+  publica via `IMessageBus.PublishAsync` *após* commit (at-most-once);
+  quando o subscriber Phase 2 existir, transformar o signup num handler
+  com `Policies.AutoApplyTransactions` para outbox transacional nativo
+  (exactly-once via outbox).
+- **Lookup de memberships durante login**: actualmente
+  `TenantAwareClaimsPrincipalFactory` abre uma connection direta com
+  o role `sextante_migrations` (BYPASSRLS) para ler memberships antes
+  da resolução de tenant. Phase 6 vai considerar uma alternativa via
+  permissive RLS policy condicionada a um GUC `app.identity_lookup_user_id`.
