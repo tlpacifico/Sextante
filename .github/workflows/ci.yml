@@ -101,6 +101,14 @@ jobs:
       - name: Test
         run: dotnet test Sextante.slnx -c Release --no-build --logger "trx;LogFileName=test-results.trx"
 
+      - name: Install Angular dependencies
+        working-directory: src/Web/Sextante.Web
+        run: npm ci --no-audit --no-fund
+
+      - name: Karma unit tests (ChromeHeadless)
+        working-directory: src/Web/Sextante.Web
+        run: npm test -- --watch=false --browsers=ChromeHeadless
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

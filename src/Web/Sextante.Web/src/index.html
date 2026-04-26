@@ -6,6 +6,21 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <script>
+    // Apply dark mode before Angular boots to avoid FOUC. Mirrors
+    // ThemeService.resolveInitialTheme(): localStorage > prefers-color-scheme.
+    (function () {
+      try {
+        var stored = window.localStorage.getItem('sextante.theme');
+        var dark = stored === 'dark'
+          || (stored !== 'light' && window.matchMedia
+              && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) { /* storage unavailable — fallback to light. */ }
+    })();
+  </script>
 </head>
 <body>
   <app-root></app-root>

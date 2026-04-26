@@ -53,15 +53,15 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 > Branch: `phase-1b-auth-ui`. Constrói em cima da API estável da Phase 1a.
 
-- [ ] Upgrade Angular 19 → **Angular 21 LTS** (com bump de TypeScript / CLI / build-angular alinhados).
-- [ ] Adicionar **PrimeNG**, **PrimeIcons**, **Chart.js** (peer da PrimeNG Chart) e **Tailwind CSS** (+ `postcss`, `autoprefixer`) ao `package.json`. Configurar tema PrimeNG default + Tailwind preflight a coexistir (tech-stack §19).
-- [ ] **Escrever ADR-011** (Frontend UI stack: PrimeNG + Tailwind + Signals) em `docs/adr/` antes de adicionar dependências.
-- [ ] Layout shell com PrimeNG: header (tenant ativo + menu user), sidenav placeholder, toast outlet.
-- [ ] Páginas `/signup`, `/login`, `/forgot-password`, `/reset-password` com Reactive Forms e validação PT-PT.
-- [ ] `HttpInterceptor` anexa `Authorization: Bearer <access>` e faz auto-refresh em 401 contra `/api/auth/refresh`.
-- [ ] Refresh token em **httpOnly cookie** (set pelo backend); access token em memória via Signal.
-- [ ] Auth guard usa Signal de auth state — redireciona para `/login` se vazio.
-- [ ] E2E manual: signup → login → request protegida → logout → refresh expirado força re-login (com browser real, não só integration tests).
+- [x] Upgrade Angular 19 → **Angular 21 LTS** (com bump de TypeScript / CLI / build-angular alinhados).
+- [x] Adicionar **PrimeNG**, **PrimeIcons**, **Chart.js** (peer da PrimeNG Chart) e **Tailwind CSS** (+ `postcss`, `autoprefixer`) ao `package.json`. Configurar tema PrimeNG default + Tailwind preflight a coexistir (tech-stack §19).
+- [x] **Escrever ADR-011** (Frontend UI stack: PrimeNG + Tailwind + Signals) em `docs/adr/` antes de adicionar dependências.
+- [x] Layout shell com PrimeNG: header (tenant ativo + menu user), sidenav placeholder, toast outlet.
+- [x] Páginas `/signup`, `/login`, `/forgot-password`, `/reset-password` com Reactive Forms e validação PT-PT.
+- [x] `HttpInterceptor` anexa `Authorization: Bearer <access>` e faz auto-refresh em 401 contra `/api/auth/refresh`.
+- [x] Refresh token em **httpOnly cookie** (set pelo backend); access token em memória via Signal.
+- [x] Auth guard usa Signal de auth state — redireciona para `/login` se vazio.
+- [x] E2E manual: signup → login → request protegida → logout → refresh expirado força re-login (com browser real, não só integration tests).
 
 **Saída**: utilizador completa o fluxo de auth inteiro pelo browser; sessão persiste através de refresh do browser via httpOnly cookie. PrimeNG + Tailwind operacionais como base para Phase 2+.
 

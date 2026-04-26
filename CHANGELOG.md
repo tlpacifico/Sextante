@@ -2,6 +2,23 @@
 
 ## 2026-04-26
 
+- Phase 1b — Auth UI completa (Angular)
+- Upgrade Angular 19 → Angular 21 LTS (TypeScript ~5.9, zone.js ~0.16)
+- PrimeNG 21 (preset Aura, dark mode via `darkModeSelector: '.dark'`), PrimeIcons, Chart.js (peer da PrimeNG Chart)
+- Tailwind CSS 3.4 + tailwindcss-primeui (regra: Tailwind para layout, PrimeNG para componentes — `Sextante.Web/README.md`)
+- ADR-011 — Frontend UI stack (PrimeNG + Tailwind + Signals; alternativas Material / Bootstrap / NgRx rejeitadas)
+- `AuthService` com `WritableSignal<AuthState>` privado, computed `isAuthenticated`/`tenantName`/`tenantRole`, signup/login/logout/refresh/loadProfile, storm guard via Promise in-flight cacheada
+- `authInterceptor` (HttpInterceptorFn) anexa `Authorization: Bearer ...` a `/api/*`, ignora endpoints marcados com `SKIP_AUTH`, refresh + retry em 401, força logout em refresh-failure
+- `authGuard` (`CanActivateFn`) baseado em signal, redirect para `/login?returnUrl=<path>`
+- Páginas `/signup`, `/login`, `/forgot-password`, `/reset-password` com Reactive Forms, validação PT-PT, `error-translator` para Identity error codes
+- `AuthShellComponent` (card centrado + toast outlet) e `AppShellComponent` (`p-menubar` com tenant + theme toggle + user menu, `p-drawer` placeholder, toast outlet)
+- `ThemeService` (signal `isDark`, `localStorage('sextante.theme')`, fallback `prefers-color-scheme`); script inline em `index.html` aplica `.dark` antes do primeiro paint para evitar FOUC
+- Backend: middleware `RefreshTokenCookieMiddleware` em `Sextante.Host` emite `Set-Cookie: refresh_token=...; HttpOnly; Secure; SameSite=Strict; Path=/api/auth/refresh; Max-Age=604800` em `/login` + `/refresh`, aceita o cookie como fallback ao body em `/refresh`, e limpa o cookie em `/logout`
+- Backend: novos endpoints `POST /api/auth/logout` (204, requer auth) e `GET /api/auth/me` (perfil + tenant claims; necessário porque o bearer ticket é opaque, não JWT)
+- 4 novos integration tests (`RefreshCookieTests`) — atributos do cookie no login, refresh com cookie + sem body, refresh com cookie inválido → 401, logout emite delete-cookie
+- 16 Karma unit tests (`auth.service.spec`, `auth.interceptor.spec`, `auth.guard.spec`) cobrindo signup/login/logout/refresh/storm-guard/guard-redirect
+- CI: novo step `npm test -- --watch=false --browsers=ChromeHeadless` no job de testes
+- `@primeng/themes` (deprecado) substituído por `@primeuix/themes` (open question da Phase 1b resolvida)
 - Adicionar feature spec da Phase 1a (Auth backend + Multi-tenancy)
 - Implementar módulo `Identity` (5 projetos) com `AppUser`, `Tenant`, `Membership` e schema `shared`
 - Wolverine 5.x como mediator in-process + bus inter-módulos com outbox PostgreSQL transacional (ADR-010)
