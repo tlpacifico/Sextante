@@ -6,6 +6,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      Concessão deliberada: AppUser/AppRole herdam de IdentityUser<Guid> /
+      IdentityRole<Guid> que vivem no namespace Microsoft.AspNetCore.Identity
+      e historicamente são distribuídos com a referência EFCore. Em projetos
+      sem persistência poderíamos usar Microsoft.Extensions.Identity.Stores
+      (sem EF), mas exigiria redeclarar FKs. Não estender este precedente —
+      novos artefatos de Domain devem permanecer EF-free.
+    -->
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
   </ItemGroup>
 

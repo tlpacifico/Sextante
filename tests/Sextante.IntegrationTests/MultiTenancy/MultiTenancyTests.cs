@@ -17,42 +17,101 @@ public sealed class MultiTenancyTests : IClassFixture<IdentityIntegrationFixture
     }
 
     [Fact]
-    public async Task CrossTenant_write_blocked_by_RLS_at_DB_layer()
+    public async Task CrossTenant_read_isolated_via_RLS()
     {
         var client = _fixture.Factory.CreateClient();
-        var (userA, tenantA) = await Signup(client, "alpha");
-        var (_, tenantB) = await Signup(client, "beta");
+        var (_, tenantA) = await Signup(client, "alpha-read");
+        var (_, tenantB) = await Signup(client, "beta-read");
 
-        // Conectar como sextante_app (NOBYPASSRLS), simular tenant A,
-        // tentar UPDATE numa membership cujo tenant_id é B.
         await using var conn = _fixture.OpenAppConnection();
-        await ExecuteAsync(conn, "SELECT set_config('app.current_tenant_id', @tid, false)",
+
+        // Como sextante_app + GUC=tenantA: SELECT só vê membership de A.
+        await ExecuteAsync(conn,
+            "SELECT set_config('app.current_tenant_id', @tid, false)",
             ("tid", tenantA.ToString()));
 
-        // O UPDATE não devolve 0 rows — a RLS policy filtra antes; mas se tentarmos
-        // forçar com um WHERE explícito incluindo o tenant_id de B, a row é invisível.
-        await using var cmd = new NpgsqlCommand(
-            "UPDATE shared.\"Memberships\" SET \"Role\" = 'ReadOnly' WHERE tenant_id = @b",
-            conn);
-        cmd.Parameters.AddWithValue("b", tenantB);
-        var affected = await cmd.ExecuteNonQueryAsync();
+        await using (var read = conn.CreateCommand())
+        {
+            read.CommandText =
+                "SELECT count(*) FROM shared.\"Memberships\" WHERE tenant_id = @b";
+            read.Parameters.AddWithValue("b", tenantB);
+            var count = (long)(await read.ExecuteScalarAsync())!;
+            count.Should().Be(0,
+                "RLS USING clause torna a row de B invisível mesmo com WHERE explícito.");
+        }
 
-        affected.Should().Be(0, "RLS USING clause torna a row de B invisível para tenant A.");
+        // Sanity: a row de B existe (vista como superuser).
+        await using var super = _fixture.OpenSuperuserConnection();
+        await using (var read = super.CreateCommand())
+        {
+            read.CommandText =
+                "SELECT count(*) FROM shared.\"Memberships\" WHERE tenant_id = @b";
+            read.Parameters.AddWithValue("b", tenantB);
+            var count = (long)(await read.ExecuteScalarAsync())!;
+            count.Should().Be(1, "superuser não passa pela RLS, vê a row de B.");
+        }
     }
 
     [Fact]
-    public async Task Insert_as_app_role_without_tenant_set_is_rejected_by_RLS()
+    public async Task CrossTenant_write_throws_42501_at_DB_layer()
     {
         var client = _fixture.Factory.CreateClient();
-        await Signup(client, "gamma");
+        var (_, tenantA) = await Signup(client, "alpha-write");
+        var (_, tenantB) = await Signup(client, "beta-write");
+
+        // Conectar como sextante_app, simular tenant A; tentar INSERT
+        // de uma membership cujo tenant_id é B → WITH CHECK rejeita
+        // com SqlState 42501 (insufficient_privilege para a policy).
+        await using var conn = _fixture.OpenAppConnection();
+        await ExecuteAsync(conn,
+            "SELECT set_config('app.current_tenant_id', @tid, false)",
+            ("tid", tenantA.ToString()));
+
+        // Precisamos de um UserId que exista (FK Memberships.UserId →
+        // AspNetUsers.Id) — usar o owner do tenant B, lido via superuser.
+        Guid victimUserId;
+        await using (var super = _fixture.OpenSuperuserConnection())
+        {
+            await using var lookup = super.CreateCommand();
+            lookup.CommandText =
+                "SELECT \"UserId\" FROM shared.\"Memberships\" WHERE tenant_id = @b LIMIT 1";
+            lookup.Parameters.AddWithValue("b", tenantB);
+            victimUserId = (Guid)(await lookup.ExecuteScalarAsync())!;
+        }
+
+        await using var cmd = new NpgsqlCommand(
+            "INSERT INTO shared.\"Memberships\"" +
+            "(\"Id\",\"UserId\",tenant_id,\"Role\",\"CreatedAt\",\"UpdatedAt\",\"Version\")" +
+            " VALUES (@id, @u, @t, 'Owner', now(), now(), 1)",
+            conn);
+        cmd.Parameters.AddWithValue("id", Guid.NewGuid());
+        cmd.Parameters.AddWithValue("u", victimUserId);
+        cmd.Parameters.AddWithValue("t", tenantB);
+
+        var act = async () => await cmd.ExecuteNonQueryAsync();
+
+        var ex = await act.Should().ThrowAsync<PostgresException>();
+        ex.Which.SqlState.Should().Be(
+            "42501",
+            "RLS WITH CHECK rejeita o INSERT — mensagem do Postgres contém 'row-level security policy'.");
+        ex.Which.Message.Should().Contain("row-level security policy");
+    }
+
+    [Fact]
+    public async Task Insert_as_app_role_without_tenant_set_is_rejected()
+    {
+        var client = _fixture.Factory.CreateClient();
+        await Signup(client, "gamma-no-tenant");
 
         await using var conn = _fixture.OpenAppConnection();
 
-        // Sem set_config, a policy WITH CHECK (USING) lança porque
-        // current_setting('app.current_tenant_id', false) falha.
+        // Sem set_config, current_setting('app.current_tenant_id', false)
+        // lança 42704 (undefined_object) ou retorna '' que falha o cast
+        // ::uuid (22P02). Em ambos os casos é fail-loud.
         await using var cmd = new NpgsqlCommand(
-            "INSERT INTO shared.\"Memberships\"(\"Id\",\"UserId\",tenant_id,\"Role\",\"CreatedAt\",\"UpdatedAt\",\"Version\") " +
-            "VALUES (@id, @u, @t, 'Owner', now(), now(), 1)",
+            "INSERT INTO shared.\"Memberships\"" +
+            "(\"Id\",\"UserId\",tenant_id,\"Role\",\"CreatedAt\",\"UpdatedAt\",\"Version\")" +
+            " VALUES (@id, @u, @t, 'Owner', now(), now(), 1)",
             conn);
         cmd.Parameters.AddWithValue("id", Guid.NewGuid());
         cmd.Parameters.AddWithValue("u", Guid.NewGuid());
@@ -61,9 +120,6 @@ public sealed class MultiTenancyTests : IClassFixture<IdentityIntegrationFixture
         var act = async () => await cmd.ExecuteNonQueryAsync();
 
         var ex = await act.Should().ThrowAsync<PostgresException>();
-        // SQLSTATE pode variar: 42501 (insufficient_privilege) quando RLS rejeita,
-        // 22P02 (invalid_text_representation) quando current_setting devolve ''
-        // e o cast ::uuid falha, ou 42704 quando o setting não existe.
         ex.Which.SqlState.Should().BeOneOf("42501", "22P02", "42704");
     }
 
@@ -80,13 +136,37 @@ public sealed class MultiTenancyTests : IClassFixture<IdentityIntegrationFixture
         result.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Sentinel_tenant_id_is_rejected_by_CHECK_constraint()
+    {
+        // Defesa em profundidade: mesmo um superuser não pode inserir
+        // tenant_id sentinel — a CHECK constraint da migration
+        // HardenTenantSentinelGuard fecha o gap de colisão entre
+        // anonymous-sentinel e tenant real.
+        await using var conn = _fixture.OpenSuperuserConnection();
+
+        await using var cmd = new NpgsqlCommand(
+            "INSERT INTO shared.\"Tenants\"(\"Id\",\"Name\",\"CreatedAt\",\"UpdatedAt\",\"Version\")" +
+            " VALUES (@id, 'Sentinel attempt', now(), now(), 1)",
+            conn);
+        cmd.Parameters.AddWithValue(
+            "id",
+            new Guid("ffffffff-ffff-ffff-ffff-ffffffffffff"));
+
+        var act = async () => await cmd.ExecuteNonQueryAsync();
+
+        var ex = await act.Should().ThrowAsync<PostgresException>();
+        ex.Which.SqlState.Should().Be("23514"); // check_violation
+        ex.Which.Message.Should().Contain("CK_Tenants_Id_NotSentinel");
+    }
+
     private async Task<(Guid UserId, Guid TenantId)> Signup(HttpClient client, string label)
     {
         var email = $"{label}-{Guid.NewGuid():N}@example.com";
         var response = await client.PostAsJsonAsync("/api/auth/signup", new
         {
             email,
-            password = "Password123!",
+            password = "Password123!extra",
             tenantName = $"Tenant {label}",
         });
         response.EnsureSuccessStatusCode();

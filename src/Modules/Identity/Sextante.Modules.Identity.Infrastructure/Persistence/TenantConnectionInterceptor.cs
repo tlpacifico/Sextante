@@ -14,8 +14,13 @@ namespace Sextante.Modules.Identity.Infrastructure.Persistence;
 /// corre <strong>sempre</strong> em <c>ConnectionOpenedAsync</c> e
 /// reescreve o GUC. Para requests autenticadas, escreve o tenant atual;
 /// para requests anonymous (signup, login pré-auth, health checks),
-/// escreve o "sentinel UUID" zero, que nenhuma row real iguala — RLS
-/// devolve sempre vazio.</para>
+/// escreve o sentinel <see cref="AnonymousTenantSentinel"/>, um UUID
+/// estruturalmente impossível (proibido por CHECK constraint nas tabelas
+/// tenant-owned) — RLS devolve sempre vazio.</para>
+/// <para>Em <c>ConnectionClosingAsync</c> faz <c>RESET</c> do GUC,
+/// garantindo que mesmo se o próximo checkout não passar por esta
+/// interceptor (raw <c>NpgsqlConnection</c>, código não-EF), a connection
+/// não traz tenant herdado do uso anterior.</para>
 /// <para>O signup endpoint sobrepõe explicitamente o GUC para o tenant
 /// recém-criado dentro do scope da transação (<c>set_config(..., true)</c>)
 /// antes de inserir Tenant + Membership.</para>
@@ -23,11 +28,13 @@ namespace Sextante.Modules.Identity.Infrastructure.Persistence;
 public sealed class TenantConnectionInterceptor : DbConnectionInterceptor
 {
     /// <summary>
-    /// UUID sentinel usado quando não há tenant. Garantido por construção
-    /// que nenhum <see cref="Sextante.SharedKernel.GuidV7.NewId"/> bate com
-    /// este valor (Guid v7 inclui timestamp non-zero).
+    /// UUID sentinel usado quando não há tenant. Estruturalmente impossível
+    /// como TenantId real: forbidden por <c>CHECK</c> constraint em
+    /// <c>shared.Tenants.Id</c> e <c>shared.Memberships.tenant_id</c>
+    /// (migration <c>HardenTenantSentinelGuard</c>).
     /// </summary>
-    public static readonly Guid AnonymousTenantSentinel = Guid.Empty;
+    public static readonly Guid AnonymousTenantSentinel =
+        new("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ITenantContext _tenantContext;
@@ -61,10 +68,28 @@ public sealed class TenantConnectionInterceptor : DbConnectionInterceptor
         base.ConnectionOpened(connection, eventData);
     }
 
+    public override async ValueTask<InterceptionResult> ConnectionClosingAsync(
+        DbConnection connection,
+        ConnectionEventData eventData,
+        InterceptionResult result)
+    {
+        await ResetTenantAsync(connection, CancellationToken.None).ConfigureAwait(false);
+        return await base.ConnectionClosingAsync(connection, eventData, result).ConfigureAwait(false);
+    }
+
+    public override InterceptionResult ConnectionClosing(
+        DbConnection connection,
+        ConnectionEventData eventData,
+        InterceptionResult result)
+    {
+        ResetTenant(connection);
+        return base.ConnectionClosing(connection, eventData, result);
+    }
+
     private Guid ResolveTenantOrSentinel()
     {
         var http = _httpContextAccessor.HttpContext;
-        if (http?.User.Identity?.IsAuthenticated != true)
+        if (http is null || http.User.Identity?.IsAuthenticated != true)
         {
             return AnonymousTenantSentinel;
         }
@@ -102,5 +127,50 @@ public sealed class TenantConnectionInterceptor : DbConnectionInterceptor
         p.Value = tenantId.ToString();
         cmd.Parameters.Add(p);
         cmd.ExecuteNonQuery();
+    }
+
+    private static async Task ResetTenantAsync(DbConnection connection, CancellationToken cancellationToken)
+    {
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var cmd = connection.CreateCommand();
+            // Repor para o sentinel em vez de RESET — RESET deixaria o GUC
+            // não definido, e current_setting('...', false)::uuid lança no
+            // próximo checkout antes do interceptor reescrever.
+            cmd.CommandText =
+                "SELECT set_config('app.current_tenant_id', 'ffffffff-ffff-ffff-ffff-ffffffffffff', false)";
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Connection já em close; reset best-effort. ConnectionOpenedAsync
+            // do próximo checkout reescreve com o tenant correto de qualquer
+            // forma — defense in depth, não invariant.
+        }
+    }
+
+    private static void ResetTenant(DbConnection connection)
+    {
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            return;
+        }
+
+        try
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText =
+                "SELECT set_config('app.current_tenant_id', 'ffffffff-ffff-ffff-ffff-ffffffffffff', false)";
+            cmd.ExecuteNonQuery();
+        }
+        catch
+        {
+            // Idem ResetTenantAsync.
+        }
     }
 }

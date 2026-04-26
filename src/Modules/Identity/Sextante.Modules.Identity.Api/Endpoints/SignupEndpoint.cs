@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Sextante.Modules.Identity.Domain.Entities;
 using Sextante.Modules.Identity.Domain.Enums;
 using Sextante.Modules.Identity.Infrastructure.Persistence;
@@ -16,7 +17,7 @@ namespace Sextante.Modules.Identity.Api.Endpoints;
 
 public sealed record SignupRequest(
     [property: Required, EmailAddress] string Email,
-    [property: Required, MinLength(8)] string Password,
+    [property: Required, MinLength(12)] string Password,
     [property: Required, MinLength(2), MaxLength(200)] string TenantName);
 
 public sealed record SignupResponse(Guid UserId, Guid TenantId);
@@ -27,6 +28,7 @@ public static class SignupEndpoint
     {
         routes.MapPost("/signup", HandleAsync)
             .AllowAnonymous()
+            .AddEndpointFilter<DataAnnotationsValidationFilter<SignupRequest>>()
             .WithName("Signup")
             .WithSummary("Cria User + Tenant + Membership(Owner) atomicamente.")
             .Produces<SignupResponse>(StatusCodes.Status201Created)
@@ -40,18 +42,9 @@ public static class SignupEndpoint
         UserManager<AppUser> userManager,
         IdentityDbContext db,
         IMessageBus bus,
+        ILogger<SignupRequest> logger,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Email)
-            || string.IsNullOrWhiteSpace(request.Password)
-            || string.IsNullOrWhiteSpace(request.TenantName))
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["body"] = ["email, password e tenantName são obrigatórios."],
-            });
-        }
-
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         var tenant = new Tenant
@@ -78,9 +71,20 @@ public static class SignupEndpoint
         var createUserResult = await userManager.CreateAsync(user, request.Password);
         if (!createUserResult.Succeeded)
         {
-            return Results.ValidationProblem(createUserResult.Errors.ToDictionary(
-                e => e.Code,
-                e => new[] { e.Description }));
+            // Não devolver os códigos do Identity (`DuplicateEmail`,
+            // `PasswordRequiresDigit`, etc.) — distinguir "email já existe"
+            // de "password fraca" é um oráculo de enumeração de utilizadores.
+            // Logar server-side para debug; ao cliente devolver mensagem
+            // genérica.
+            logger.LogInformation(
+                "Signup recusado para {Email}: {Errors}",
+                request.Email,
+                string.Join("; ", createUserResult.Errors.Select(e => $"{e.Code}={e.Description}")));
+
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["request"] = ["Não foi possível criar a conta com os dados fornecidos."],
+            });
         }
 
         // 2. Cria Tenant — RLS WITH CHECK passa porque current_tenant_id == tenant.Id.
@@ -104,15 +108,55 @@ public static class SignupEndpoint
         await tx.CommitAsync(ct);
 
         // 4. Publica integration event pós-commit. Phase 1a: at-most-once
-        //    (sem subscriber). Phase 2 (módulo Financial) refactoriza para
-        //    handler Wolverine, onde Policies.AutoApplyTransactions garante
-        //    outbox transacional nativa.
+        //    (sem subscriber). ADR-010 §"Pendentes" #3 e CHANGELOG marcam
+        //    o refactor para handler Wolverine + AutoApplyTransactions
+        //    (outbox transacional nativa) como deferred para Phase 2.
         await bus.PublishAsync(new UserRegisteredIntegrationEvent(
             user.Id,
             tenant.Id,
             user.Email!,
             DateTimeOffset.UtcNow));
 
-        return Results.Created($"/api/auth/manage/info", new SignupResponse(user.Id, tenant.Id));
+        return Results.Created($"/api/users/{user.Id}", new SignupResponse(user.Id, tenant.Id));
+    }
+}
+
+/// <summary>
+/// Endpoint filter que corre <see cref="Validator.TryValidateObject"/> no
+/// argumento do tipo <typeparamref name="T"/> antes de chamar o handler.
+/// Minimal endpoints em .NET 10 não validam <c>DataAnnotations</c>
+/// automaticamente — sem este filter, <c>[Required]</c>, <c>[MinLength]</c>,
+/// <c>[EmailAddress]</c> etc. seriam decorativos.
+/// </summary>
+internal sealed class DataAnnotationsValidationFilter<T> : IEndpointFilter
+{
+    public async ValueTask<object?> InvokeAsync(
+        EndpointFilterInvocationContext context,
+        EndpointFilterDelegate next)
+    {
+        var arg = context.Arguments.OfType<T>().FirstOrDefault();
+        if (arg is null)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["body"] = ["Body em falta ou em formato inválido."],
+            });
+        }
+
+        var results = new List<ValidationResult>();
+        var ctx = new ValidationContext(arg);
+        if (Validator.TryValidateObject(arg, ctx, results, validateAllProperties: true))
+        {
+            return await next(context);
+        }
+
+        var errors = results
+            .SelectMany(r => r.MemberNames.DefaultIfEmpty("request").Select(m => (Member: m, r.ErrorMessage)))
+            .GroupBy(t => t.Member)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(t => t.ErrorMessage ?? "Valor inválido.").ToArray());
+
+        return Results.ValidationProblem(errors);
     }
 }

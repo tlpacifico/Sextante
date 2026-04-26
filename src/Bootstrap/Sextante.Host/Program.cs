@@ -1,7 +1,9 @@
+using System.Threading.RateLimiting;
 using LettuceEncrypt;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
 using Serilog.Events;
 using Sextante.Host;
@@ -54,9 +56,9 @@ try
     builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
     // Bearer token (encrypted ticket; fica funcional desde Phase 1a).
-    // JWT proper (HS256 com chave assinada) é Phase 6 — keepsake é gerado/exigido
-    // já agora para forçar a presença da env var em produção.
-    EnsureJwtSigningKey(builder.Configuration, builder.Environment);
+    // JWT proper (HS256 com chave assinada) é Phase 6 — chave é exigida já
+    // agora para forçar a presença da env var em todos os ambientes.
+    EnsureJwtSigningKey(builder.Configuration);
     builder.Services.AddAuthentication(IdentityConstants.BearerScheme)
         .AddBearerToken(IdentityConstants.BearerScheme, options =>
         {
@@ -64,6 +66,26 @@ try
             options.RefreshTokenExpiration = TimeSpan.FromDays(7);
         });
     builder.Services.AddAuthorization();
+
+    // Rate limiting nos endpoints /api/auth/* — defesa contra brute-force,
+    // password spray e enumeração. Particionado por IP do cliente; janela
+    // fixa de 1 minuto. Limit deliberadamente folgado: 30 req/IP/min cobre
+    // workflow legítimo (signup → login → refresh) e bloqueia spray.
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddPolicy(IdentityApi.AuthRateLimitPolicy, httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.Connection.RemoteIpAddress?.ToString()
+                    ?? httpContext.Request.Headers["X-Forwarded-For"].ToString()
+                    ?? "unknown",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 30,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                }));
+    });
 
     // Wolverine: mediator in-process + bus inter-módulos com outbox transacional.
     builder.Host.UseWolverine(opts =>
@@ -146,6 +168,7 @@ try
 
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseRateLimiter();
 
     app.MapOpenApi("/openapi/v1.json");
 
@@ -173,30 +196,21 @@ finally
     await Log.CloseAndFlushAsync();
 }
 
-static void EnsureJwtSigningKey(IConfiguration configuration, IHostEnvironment env)
+static void EnsureJwtSigningKey(IConfiguration configuration)
 {
     var fromEnv = configuration["JWT:SIGNING_KEY"]
-        ?? configuration["JWT__SIGNING_KEY"]
-        ?? Environment.GetEnvironmentVariable("JWT__SIGNING_KEY");
+        ?? configuration["JWT__SIGNING_KEY"];
 
-    if (!string.IsNullOrWhiteSpace(fromEnv))
+    if (string.IsNullOrWhiteSpace(fromEnv))
     {
-        return;
-    }
-
-    if (!env.IsDevelopment())
-    {
+        // Sem fallback: ASPNETCORE_ENVIRONMENT pode ser flippado para
+        // Development por engano (env var herdada, .env errado), e gerar
+        // uma chave random no disco mascararia o problema. Devs locais
+        // metem JWT__SIGNING_KEY em .env (ver .env.example) ou via
+        // dotnet user-secrets.
         throw new InvalidOperationException(
-            "JWT__SIGNING_KEY ausente em ambiente não-Development. Configura a env var antes de arrancar o Host.");
-    }
-
-    var keyPath = Path.Combine(AppContext.BaseDirectory, "dev-jwt-key.bin");
-    if (!File.Exists(keyPath))
-    {
-        var bytes = new byte[64];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
-        File.WriteAllBytes(keyPath, bytes);
-        Log.Warning("JWT__SIGNING_KEY ausente — gerada chave dev em {Path}.", keyPath);
+            "JWT__SIGNING_KEY ausente. Configura a env var antes de arrancar o Host. "
+            + "Gera com `openssl rand -base64 64`.");
     }
 }
 

@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Sextante.Modules.Identity.Domain.Entities;
-using Sextante.Modules.Identity.Domain.Enums;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 using Sextante.SharedKernel;
 
@@ -11,14 +10,16 @@ public sealed class IdentityDbContext : IdentityDbContext<AppUser, AppRole, Guid
 {
     private readonly ITenantContext? _tenantContext;
 
-    public IdentityDbContext(DbContextOptions<IdentityDbContext> options)
-        : base(options)
-    {
-    }
-
+    /// <summary>
+    /// <paramref name="tenantContext"/> é nullable: em runtime DI fornece o
+    /// scoped <see cref="TenantContext"/>; o <see cref="MigrationRunner"/>
+    /// passa <c>null</c> para correr migrations sem dependência de
+    /// <c>HttpContext</c>. Quando null, a global query filter de
+    /// <see cref="Membership"/> degrada para no-op.
+    /// </summary>
     public IdentityDbContext(
         DbContextOptions<IdentityDbContext> options,
-        ITenantContext tenantContext)
+        ITenantContext? tenantContext = null)
         : base(options)
     {
         _tenantContext = tenantContext;

@@ -46,7 +46,27 @@ public static class DependencyInjection
         });
 
         services
-            .AddIdentityCore<AppUser>()
+            .AddIdentityCore<AppUser>(opts =>
+            {
+                // Phase 1a defaults — endurecidos vs. framework defaults para
+                // suportar o threat-model multi-tenant SaaS. Referência:
+                // sub-agent review HIGH H5 (2026-04-26).
+                //
+                // Password length 12 (NIST SP 800-63B Memorized Secret §5.1.1.2):
+                // sem complexidade obrigatória, mas tamanho compensa entropia.
+                opts.Password.RequiredLength = 12;
+                // Lockout: 5 tentativas falhadas em 15 min. Brute-force por
+                // utilizador conhecido fica capado mesmo sem rate limiter.
+                opts.Lockout.MaxFailedAccessAttempts = 5;
+                opts.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                opts.Lockout.AllowedForNewUsers = true;
+                // Email único: bloqueia segundo signup com o mesmo email.
+                opts.User.RequireUniqueEmail = true;
+                // SignIn.RequireConfirmedEmail fica false até Phase 1b/Phase 6
+                // ligar IEmailSender real — caso contrário o utilizador nunca
+                // consegue logar (NotImplementedEmailSender lança).
+                opts.SignIn.RequireConfirmedEmail = false;
+            })
             .AddRoles<AppRole>()
             .AddEntityFrameworkStores<IdentityDbContext>()
             .AddDefaultTokenProviders()

@@ -16,8 +16,8 @@ services:
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:80;https://+:443}
       LettuceEncrypt__EmailAddress: ${LETSENCRYPT__EMAIL:-}
       LettuceEncrypt__DomainNames__0: ${LETSENCRYPT__DOMAINNAME:-}
-      ConnectionStrings__Migration: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_migrations;Password=${SEXTANTE_MIGRATIONS_PASSWORD:-changeme_migrations}
-      ConnectionStrings__App: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_app;Password=${SEXTANTE_APP_PASSWORD:-changeme_app}
+      ConnectionStrings__Migration: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_migrations;Password=${SEXTANTE_MIGRATIONS_PASSWORD:?SEXTANTE_MIGRATIONS_PASSWORD must be set}
+      ConnectionStrings__App: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_app;Password=${SEXTANTE_APP_PASSWORD:?SEXTANTE_APP_PASSWORD must be set}
       JWT__SIGNING_KEY: ${JWT__SIGNING_KEY:?JWT__SIGNING_KEY must be set}
     ports:
       - "80:80"
@@ -36,6 +36,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-sextante}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      # Consumidos por infra/postgres/01-bootstrap-roles.sh na primeira boot
+      # do volume — definem as passwords dos roles sextante_migrations e
+      # sextante_app, que têm de bater certo com as connection strings da API.
+      SEXTANTE_MIGRATIONS_PASSWORD: ${SEXTANTE_MIGRATIONS_PASSWORD:?SEXTANTE_MIGRATIONS_PASSWORD must be set}
+      SEXTANTE_APP_PASSWORD: ${SEXTANTE_APP_PASSWORD:?SEXTANTE_APP_PASSWORD must be set}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./infra/postgres:/docker-entrypoint-initdb.d:ro

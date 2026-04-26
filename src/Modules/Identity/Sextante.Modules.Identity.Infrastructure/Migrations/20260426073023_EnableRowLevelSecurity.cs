@@ -12,12 +12,14 @@ namespace Sextante.Modules.Identity.Infrastructure.Migrations
         {
             // Roles `sextante_migrations` (BYPASSRLS) e `sextante_app` (NOBYPASSRLS)
             // são criadas externamente — pelo init script do compose em produção
-            // e pelo IdentityIntegrationFixture nos testes. Manter a criação
-            // aqui geraria circularidade: migrations correm como sextante_migrations
-            // e este role tem de existir antes da primeira migration.
+            // (infra/postgres/01-bootstrap-roles.sh) e pelo IdentityIntegrationFixture
+            // nos testes. Manter a criação aqui geraria circularidade: migrations
+            // correm como sextante_migrations e este role tem de existir antes da
+            // primeira migration.
             //
-            // Idempotência: tudo o que se segue tolera execução múltipla
-            // (DO $$ ... IF NOT EXISTS $$) para suportar containers reciclados.
+            // Esta migration NÃO é idempotente fora do controlo do EF: re-execução
+            // manual falha com `policy already exists`. EF protege via
+            // __migrations history table — mas não invocar via SQL solto.
 
             // 1. Permissões — sextante_app só faz CRUD; nada de DDL.
             migrationBuilder.Sql("""

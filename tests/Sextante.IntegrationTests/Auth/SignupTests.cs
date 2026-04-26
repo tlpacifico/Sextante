@@ -26,7 +26,7 @@ public sealed class SignupTests : IClassFixture<IdentityIntegrationFixture>
         var response = await client.PostAsJsonAsync("/api/auth/signup", new
         {
             email = $"alice-{Guid.NewGuid():N}@example.com",
-            password = "Password123!",
+            password = "Password123!extra",
             tenantName = "Tenant Alice",
         });
 
@@ -52,7 +52,6 @@ public sealed class SignupTests : IClassFixture<IdentityIntegrationFixture>
             "SELECT count(*) FROM shared.\"Memberships\" WHERE \"UserId\" = @id", body.UserId);
         membershipCount.Should().Be(1);
 
-        // O membership criado tem role Owner para o tenant criado.
         var ownerRole = await Scalar<string>(conn,
             "SELECT \"Role\" FROM shared.\"Memberships\" WHERE \"UserId\" = @id", body.UserId);
         ownerRole.Should().Be("Owner");
@@ -61,23 +60,23 @@ public sealed class SignupTests : IClassFixture<IdentityIntegrationFixture>
         // subscriber para UserRegisteredIntegrationEvent. Em Phase 1a não há —
         // verificação completa do outbox transacional fica para Phase 2 (módulo
         // Financial trá-lo o subscriber). Aqui só asseguramos que o schema
-        // messaging existe (Wolverine inicializou) e a contagem é >= 0.
+        // messaging existe (Wolverine inicializou).
         var schemaExists = await Scalar<long>(conn,
             "SELECT count(*) FROM information_schema.schemata WHERE schema_name = 'messaging'");
         schemaExists.Should().Be(1);
     }
 
     [Fact]
-    public async Task Signup_with_invalid_password_returns_400_and_persists_nothing()
+    public async Task Signup_with_short_password_is_rejected_by_validation_filter()
     {
         var client = _fixture.Factory.CreateClient();
-        var email = $"bob-{Guid.NewGuid():N}@example.com";
+        var email = $"short-{Guid.NewGuid():N}@example.com";
 
         var response = await client.PostAsJsonAsync("/api/auth/signup", new
         {
             email,
-            password = "weak",
-            tenantName = "Tenant Bob",
+            password = "weak", // < 12 chars → DataAnnotations filter rejeita
+            tenantName = "Tenant Short",
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -85,7 +84,60 @@ public sealed class SignupTests : IClassFixture<IdentityIntegrationFixture>
         await using var conn = _fixture.OpenSuperuserConnection();
         var userCount = await Scalar<long>(conn,
             "SELECT count(*) FROM shared.\"AspNetUsers\" WHERE \"Email\" = @id", email);
-        userCount.Should().Be(0);
+        userCount.Should().Be(0, "filter falha antes do UserManager.CreateAsync.");
+    }
+
+    [Fact]
+    public async Task Signup_with_simple_long_password_is_rejected_by_identity_validator()
+    {
+        // Passa o filter (>= 12 chars) mas falha o Password.RequiresDigit
+        // do Identity → handler devolve 400 com mensagem genérica.
+        var client = _fixture.Factory.CreateClient();
+        var email = $"simple-{Guid.NewGuid():N}@example.com";
+
+        var response = await client.PostAsJsonAsync("/api/auth/signup", new
+        {
+            email,
+            password = "abcdefghijkl", // 12 chars, nenhum dígito/símbolo/upper
+            tenantName = "Tenant Simple",
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // Anti-enumeração: a resposta NÃO deve revelar qual regra falhou.
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().NotContain("PasswordRequiresDigit",
+            "código do Identity é leak de enumeração — handler colapsa em mensagem genérica.");
+        body.Should().NotContain("PasswordRequiresUpper");
+        body.Should().NotContain("PasswordRequiresNonAlphanumeric");
+    }
+
+    [Fact]
+    public async Task Duplicate_email_signup_returns_generic_error_no_enumeration_oracle()
+    {
+        var client = _fixture.Factory.CreateClient();
+        var email = $"dup-{Guid.NewGuid():N}@example.com";
+
+        var first = await client.PostAsJsonAsync("/api/auth/signup", new
+        {
+            email,
+            password = "Password123!extra",
+            tenantName = "Tenant Dup",
+        });
+        first.EnsureSuccessStatusCode();
+
+        var second = await client.PostAsJsonAsync("/api/auth/signup", new
+        {
+            email,
+            password = "Password123!extra",
+            tenantName = "Tenant Dup 2",
+        });
+        second.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var body = await second.Content.ReadAsStringAsync();
+        body.Should().NotContain("DuplicateUserName",
+            "DuplicateUserName/DuplicateEmail revelam que email existe — leak de enumeração.");
+        body.Should().NotContain("DuplicateEmail");
     }
 
     [Fact]
@@ -97,10 +149,10 @@ public sealed class SignupTests : IClassFixture<IdentityIntegrationFixture>
         // verificada chamando o stub diretamente.
         using var scope = _fixture.Factory.Services.CreateScope();
         var sender = scope.ServiceProvider.GetRequiredService<
-            Microsoft.AspNetCore.Identity.IEmailSender<Sextante.Modules.Identity.Domain.Entities.AppUser>>();
+            Microsoft.AspNetCore.Identity.IEmailSender<AppUser>>();
 
         var act = async () => await sender.SendConfirmationLinkAsync(
-            new Sextante.Modules.Identity.Domain.Entities.AppUser(),
+            new AppUser(),
             "x@y.z",
             "https://example.com/confirm");
 

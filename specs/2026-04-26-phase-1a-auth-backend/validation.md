@@ -136,22 +136,33 @@ curl -i -X POST http://localhost/api/auth/refresh \
   -d '{"refreshToken":"<OLD_REFRESH_TOKEN_A>"}'
 # → 401 Unauthorized.
 
-# 8. Endpoint email-dependente é rejeitado loudly (Phase 1a stub)
+# 8. Endpoint email-dependente
 curl -i -X POST http://localhost/api/auth/forgotPassword \
   -H "Content-Type: application/json" \
   -d '{"email":"<EMAIL_A>"}'
-# → 500 Internal Server Error. Log do Host inclui
-#   "NotImplementedEmailSender". Phase 1b/Phase 6 vai concretizar.
+# → 200 OK silencioso. MapIdentityApi não invoca o IEmailSender quando o
+#   utilizador não tem o email confirmado (anti-enumeração) — em Phase 1a
+#   nenhum signup confirma email, portanto /forgotPassword devolve sempre
+#   200 sem chegar ao stub. A garantia "fail-loud" é validada pelo teste
+#   integration `NotImplementedEmailSender_throws_with_phase_1a_message`
+#   que invoca o stub diretamente via DI.
 
 # 9. Logout
 curl -fsS -X POST http://localhost/api/auth/logout \
   -H "Authorization: Bearer <ACCESS_TOKEN_A>"
 # → 200 OK. Próximo refresh com qualquer token de A é 401.
 
-# 10. Validar outbox: User A criado → mensagem na outbox sem subscriber.
+# 10. Validar outbox: o schema messaging existe e Wolverine inicializou.
 docker compose exec postgres psql -U sextante_migrations -d sextante \
-  -c 'SELECT count(*) FROM messaging.wolverine_outgoing;'
-# → 2 (uma por signup; ficam até Phase 2 conectar o Financial subscriber).
+  -c "SELECT count(*) FROM information_schema.schemata WHERE schema_name = 'messaging';"
+# → 1
+#
+# Phase 1a publica `UserRegisteredIntegrationEvent` POS-COMMIT (at-most-once,
+# fora da transação do signup). O outbox transacional (`wolverine_outgoing`
+# com persistência inline) só fica exercitado quando Phase 2 (módulo
+# Financial) introduzir o primeiro subscriber e o signup for refactorizado
+# para handler Wolverine com `Policies.AutoApplyTransactions`. Ver
+# ADR-010 §"Pendentes" e CHANGELOG.
 ```
 
 ## Out of scope for validation
