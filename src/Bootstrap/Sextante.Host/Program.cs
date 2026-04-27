@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
 using Serilog.Events;
 using Sextante.Host;
+using Sextante.Modules.Financial.Api;
+using Sextante.Modules.Financial.Infrastructure;
 using Sextante.Modules.Identity.Api;
 using Sextante.Modules.Identity.Application;
 using Sextante.Modules.Identity.Application.Middleware;
@@ -55,6 +57,9 @@ try
     // Identity module ----------------------------------------------------------
     builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
+    // Financial module ---------------------------------------------------------
+    builder.Services.AddFinancialModule(builder.Configuration);
+
     // Bearer token (encrypted ticket; fica funcional desde Phase 1a).
     // JWT proper (HS256 com chave assinada) é Phase 6 — chave é exigida já
     // agora para forçar a presença da env var em todos os ambientes.
@@ -97,7 +102,14 @@ try
 
         opts.PersistMessagesWithPostgresql(migrationConnection, schemaName: "messaging");
         opts.UseEntityFrameworkCoreTransactions();
-        opts.Policies.AutoApplyTransactions();
+        // AutoApplyTransactions corre por default em qualquer chain sem
+        // [Transactional]/[NonTransactional]. Com FinancialDbContext +
+        // IdentityDbContext registados, o EFCorePersistenceFrameProvider
+        // não consegue desambiguar — cada handler Wolverine declara
+        // [NonTransactional] e chama repository.SaveChangesAsync
+        // explicitamente (UoW por repositório). Quando um handler precisar
+        // de outbox transacional, troca para [Transactional] e injecta o
+        // DbContext concreto como parâmetro do Handle.
         opts.Policies.UseDurableLocalQueues();
         opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
         // Wolverine cria/actualiza o schema messaging.* no startup — JasperFx
@@ -106,6 +118,14 @@ try
         opts.Services.AddResourceSetupOnStartup();
 
         opts.Discovery.IncludeAssembly(typeof(Sextante.Modules.Identity.Application.AssemblyMarker).Assembly);
+        opts.Discovery.IncludeAssembly(typeof(Sextante.Modules.Financial.Application.AssemblyMarker).Assembly);
+
+        // Convenção plural: aceitar `*Handlers` (vertical slices agrupam vários
+        // handlers numa única classe estática). Wolverine default é `*Handler`.
+        opts.Discovery.CustomizeHandlerDiscovery(x =>
+        {
+            x.Includes.WithNameSuffix("Handlers");
+        });
 
         opts.Policies.AddMiddleware<TenantLoggingMiddleware>();
     });
@@ -163,7 +183,14 @@ try
 
     app.UseForwardedHeaders();
     app.UseSerilogRequestLogging();
-    app.UseExceptionHandler();
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseDeveloperExceptionPage();
+    }
+    else
+    {
+        app.UseExceptionHandler();
+    }
     app.UseStatusCodePages();
 
     app.UseAuthentication();
@@ -182,6 +209,7 @@ try
         .WithName("Health");
 
     app.MapIdentityModule();
+    app.MapFinancialModule();
 
     if (Directory.Exists(app.Environment.WebRootPath))
     {

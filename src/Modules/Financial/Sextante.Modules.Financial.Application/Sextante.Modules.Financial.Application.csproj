@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sextante.Modules.Financial.Application</RootNamespace>
+    <AssemblyName>Sextante.Modules.Financial.Application</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sextante.Modules.Financial.Domain\Sextante.Modules.Financial.Domain.csproj" />
+    <ProjectReference Include="..\Sextante.Modules.Financial.PublicApi\Sextante.Modules.Financial.PublicApi.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\SharedKernel\Sextante.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\Identity\Sextante.Modules.Identity.PublicApi\Sextante.Modules.Identity.PublicApi.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -47,10 +47,26 @@ export const routes: Routes = [
       {
         path: 'dashboard',
         loadComponent: () =>
-          import(
-            './features/dashboard/dashboard.placeholder.component'
-          ).then((m) => m.DashboardPlaceholderComponent),
+          import('./features/dashboard/dashboard.page').then(
+            (m) => m.DashboardPage,
+          ),
         title: 'Sextante — Dashboard',
+      },
+      {
+        path: 'accounts',
+        loadComponent: () =>
+          import('./features/financial/pages/accounts.page').then(
+            (m) => m.AccountsPage,
+          ),
+        title: 'Sextante — Contas',
+      },
+      {
+        path: 'categories',
+        loadComponent: () =>
+          import('./features/financial/pages/categories.page').then(
+            (m) => m.CategoriesPage,
+          ),
+        title: 'Sextante — Categorias',
       },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],

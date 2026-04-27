@@ -67,13 +67,13 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 ### Phase 2 — Categorias + Contas + Transações manuais + Dashboard mínimo
 
-- [ ] Módulo `Financial` (5 projetos) com schema `financial`.
-- [ ] Entidades: `Account`, `Category` (1 nível, `IsExpense`/`IsIncome`, ícone+cor), `Transaction` (com `Tags jsonb` preparado).
-- [ ] CRUD completo de cada (com **soft-delete em todas**).
-- [ ] Categorias seed criadas no signup (subscriber de `UserRegisteredIntegrationEvent`).
-- [ ] Não permitir eliminar categoria com transações associadas (arquivar → soft-delete).
-- [ ] Dashboard mínimo Angular: lista de transações com filtros (período, categoria, conta).
-- [ ] OpenAPI auto-gen.
+- [x] Módulo `Financial` (5 projetos) com schema `financial`.
+- [x] Entidades: `Account`, `Category` (1 nível, `Kind: {Expense,Income}` enum, ícone+cor), `Transaction` (com `Tags jsonb` preparado).
+- [x] CRUD completo de cada (com **soft-delete em todas**).
+- [x] Categorias seed criadas no signup (subscriber de `UserRegisteredIntegrationEvent`).
+- [x] Não permitir eliminar categoria com transações associadas (arquivar → soft-delete).
+- [x] Dashboard mínimo Angular: lista de transações com filtros (período, categoria, conta) + cards de totais + gráfico donut por categoria.
+- [x] OpenAPI auto-gen.
 
 **Saída**: utilizador cria categorias, contas e transações manuais; dashboard lista com filtros.
 
