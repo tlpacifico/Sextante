@@ -24,6 +24,8 @@
 - PrimeNG 21 nomes atualizados — `Dropdown` → `Select` (`p-select`), `Calendar` → `DatePicker` (`p-datepicker`)
 - `app.UseExceptionHandler()` mantido em produção; `app.UseDeveloperExceptionPage()` em Development para diagnostics em testes
 - Wolverine: removido `AutoApplyTransactions` (incompatível com múltiplos DbContexts) — handlers usam UoW por repositório
+- Mark phase 2 as complete
+- Adicionar responsive design como invariante do produto
 
 ## 2026-04-26
 
