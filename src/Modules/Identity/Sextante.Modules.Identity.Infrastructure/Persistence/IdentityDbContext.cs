@@ -39,6 +39,10 @@ public sealed class IdentityDbContext : IdentityDbContext<AppUser, AppRole, Guid
             b.ToTable("Tenants");
             b.HasKey(t => t.Id);
             b.Property(t => t.Name).IsRequired().HasMaxLength(200);
+            b.Property(t => t.PrimaryCurrency)
+                .IsRequired()
+                .HasMaxLength(3)
+                .HasDefaultValue("EUR");
             b.Property(t => t.CreatedAt).IsRequired();
             b.Property(t => t.UpdatedAt).IsRequired();
             b.Property(t => t.Version).IsConcurrencyToken();

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { MenuItem, MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { DrawerModule } from 'primeng/drawer';
@@ -20,6 +20,7 @@ import { ThemeService } from '../core/theme.service';
   standalone: true,
   imports: [
     RouterOutlet,
+    RouterLink,
     MenubarModule,
     MenuModule,
     ButtonModule,
@@ -87,9 +88,23 @@ import { ThemeService } from '../core/theme.service';
         <ng-template pTemplate="header">
           <span class="font-semibold">Navegação</span>
         </ng-template>
-        <p class="text-sm text-[var(--p-text-muted-color)] p-4">
-          Phase 2 — Dashboard, transações e categorias chegam aí.
-        </p>
+        <ul class="flex flex-col gap-1 p-3">
+          @for (item of menuItems(); track item.label) {
+            <li>
+              <a
+                [routerLink]="item.routerLink"
+                (click)="sidebarVisible.set(false)"
+                class="flex items-center gap-2 px-3 py-2 rounded-md
+                       text-[var(--p-text-color)]
+                       hover:bg-[var(--p-surface-100)]
+                       dark:hover:bg-[var(--p-surface-800)]"
+              >
+                <i [class]="item.icon"></i>
+                <span>{{ item.label }}</span>
+              </a>
+            </li>
+          }
+        </ul>
       </p-drawer>
 
       <section class="flex-1 px-4 py-6 md:px-8 md:py-8">
@@ -126,6 +141,16 @@ export class AppShellComponent {
       label: 'Dashboard',
       icon: 'pi pi-home',
       routerLink: ['/app/dashboard'],
+    },
+    {
+      label: 'Contas',
+      icon: 'pi pi-wallet',
+      routerLink: ['/app/accounts'],
+    },
+    {
+      label: 'Categorias',
+      icon: 'pi pi-tag',
+      routerLink: ['/app/categories'],
     },
   ]);
 

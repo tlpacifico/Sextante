@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sextante.Modules.Financial.Api</RootNamespace>
+    <AssemblyName>Sextante.Modules.Financial.Api</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sextante.Modules.Financial.Application\Sextante.Modules.Financial.Application.csproj" />
+    <ProjectReference Include="..\Sextante.Modules.Financial.Infrastructure\Sextante.Modules.Financial.Infrastructure.csproj" />
+    <ProjectReference Include="..\Sextante.Modules.Financial.PublicApi\Sextante.Modules.Financial.PublicApi.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\SharedKernel\Sextante.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\Identity\Sextante.Modules.Identity.PublicApi\Sextante.Modules.Identity.PublicApi.csproj" />
+  </ItemGroup>
+
+</Project>

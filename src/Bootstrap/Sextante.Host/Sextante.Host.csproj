@@ -24,6 +24,9 @@
     <ProjectReference Include="..\..\Modules\Identity\Sextante.Modules.Identity.Api\Sextante.Modules.Identity.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Identity\Sextante.Modules.Identity.Application\Sextante.Modules.Identity.Application.csproj" />
     <ProjectReference Include="..\..\Modules\Identity\Sextante.Modules.Identity.Infrastructure\Sextante.Modules.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Financial\Sextante.Modules.Financial.Api\Sextante.Modules.Financial.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Financial\Sextante.Modules.Financial.Application\Sextante.Modules.Financial.Application.csproj" />
+    <ProjectReference Include="..\..\Modules\Financial\Sextante.Modules.Financial.Infrastructure\Sextante.Modules.Financial.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

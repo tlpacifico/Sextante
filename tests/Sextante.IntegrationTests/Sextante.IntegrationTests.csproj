@@ -24,6 +24,9 @@
     <ProjectReference Include="..\..\src\Modules\Identity\Sextante.Modules.Identity.Domain\Sextante.Modules.Identity.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Identity\Sextante.Modules.Identity.Infrastructure\Sextante.Modules.Identity.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Modules\Identity\Sextante.Modules.Identity.PublicApi\Sextante.Modules.Identity.PublicApi.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Financial\Sextante.Modules.Financial.Domain\Sextante.Modules.Financial.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Financial\Sextante.Modules.Financial.Application\Sextante.Modules.Financial.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Financial\Sextante.Modules.Financial.Infrastructure\Sextante.Modules.Financial.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\SharedKernel\Sextante.SharedKernel.csproj" />
   </ItemGroup>
 
