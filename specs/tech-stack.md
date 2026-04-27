@@ -366,6 +366,7 @@ Sextante.sln
 | Frontend forms | Reactive Forms |
 | Chart library | **PrimeNG Chart** (Chart.js por baixo) |
 | Versão Angular | **21 LTS** (upgrade do 19 que entrou no scaffold da Phase 0) |
+| Responsive design | **Mobile-first**, breakpoints Tailwind, sanity check em 375 / 768 / 1280 px obrigatório por page (§19.5) |
 
 ---
 
@@ -427,6 +428,44 @@ Sextante.sln
 - Build do Angular roda dentro do Dockerfile multi-stage (stage `node:lts-alpine`).
 - Output servido pelo Host .NET via `UseStaticFiles + MapFallbackToFile("index.html")`.
 - Sem CDN externa, sem reverse proxy. TLS direto pelo Kestrel + LettuceEncrypt (§1).
+
+### 19.5 Responsive design (invariante — concretiza `mission.md` §4.6)
+
+A UI web é **mobile-first responsive**. Mobile não é roadmap futuro — é requisito desde a Phase 1b.
+
+#### Breakpoints alvo (Tailwind defaults)
+
+| Alias | Min-width | Caso típico |
+|-------|-----------|-------------|
+| (base) | 0 | Mobile portrait (≥360 px alvo de design) |
+| `sm` | 640 px | Mobile landscape / phablet |
+| `md` | 768 px | Tablet portrait |
+| `lg` | 1024 px | Tablet landscape / desktop pequeno |
+| `xl` | 1280 px | Desktop |
+| `2xl` | 1536 px | Desktop grande (não otimizar abaixo de `xl` por defeito) |
+
+#### Regras
+
+- **Default mobile, depois `md:` para desktop.** Escrever utilities sem prefixo para mobile e adicionar `md:` / `lg:` para densidades maiores. Nunca o inverso (`hidden md:hidden` é antipattern).
+- **Grids fluem de 1 coluna para N.** `grid-cols-1 md:grid-cols-2 lg:grid-cols-3` é o padrão para cards e filtros.
+- **`p-dialog` tem `breakpoints`.** Diálogos que excedem o viewport em mobile são bug. Padrão: `[breakpoints]="{ '960px': '75vw', '640px': '95vw' }"` mais `[style]="{ width: '32rem' }"`.
+- **Tabelas largas têm overflow scroll horizontal.** PrimeNG `p-table` com `[tableStyle]="{ 'min-width': 'Xrem' }"` tem de viver dentro de container `overflow-x-auto`, ou usar `[scrollable]="true" scrollDirection="horizontal"`. Stack-on-mobile (uma linha por célula) é opt-in só para tabelas pequenas.
+- **`p-chart` legend responsiva.** Legenda à direita em desktop tira espaço útil em mobile — usar `position: 'bottom'` para viewport `< md` ou recalcular por `window.matchMedia` num signal.
+- **Touch targets ≥ 44×44 px.** Botões, links e icon-only buttons em mobile respeitam o mínimo Apple/Google.
+- **Tipografia escala por breakpoint.** Headers grandes (`text-2xl`) em desktop podem ser `text-xl` em mobile para evitar wrap feio.
+- **Sidebar é overlay em mobile, persistent em desktop.** PrimeNG `p-drawer` com toggle no header é o padrão (Phase 1b já entrega).
+- **Viewport meta obrigatório**: `<meta name="viewport" content="width=device-width, initial-scale=1">` em `index.html` (Angular CLI já adiciona — não remover).
+- **Sem horizontal scroll na página inteira.** Apenas containers internos podem ter scroll horizontal (tabelas), nunca o `<body>`.
+
+#### Verificação (sanity check, não audit formal)
+
+Cada page entregue tem de ser inspecionada em DevTools com pelo menos três viewports antes do merge:
+
+- 375 × 667 (iPhone SE / mobile pequeno).
+- 768 × 1024 (iPad portrait).
+- 1280 × 800 (desktop).
+
+Verificar: nenhum overflow horizontal indesejado, nenhum elemento cortado, dialogs cabem, tabelas têm scroll quando preciso, gráficos legíveis. **Não** é audit formal de acessibilidade (esse é Phase 6).
 
 > Detalhe completo (componente a componente): a escrever em `Vault: 04 - Arquitetura - Frontend.md` durante Phase 1b.
 

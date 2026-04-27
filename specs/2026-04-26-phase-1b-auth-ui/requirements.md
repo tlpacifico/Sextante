@@ -62,6 +62,13 @@ question).
   reproduzível a partir de `git clone` + `docker compose up`.
 - **Rota placeholder** `/app/dashboard` (componente "Phase 2 chega aí")
   para o auth guard ter destino — será substituída na Phase 2.
+- **Responsive design baseline** per `tech-stack.md` §19.5 e
+  `mission.md` §4.6: ambos os shells (`AuthShell`, `AppShell`) e as
+  4 páginas auth funcionam em mobile (≥360 px), tablet (≥768 px) e
+  desktop (≥1024 px) sem overflow horizontal nem elementos cortados.
+  Sidebar do `AppShell` é overlay (`p-drawer`) em mobile e toggle
+  visível no header. Sanity check manual em 375 / 768 / 1280 px é
+  parte do walkthrough (validation.md).
 
 ## Out of scope
 
@@ -154,6 +161,18 @@ question).
   **How to apply**: spec files para `AuthService`, `authInterceptor`,
   `authGuard` em `app/auth/*.spec.ts`; `npm test -- --watch=false`
   em CI.
+
+- **UI responsive (mobile-first) é DoD desta phase, não polish
+  pós-MVP.** *Why*: `mission.md` §4.6 declara responsive como
+  princípio do produto; `tech-stack.md` §19.5 dá regras concretas
+  (breakpoints, dialogs com `breakpoints`, touch targets, etc.).
+  Phase 1b é onde o shell é introduzido — adiar responsive força
+  retrofit de toda a navegação na Phase 2+. **How to apply**:
+  Tailwind utilities mobile-first (sem prefixo) com `md:`/`lg:`
+  para densidades maiores; `AppShell` usa `p-drawer` como sidebar
+  overlay em mobile com botão hamburger no `p-menubar`; auth shell
+  usa `w-full max-w-md` para o card centrado adaptar; sanity check
+  em 375 / 768 / 1280 px é passo explícito do walkthrough.
 
 - **Cookie path = `/api/auth/refresh` (mais estreito possível).**
   *Why*: minimiza superfície de ataque (só o endpoint que precisa

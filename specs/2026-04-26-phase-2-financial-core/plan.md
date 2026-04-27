@@ -288,6 +288,18 @@
   (`app/layout/app-shell.component.ts`) via PrimeNG `p-menubar`
   ou `p-sidebar` (a sidebar placeholder da Phase 1b passa a
   funcional).
+- 7.5 **Responsive design** per `tech-stack.md` §19.5 nas duas
+  páginas:
+  - Container `max-w-5xl mx-auto`.
+  - Header com `flex items-center justify-between flex-wrap
+    gap-2` (botão "Nova conta" / "Nova categoria" não estoura
+    em 360 px).
+  - Tabela: wrap em `<div class="overflow-x-auto">` para
+    isolar scroll horizontal.
+  - `p-dialog` (criar/editar): `[breakpoints]="{ '960px':
+    '75vw', '640px': '95vw' }"`.
+  - Selects de ícone (Categories) e tipo (Accounts) usam
+    `styleClass="w-full"` para preencher o dialog em mobile.
 
 ## 8. Frontend — `/app/dashboard`
 
@@ -321,6 +333,25 @@
 - 8.5 Apagar `app/features/dashboard/dashboard.placeholder.
   component.ts` (e atualizar `app.routes.ts` para apontar
   para o novo componente).
+- 8.6 **Responsive design** per `tech-stack.md` §19.5:
+  - Filtros: `grid grid-cols-1 md:grid-cols-3 gap-4`.
+  - Cards de totais: `grid grid-cols-1 md:grid-cols-3 gap-4`.
+  - `p-dialog` "Nova transação": `[breakpoints]="{ '960px':
+    '75vw', '640px': '95vw' }"` mais `[style]="{ width:
+    '32rem' }"`.
+  - Tabela: wrap em `<div class="overflow-x-auto">` para que
+    `[tableStyle]="{ 'min-width': '50rem' }"` provoque scroll
+    horizontal apenas dentro do container, não no body.
+  - Gráfico donut: `chartConfig` calcula `legend.position`
+    (`'right'` se `window.innerWidth >= 768`, `'bottom'` caso
+    contrário). Reativo via signal computed que escuta
+    `window.matchMedia('(min-width: 768px)').addEventListener
+    ('change', ...)`.
+  - Header da página: `flex items-center justify-between
+    flex-wrap gap-2` para que o botão "Nova transação" não saia
+    do viewport em 360 px.
+  - Container raíz: `max-w-6xl mx-auto flex flex-col gap-6
+    px-1 md:px-0` (o padding outer vem do `AppShell`).
 
 ## 9. Tests — Domain unit
 

@@ -49,6 +49,13 @@
     `changelog`, sumarizando Phase 2.
 18. **GitHub Actions CI verde** — build .NET, test .NET, build
     Angular, `npm test` todos passados.
+19. **Sanity check responsivo** per `tech-stack.md` §19.5 e
+    `mission.md` §4.6: dashboard, accounts e categories renderizam
+    corretamente em viewports 375 × 667 (iPhone SE), 768 × 1024
+    (iPad portrait) e 1280 × 800 (desktop) — sem overflow horizontal
+    do `<body>`, dialogs cabem (95vw em mobile), tabelas com scroll
+    horizontal interno em mobile, legenda do gráfico donut alterna
+    entre right e bottom conforme breakpoint.
 
 ## How to verify each bullet
 
@@ -184,6 +191,26 @@
     - GitHub Actions no commit mais recente do
       `phase-2-financial-core` mostra todos os jobs verdes.
 
+19. **Sanity check responsivo.**
+    - DevTools → device toolbar → ciclar entre `iPhone SE`
+      (375 × 667), `iPad` (768 × 1024) e responsive desktop
+      (1280 × 800).
+    - Para cada viewport, navegar `/app/dashboard`,
+      `/app/accounts`, `/app/categories` (após login):
+      - Nenhum scroll horizontal no `<body>`.
+      - `p-dialog` ("Nova transação", "Nova conta", "Nova
+        categoria") cabem dentro do viewport com margens; em
+        375 px ocupam 95vw.
+      - Tabelas largas mostram scroll horizontal **dentro** da
+        secção de tabela (não scroll de página inteira).
+      - Filtros do dashboard (período / categorias / contas)
+        empilham 1 coluna em mobile, 3 em desktop. Cards de
+        totais idem.
+      - Gráfico donut: legenda à direita em desktop (≥ 768 px),
+        em baixo em mobile.
+      - Botão "Nova ___" sempre visível e clicável (touch
+        target ≥ 44 px).
+
 ## Manual browser walkthrough
 
 > Reproduzível a partir de `git clone` + `docker compose up`.
@@ -317,7 +344,10 @@ docker compose down -v && docker compose up
 - **Penetration testing / security audit formal.** Pós-MVP.
 - **Browser cross-version testing (Safari, Firefox, Edge).**
   Chromium-based suficiente; revisitar em Phase 6.
-- **Audit responsivo / mobile breakpoints.** Sanity apenas.
+- **Audit responsivo formal** (Lighthouse mobile, screen-reader
+  walkthrough mobile, device físicos). O baseline responsivo
+  (mobile-first, breakpoints `tech-stack.md` §19.5, sanity check
+  em 3 viewports) é IN scope per DoD #19; audit formal pós-MVP.
 - **UI de restore de soft-deleted.** Out per requirements.md.
   Restore manual via psql se inner-loop dev exigir.
 - **Backups / restore-de-teste do schema `financial`.** Phase 6.

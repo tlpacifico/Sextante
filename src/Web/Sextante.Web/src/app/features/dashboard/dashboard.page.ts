@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnInit,
   computed,
   inject,
@@ -60,8 +61,8 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
   providers: [MessageService, ConfirmationService],
   template: `
     <div class="max-w-6xl mx-auto flex flex-col gap-6">
-      <header class="flex items-center justify-between">
-        <h1 class="text-2xl font-semibold">Dashboard</h1>
+      <header class="flex items-center justify-between flex-wrap gap-2">
+        <h1 class="text-xl md:text-2xl font-semibold">Dashboard</h1>
         <p-button
           label="Nova transação"
           icon="pi pi-plus"
@@ -150,7 +151,7 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
         </div>
         @if (chartData(); as data) {
           @if (data.labels.length) {
-            <p-chart type="doughnut" [data]="data" [options]="chartConfig"></p-chart>
+            <p-chart type="doughnut" [data]="data" [options]="chartConfig()"></p-chart>
           } @else {
             <p class="text-center text-[var(--p-text-muted-color)] py-8">
               Sem dados para o filtro atual.
@@ -161,6 +162,7 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
 
       <p-card>
         <h2 class="text-lg font-semibold mb-4">Transações</h2>
+        <div class="overflow-x-auto">
         <p-table
           [value]="store.transactions()"
           [tableStyle]="{ 'min-width': '50rem' }"
@@ -223,6 +225,7 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
             </tr>
           </ng-template>
         </p-table>
+        </div>
         @if (store.hasMoreTransactions()) {
           <div class="flex justify-center mt-4">
             <p-button
@@ -240,6 +243,7 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
         [closable]="true"
         header="Nova transação"
         [style]="{ width: '32rem' }"
+        [breakpoints]="{ '960px': '75vw', '640px': '95vw' }"
       >
         <form [formGroup]="form" class="flex flex-col gap-4 pt-2" (ngSubmit)="submit()">
           <div class="flex flex-col gap-1">
@@ -336,14 +340,21 @@ export class DashboardPage implements OnInit {
     { value: 'Income', label: 'Receitas' },
   ];
 
-  protected readonly chartConfig = {
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly mdQuery =
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(min-width: 768px)')
+      : null;
+  private readonly isDesktop = signal(this.mdQuery?.matches ?? true);
+
+  protected readonly chartConfig = computed(() => ({
     cutout: '60%',
     plugins: {
       legend: {
-        position: 'right',
+        position: this.isDesktop() ? 'right' : 'bottom',
       },
     },
-  };
+  }));
 
   protected readonly chartData = computed(() => {
     const rows = this.store.byCategory();
@@ -384,6 +395,12 @@ export class DashboardPage implements OnInit {
   });
 
   async ngOnInit(): Promise<void> {
+    if (this.mdQuery) {
+      const handler = (e: MediaQueryListEvent) => this.isDesktop.set(e.matches);
+      this.mdQuery.addEventListener('change', handler);
+      this.destroyRef.onDestroy(() => this.mdQuery!.removeEventListener('change', handler));
+    }
+
     await Promise.all([
       this.store.loadAccounts(),
       this.store.loadCategories(),

@@ -49,8 +49,8 @@ import { FinancialStore } from '../state/financial.store';
   providers: [MessageService, ConfirmationService],
   template: `
     <div class="max-w-5xl mx-auto">
-      <div class="flex items-center justify-between mb-4">
-        <h1 class="text-2xl font-semibold">Contas</h1>
+      <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
+        <h1 class="text-xl md:text-2xl font-semibold">Contas</h1>
         <p-button
           label="Nova conta"
           icon="pi pi-plus"
@@ -58,6 +58,7 @@ import { FinancialStore } from '../state/financial.store';
         ></p-button>
       </div>
 
+      <div class="overflow-x-auto">
       <p-table
         [value]="store.accounts()"
         [tableStyle]="{ 'min-width': '40rem' }"
@@ -109,6 +110,7 @@ import { FinancialStore } from '../state/financial.store';
           </tr>
         </ng-template>
       </p-table>
+      </div>
 
       <p-dialog
         [(visible)]="dialogOpen"
@@ -116,6 +118,7 @@ import { FinancialStore } from '../state/financial.store';
         [closable]="true"
         [header]="editingId() ? 'Editar conta' : 'Nova conta'"
         [style]="{ width: '32rem' }"
+        [breakpoints]="{ '960px': '75vw', '640px': '95vw' }"
       >
         <form [formGroup]="form" class="flex flex-col gap-4 pt-2" (ngSubmit)="submit()">
           <div class="flex flex-col gap-1">
