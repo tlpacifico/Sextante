@@ -40,6 +40,7 @@ Estes princípios são **tie-breakers** quando uma decisão é ambígua. Se uma 
 3. **Automação sobre manualidade — mas auditável.** Recorrentes, regras de categorização e (Fase 2) sugestões de aporte são automáticos, mas o utilizador vê e pode reverter qualquer decisão automática. Cada decisão automática deixa rasto: que regra aplicou, quando, com que valores.
 4. **Self-hosted-friendly.** Como o sistema vive em VPS própria, dependências externas (APIs de câmbio, cotações, SMTP) **têm de ter fallback ou degradação graciosa**. Se o ECB cair, o utilizador pode meter taxa manualmente. Se a Brapi cair, a UI sinaliza "preço desatualizado", não rebenta.
 5. **MVP estreito e profundo, não largo e raso.** Antes de adicionar módulo novo (Investimento, Integrações, etc.), o existente tem de estar **sólido** — testado, com edge cases conhecidos e documentados, dogfooded.
+6. **UI responsiva por defeito.** O produto é web-first e tem de funcionar sem regressões em mobile (≥360 px), tablet (≥768 px) e desktop (≥1024 px). Mobile não é uma app à parte (a app nativa é Fase 6 e opcional) — é a mesma UI ajustada por breakpoints Tailwind. Cada página entregue tem de passar sanity check em viewport mobile antes do merge; "só funciona em desktop" é regressão.
 
 ## 5. Não-objetivos (explícitos)
 
@@ -49,7 +50,7 @@ O sistema **não** vai tentar fazer:
 - Fazer execução de ordens.
 - Aconselhamento financeiro automatizado ("robo-advisor").
 - Open Banking no MVP (avaliar pós-MVP, Fase 3).
-- App mobile no MVP (web responsive chega).
+- App mobile nativa no MVP (a UI web responsiva — princípio §4.6 — cobre o use case mobile; app nativa fica para Fase 6 e é opcional).
 - Multi-idioma na UI no MVP (mas i18n estruturado desde o início para evitar refactor).
 - Compliance formal documentado (LGPD/GDPR é WIP, não bloqueia o MVP).
 

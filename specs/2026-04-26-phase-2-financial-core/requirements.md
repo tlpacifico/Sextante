@@ -96,6 +96,17 @@ escolhidos via clarifying question (cards de totais + gráfico).
   refresh cookie da Phase 1b).
 - **OpenAPI auto-gerado** (mas **não** snapshot checked-in;
   ver Out of scope).
+- **Responsive design baseline** per `tech-stack.md` §19.5 e
+  `mission.md` §4.6, herdado da Phase 1b e estendido às novas
+  páginas: dashboard, accounts, categories funcionam em mobile
+  (≥360 px), tablet (≥768 px) e desktop (≥1024 px). Filtros do
+  dashboard fluem 1 → 3 colunas (`grid-cols-1 md:grid-cols-3`);
+  cards de totais idem; tabelas com `min-width` rem-based vivem
+  dentro de container `overflow-x-auto`; `p-dialog` da nova
+  transação / nova conta / nova categoria usa `[breakpoints]` para
+  ocupar 95vw em mobile. Gráfico donut usa legenda lateral em
+  desktop e bottom em mobile. Sanity check manual em
+  375 / 768 / 1280 px é parte do walkthrough.
 
 ## Out of scope
 
@@ -254,6 +265,19 @@ escolhidos via clarifying question (cards de totais + gráfico).
   `builder.OwnsOne(t => t.Amount, m => { m.Property(p => p.Amount)
   .HasColumnName("amount").HasPrecision(20, 8); m.Property(p =>
   p.Currency).HasColumnName("currency").HasMaxLength(3); })`.
+
+- **Páginas Phase 2 são mobile-first.** *Why*: `mission.md` §4.6
+  e `tech-stack.md` §19.5 declaram responsive como invariante;
+  Phase 2 introduz as primeiras páginas reais de dados (dashboard,
+  accounts, categories) e seria mais caro fazer retrofit depois
+  de wires assentarem. **How to apply**: Tailwind utilities
+  mobile-first (sem prefixo) com `md:`/`lg:` para densidades
+  maiores; grids fluem 1 coluna em mobile e N em desktop;
+  `p-dialog` de criar/editar usa `[breakpoints]="{ '960px':
+  '75vw', '640px': '95vw' }"` mais `[style]="{ width: '32rem' }"`;
+  `p-table` com `min-width` vive em `<div class="overflow-x-auto">`;
+  gráfico donut lê `window.matchMedia('(min-width: 768px)')` (via
+  signal/effect) para alternar legenda right/bottom.
 
 - **OpeningBalance ≥ 0 (CreditCard inclusive).** *Why*: MVP
   simplifica — saldo inicial negativo em CreditCard pode ser

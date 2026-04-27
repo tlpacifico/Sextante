@@ -125,6 +125,23 @@
   `app/features/dashboard/dashboard.placeholder.component.ts`
   com texto "Phase 2 — Dashboard chega aí". Existe apenas para
   o auth guard ter destino. Será substituído na Phase 2.
+- 5.5 **Responsive design dos shells** per `tech-stack.md` §19.5:
+  - `AuthShellComponent`: card central usa `w-full max-w-md`;
+    padding `px-4 py-8` em mobile, `md:px-6` em tablet+. Sem
+    overflow horizontal em 375 px.
+  - `AppShellComponent`: header `p-menubar` mostra botão
+    hamburger sempre (toggle de `p-drawer`). Email do utilizador
+    escondido em mobile (`hidden md:inline`); chip de tenant
+    mantém-se visível mas truncado se necessário. `<section>` do
+    `<router-outlet>` usa `px-4 py-6 md:px-8 md:py-8`.
+  - `p-drawer` da sidebar em modo overlay (default) é o que se
+    usa em todos os breakpoints — Phase 1b não introduz docked
+    sidebar (mais simples e mobile-first); revisitar em Phase 2
+    se densidade desktop pedir.
+- 5.6 **Viewport meta**: confirmar que
+  `src/Web/Sextante.Web/src/index.html` mantém
+  `<meta name="viewport" content="width=device-width,
+  initial-scale=1">` (Angular CLI já gera; não remover).
 
 ## 6. Auth core (services + signals + interceptor + guard)
 

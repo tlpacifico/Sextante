@@ -44,6 +44,12 @@
     com o agente (AGENTS.md §2 regra 1).
 11. **`CHANGELOG.md`** com nova entrada datada produzida pela skill
     `changelog`, sumarizando Phase 1b.
+12. **Sanity check responsivo** per `tech-stack.md` §19.5 e
+    `mission.md` §4.6: ambos os shells e as 4 páginas auth
+    renderizam corretamente em viewports 375 × 667 (iPhone SE),
+    768 × 1024 (iPad portrait) e 1280 × 800 (desktop) — sem
+    overflow horizontal de página, sem elementos cortados, sidebar
+    em modo overlay em mobile.
 
 ## How to verify each bullet
 
@@ -105,6 +111,23 @@
 11. **Changelog.**
     - `git diff main..phase-1b-auth-ui -- CHANGELOG.md` mostra
       secção nova com data do merge sumarizando Phase 1b.
+
+12. **Sanity check responsivo.**
+    - DevTools → device toolbar → ciclar entre `iPhone SE`
+      (375 × 667), `iPad` (768 × 1024) e responsive desktop
+      (1280 × 800).
+    - Para cada viewport, navegar `/login`, `/signup`,
+      `/forgot-password`, `/reset-password`, `/app/dashboard`
+      (após login):
+      - Nenhum scroll horizontal no `<body>` (apenas, se
+        existir, dentro de containers internos).
+      - Card auth (`AuthShell`) cabe inteiro em 375 px com
+        margens; botões com touch target ≥ 44 px.
+      - `AppShell` em mobile: botão hamburger visível, email do
+        user escondido (`hidden md:inline`), tenant chip visível.
+        `p-drawer` abre como overlay (não desloca conteúdo).
+      - Toggle dark mode acessível em todos os viewports
+        (do menu user em desktop, ou do botão dedicado mobile).
 
 ## Manual browser walkthrough
 
@@ -193,8 +216,11 @@
 - **Multi-tenant browser session isolation** (dois users em duas
   tabs simultaneamente). Coberto pela Phase 1a no API layer; UI-layer
   test fica para Phase 18 quando multi-membership UI chegar.
-- **Audit responsivo / mobile breakpoints.** Sanity check apenas;
-  review formal pós-MVP.
+- **Audit responsivo formal** (Lighthouse mobile score, screen-reader
+  walkthrough mobile, testes em device físicos). O baseline responsivo
+  (mobile-first, breakpoints `tech-stack.md` §19.5, sanity check em 3
+  viewports) é IN scope desta phase per DoD #12; audit formal
+  pós-MVP.
 - **Penetration testing / security audit formal.** Pós-MVP.
 - **Browser cross-version testing** (Safari, Firefox, Edge).
   Chromium-based suficiente para Phase 1b; revisitar em Phase 6.

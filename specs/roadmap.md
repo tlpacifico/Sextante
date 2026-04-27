@@ -9,6 +9,7 @@
 - Cada **phase** tem **1–3 features** (nano-fases).
 - Cada phase corresponde a 1 branch `phase-N-<kebab-name>` e termina com merge para `main`.
 - **Definition of Done por phase**: testes a passar (incluindo multi-tenancy desde Phase 1), code review (sub-agent deep review obrigatório nas phases marcadas com 🛡️), changelog atualizado, commit `Mark phase N as complete`.
+- **Phases que tocam UI** (1b, 2, 3 (filtro), 4 (wizard), 5 (recorrentes/metas), 6 (polish), 7+) têm de respeitar `tech-stack.md` §19.5 — sanity check responsivo em 375 / 768 / 1280 px é parte do DoD; "só funciona em desktop" é regressão do princípio `mission.md` §4.6.
 - Phases pós-MVP estão deliberadamente menos detalhadas — são revisitadas em Replanning antes de arrancar.
 
 ---
