@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-29
+
+- Mark phase 3 as complete
+
 ## 2026-04-28
 
 - Phase 3 — Multi-moeda + ECB (backend)
