@@ -1,4 +1,6 @@
 using System.Threading.RateLimiting;
+using FluentValidation;
+using Hangfire;
 using LettuceEncrypt;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -13,6 +15,7 @@ using Sextante.Modules.Identity.Api;
 using Sextante.Modules.Identity.Application;
 using Sextante.Modules.Identity.Application.Middleware;
 using Sextante.Modules.Identity.Infrastructure;
+using Sextante.Modules.Identity.Infrastructure.Jobs;
 using JasperFx;
 using JasperFx.Resources;
 using Wolverine;
@@ -54,11 +57,25 @@ try
     builder.Services.AddOpenApi();
     builder.Services.AddProblemDetails();
 
+    // Enums via wire como strings ("Checking" em vez de 0) — front-end Angular
+    // envia/recebe nomes; allowIntegerValues=true (default) mantém os testes
+    // de integração existentes que ainda usam `type = 0` a passar.
+    builder.Services.ConfigureHttpJsonOptions(options =>
+    {
+        options.SerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+
     // Identity module ----------------------------------------------------------
     builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
     // Financial module ---------------------------------------------------------
     builder.Services.AddFinancialModule(builder.Configuration);
+
+    // FluentValidation discovery (validators dos endpoints admin Phase 3
+    // vivem em Identity.Api).
+    builder.Services.AddValidatorsFromAssemblyContaining<
+        Sextante.Modules.Identity.Api.Endpoints.ManualExchangeRateValidator>();
 
     // Bearer token (encrypted ticket; fica funcional desde Phase 1a).
     // JWT proper (HS256 com chave assinada) é Phase 6 — chave é exigida já
@@ -210,6 +227,20 @@ try
 
     app.MapIdentityModule();
     app.MapFinancialModule();
+
+    // Hangfire dashboard restrita a System Admin (tech-stack §1).
+    app.UseHangfireDashboard("/api/admin/hangfire", new DashboardOptions
+    {
+        Authorization = [new HangfireSystemAdminFilter()],
+    });
+
+    // Recurring snapshot ECB às 00:30 UTC. Idempotente — re-runs com o
+    // mesmo provider apenas atualizam timestamps.
+    RecurringJob.AddOrUpdate<EcbSnapshotJob>(
+        EcbSnapshotJob.RecurringJobId,
+        job => job.RunAsync(CancellationToken.None),
+        "30 0 * * *",
+        new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
 
     if (Directory.Exists(app.Environment.WebRootPath))
     {

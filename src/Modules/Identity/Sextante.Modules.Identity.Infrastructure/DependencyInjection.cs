@@ -1,13 +1,20 @@
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Http.Resilience;
+using Polly;
 using Sextante.Modules.Identity.Domain.Entities;
 using Sextante.Modules.Identity.Infrastructure.Auth;
 using Sextante.Modules.Identity.Infrastructure.Email;
+using Sextante.Modules.Identity.Infrastructure.ExchangeRates;
+using Sextante.Modules.Identity.Infrastructure.Jobs;
 using Sextante.Modules.Identity.Infrastructure.Persistence;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
+using Sextante.SharedKernel;
 
 namespace Sextante.Modules.Identity.Infrastructure;
 
@@ -81,6 +88,51 @@ public static class DependencyInjection
 
         services.AddHostedService<MigrationRunner>();
 
+        AddExchangeRateInfrastructure(services, configuration, migrationConnection);
+        services.AddScoped<ICurrencyDirectory, CurrencyDirectory>();
+
         return services;
+    }
+
+    private static void AddExchangeRateInfrastructure(
+        IServiceCollection services,
+        IConfiguration configuration,
+        string migrationConnectionString)
+    {
+        var ecbBaseUrl = configuration["ExchangeRates:EcbBaseUrl"]
+            ?? "https://www.ecb.europa.eu/";
+
+        services
+            .AddHttpClient<EcbCurrencyProvider>(http =>
+            {
+                http.BaseAddress = new Uri(ecbBaseUrl);
+                http.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddStandardResilienceHandler(options =>
+            {
+                options.Retry.MaxRetryAttempts = 3;
+                options.Retry.Delay = TimeSpan.FromSeconds(2);
+                options.Retry.BackoffType = DelayBackoffType.Exponential;
+                options.Retry.UseJitter = true;
+                options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(10);
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(30);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(60);
+            });
+
+        services.AddScoped<ICurrencyProvider>(sp => sp.GetRequiredService<EcbCurrencyProvider>());
+        services.AddScoped<EcbSnapshotJob>();
+
+        services.AddHangfire(cfg => cfg
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            .UsePostgreSqlStorage(opts =>
+                opts.UseNpgsqlConnection(migrationConnectionString)));
+
+        services.AddHangfireServer(opts =>
+        {
+            opts.SchedulePollingInterval = TimeSpan.FromSeconds(15);
+            opts.WorkerCount = 4;
+        });
     }
 }

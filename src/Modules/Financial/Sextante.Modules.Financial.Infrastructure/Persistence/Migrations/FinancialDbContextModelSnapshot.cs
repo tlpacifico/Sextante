@@ -34,6 +34,12 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
@@ -156,6 +162,15 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("description");
+
+                    b.Property<DateTimeOffset?>("ExchangeRateAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("exchange_rate_at");
+
+                    b.Property<decimal?>("ExchangeRateToPrimary")
+                        .HasPrecision(20, 8)
+                        .HasColumnType("numeric(20,8)")
+                        .HasColumnName("exchange_rate_to_primary");
 
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone")

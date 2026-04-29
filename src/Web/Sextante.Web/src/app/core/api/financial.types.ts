@@ -15,6 +15,7 @@ export interface AccountDto {
   id: string;
   name: string;
   type: AccountType;
+  currency: string;
   openingBalance: Money;
   createdAt: string;
   updatedAt: string;
@@ -23,6 +24,7 @@ export interface AccountDto {
 export interface CreateAccountRequest {
   name: string;
   type: AccountType;
+  currency?: string | null;
   openingBalanceAmount: number;
 }
 
@@ -62,6 +64,8 @@ export interface TransactionDto {
   amount: Money;
   description: string | null;
   tags: string[];
+  exchangeRateToPrimary?: number | null;
+  exchangeRateAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -71,6 +75,7 @@ export interface CreateTransactionRequest {
   categoryId: string;
   occurredAt: string;
   amount: number;
+  currency?: string | null;
   description?: string | null;
   tags?: string[] | null;
 }
@@ -84,12 +89,15 @@ export interface UpdateTransactionRequest {
   tags?: string[] | null;
 }
 
+export type TransactionViewMode = 'converted' | 'original';
+
 export interface TransactionFilter {
   dateFrom?: string | null;
   dateTo?: string | null;
   categoryIds?: string[] | null;
   accountIds?: string[] | null;
   pageSize?: number | null;
+  viewMode?: TransactionViewMode | null;
 }
 
 export interface TransactionsPageResponse {
@@ -97,10 +105,19 @@ export interface TransactionsPageResponse {
   nextCursor: string | null;
 }
 
+export interface CurrencyTotals {
+  currency: string;
+  income: Money;
+  expense: Money;
+  net: Money;
+}
+
 export interface TransactionSummaryResponse {
   income: Money;
   expense: Money;
   net: Money;
+  viewMode: TransactionViewMode;
+  perCurrency: CurrencyTotals[] | null;
 }
 
 export interface TransactionByCategoryResponse {

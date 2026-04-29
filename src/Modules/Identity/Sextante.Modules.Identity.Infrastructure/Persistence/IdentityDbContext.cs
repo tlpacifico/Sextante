@@ -27,6 +27,9 @@ public sealed class IdentityDbContext : IdentityDbContext<AppUser, AppRole, Guid
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<Membership> Memberships => Set<Membership>();
+    public DbSet<Currency> Currencies => Set<Currency>();
+    public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
+    public DbSet<EcbSnapshotState> EcbSnapshotStates => Set<EcbSnapshotState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,6 +50,83 @@ public sealed class IdentityDbContext : IdentityDbContext<AppUser, AppRole, Guid
             b.Property(t => t.UpdatedAt).IsRequired();
             b.Property(t => t.Version).IsConcurrencyToken();
             b.HasIndex(t => t.Name);
+        });
+
+        modelBuilder.Entity<Currency>(b =>
+        {
+            b.ToTable("currencies");
+            b.HasKey(c => c.Code);
+            b.Property(c => c.Code)
+                .HasColumnName("code")
+                .HasMaxLength(3)
+                .IsRequired();
+            b.Property(c => c.Name)
+                .HasColumnName("name")
+                .HasMaxLength(120)
+                .IsRequired();
+            b.Property(c => c.Symbol)
+                .HasColumnName("symbol")
+                .HasMaxLength(16)
+                .IsRequired();
+            b.Property(c => c.MinorUnits)
+                .HasColumnName("minor_units")
+                .IsRequired();
+            b.Property(c => c.IsActive)
+                .HasColumnName("is_active")
+                .IsRequired();
+            b.Property(c => c.CreatedAt).HasColumnName("created_at").IsRequired();
+            b.Property(c => c.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            b.Property(c => c.Version).HasColumnName("version").IsConcurrencyToken();
+
+            b.HasIndex(c => c.IsActive);
+        });
+
+        modelBuilder.Entity<ExchangeRate>(b =>
+        {
+            b.ToTable("exchange_rates");
+            b.HasKey(r => r.Id);
+            b.Property(r => r.Id).HasColumnName("id");
+            b.Property(r => r.RateDate).HasColumnName("rate_date").IsRequired();
+            b.Property(r => r.FromCurrency)
+                .HasColumnName("from_currency")
+                .HasMaxLength(3)
+                .IsRequired();
+            b.Property(r => r.ToCurrency)
+                .HasColumnName("to_currency")
+                .HasMaxLength(3)
+                .IsRequired();
+            b.Property(r => r.Rate)
+                .HasColumnName("rate")
+                .HasPrecision(20, 8)
+                .IsRequired();
+            b.Property(r => r.Source)
+                .HasColumnName("source")
+                .HasMaxLength(16)
+                .IsRequired();
+            b.Property(r => r.CreatedAt).HasColumnName("created_at").IsRequired();
+            b.Property(r => r.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            b.Property(r => r.Version).HasColumnName("version").IsConcurrencyToken();
+
+            b.HasIndex(r => new { r.RateDate, r.FromCurrency, r.ToCurrency }).IsUnique();
+            b.HasIndex(r => r.RateDate);
+            b.HasOne<Currency>()
+                .WithMany()
+                .HasForeignKey(r => r.ToCurrency)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EcbSnapshotState>(b =>
+        {
+            b.ToTable("ecb_snapshot_state");
+            b.HasKey(s => s.Id);
+            b.Property(s => s.Id)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
+            b.Property(s => s.LastRunAt).HasColumnName("last_run_at");
+            b.Property(s => s.LastSuccessAt).HasColumnName("last_success_at");
+            b.Property(s => s.LastError)
+                .HasColumnName("last_error")
+                .HasMaxLength(EcbSnapshotState.LastErrorMaxLength);
         });
 
         modelBuilder.Entity<Membership>(b =>

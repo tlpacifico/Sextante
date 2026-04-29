@@ -136,25 +136,57 @@ export class AppShellComponent {
     return role ? `${name} · ${this.translateRole(role)}` : name;
   });
 
-  protected readonly menuItems = computed<MenuItem[]>(() => [
-    {
-      label: 'Dashboard',
-      icon: 'pi pi-home',
-      routerLink: ['/app/dashboard'],
-    },
-    {
-      label: 'Contas',
-      icon: 'pi pi-wallet',
-      routerLink: ['/app/accounts'],
-    },
-    {
-      label: 'Categorias',
-      icon: 'pi pi-tag',
-      routerLink: ['/app/categories'],
-    },
-  ]);
+  protected readonly menuItems = computed<MenuItem[]>(() => {
+    const items: MenuItem[] = [
+      {
+        label: 'Dashboard',
+        icon: 'pi pi-home',
+        routerLink: ['/app/dashboard'],
+      },
+      {
+        label: 'Contas',
+        icon: 'pi pi-wallet',
+        routerLink: ['/app/accounts'],
+      },
+      {
+        label: 'Categorias',
+        icon: 'pi pi-tag',
+        routerLink: ['/app/categories'],
+      },
+      {
+        label: 'Definições',
+        icon: 'pi pi-cog',
+        routerLink: ['/app/settings/general'],
+      },
+    ];
+
+    // Admin entries: o backend valida o role SystemAdmin no endpoint
+    // (defesa em profundidade); o frontend mostra-os a Owners por
+    // heurística (UX) — não é boundary de segurança.
+    if (this.auth.tenantRole() === 'Owner') {
+      items.push(
+        {
+          label: 'Moedas',
+          icon: 'pi pi-globe',
+          routerLink: ['/app/admin/currencies'],
+        },
+        {
+          label: 'Taxas de câmbio',
+          icon: 'pi pi-chart-line',
+          routerLink: ['/app/admin/exchange-rates'],
+        },
+      );
+    }
+
+    return items;
+  });
 
   protected readonly userMenuItems = computed<MenuItem[]>(() => [
+    {
+      label: 'Definições',
+      icon: 'pi pi-cog',
+      routerLink: ['/app/settings/general'],
+    },
     {
       label: this.theme.themeLabel(),
       icon: this.theme.isDark() ? 'pi pi-sun' : 'pi pi-moon',

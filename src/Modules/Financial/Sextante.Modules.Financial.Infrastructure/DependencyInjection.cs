@@ -4,6 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Transactions;
+using Sextante.Modules.Financial.Application.ExchangeRates;
+using Sextante.Modules.Financial.Infrastructure.ExchangeRates;
 using Sextante.Modules.Financial.Infrastructure.Persistence;
 using Sextante.Modules.Financial.Infrastructure.Persistence.Repositories;
 using Sextante.Modules.Identity.Infrastructure.Persistence;
@@ -47,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<ITransactionRepository, TransactionRepository>();
 
         services.AddScoped<ITenantCurrencyResolver, TenantCurrencyResolver>();
+        services.AddScoped<IExchangeRateService, ExchangeRateService>();
 
         services.AddHostedService<FinancialMigrationRunner>();
 

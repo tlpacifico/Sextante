@@ -29,7 +29,7 @@ public sealed class CategoriesCrudTests : IClassFixture<IdentityIntegrationFixtu
         createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
         var created = await createResponse.Content.ReadFromJsonAsync<CategoryRow>();
         created!.Name.Should().Be("Combustível");
-        created.Kind.Should().Be(0);
+        created.Kind.Should().Be("Expense");
         created.IconName.Should().Be("pi-car");
     }
 
@@ -79,6 +79,6 @@ public sealed class CategoriesCrudTests : IClassFixture<IdentityIntegrationFixtu
         body.Should().Contain("Não é possível arquivar uma categoria com transações ativas");
     }
 
-    private sealed record CategoryRow(Guid Id, string Name, int Kind, string IconName, string ColorHex);
+    private sealed record CategoryRow(Guid Id, string Name, string Kind, string IconName, string ColorHex);
     private sealed record IdRow(Guid Id);
 }

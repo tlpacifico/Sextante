@@ -61,3 +61,42 @@ public sealed class OpeningBalanceNegativeException : FinancialDomainException
     {
     }
 }
+
+public sealed class AccountCurrencyMismatchException : FinancialDomainException
+{
+    public AccountCurrencyMismatchException(string accountCurrency, string openingBalanceCurrency)
+        : base($"Moeda do saldo inicial ('{openingBalanceCurrency}') tem de coincidir com a moeda da conta ('{accountCurrency}').")
+    {
+        AccountCurrency = accountCurrency;
+        OpeningBalanceCurrency = openingBalanceCurrency;
+    }
+
+    public string AccountCurrency { get; }
+    public string OpeningBalanceCurrency { get; }
+}
+
+public sealed class CurrencyNotActiveException : FinancialDomainException
+{
+    public CurrencyNotActiveException(string code)
+        : base($"Moeda '{code}' não está ativa.")
+    {
+        Code = code;
+    }
+
+    public string Code { get; }
+}
+
+public sealed class ExchangeRateUnavailableException : FinancialDomainException
+{
+    public ExchangeRateUnavailableException(string from, string to, DateOnly date)
+        : base($"Não há taxa de câmbio disponível para {from} → {to} em {date:yyyy-MM-dd}. Insira manualmente em /app/admin/exchange-rates.")
+    {
+        From = from;
+        To = to;
+        Date = date;
+    }
+
+    public string From { get; }
+    public string To { get; }
+    public DateOnly Date { get; }
+}

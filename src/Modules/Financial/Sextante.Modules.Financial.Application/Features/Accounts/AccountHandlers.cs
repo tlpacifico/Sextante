@@ -1,4 +1,5 @@
 using Sextante.Modules.Financial.Domain.Accounts;
+using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 using Sextante.SharedKernel;
 using Wolverine.Attributes;
@@ -13,13 +14,24 @@ public static class AccountHandlers
         IAccountRepository repository,
         ITenantContext tenant,
         ITenantCurrencyResolver currency,
+        ICurrencyDirectory currencyDirectory,
         CancellationToken cancellationToken)
     {
         var primaryCurrency = await currency.GetPrimaryCurrencyAsync(cancellationToken);
+        var requestedCurrency = string.IsNullOrWhiteSpace(command.Currency)
+            ? primaryCurrency
+            : command.Currency.Trim().ToUpperInvariant();
+
+        if (!await currencyDirectory.IsActiveAsync(requestedCurrency, cancellationToken))
+        {
+            throw new CurrencyNotActiveException(requestedCurrency);
+        }
+
         var account = Account.Create(
             command.Name,
             command.Type,
-            new Money(command.OpeningBalanceAmount, primaryCurrency),
+            requestedCurrency,
+            new Money(command.OpeningBalanceAmount, requestedCurrency),
             tenant.TenantId);
 
         await repository.AddAsync(account, cancellationToken);
@@ -87,6 +99,7 @@ public static class AccountHandlers
             account.Id,
             account.Name,
             account.Type,
+            account.Currency,
             account.OpeningBalance,
             account.CreatedAt,
             account.UpdatedAt);

@@ -4,8 +4,11 @@ using Sextante.SharedKernel;
 namespace Sextante.Modules.Financial.Domain.Accounts;
 
 /// <summary>
-/// Conta financeira (corrente, poupança, dinheiro, cartão). <c>OpeningBalance</c>
-/// é imutável após criação — ajustes posteriores fazem-se via <c>Transaction</c>.
+/// Conta financeira (corrente, poupança, dinheiro, cartão).
+/// <c>OpeningBalance</c> é imutável após criação — ajustes posteriores
+/// fazem-se via <c>Transaction</c>. Phase 3 introduz <see cref="Currency"/>
+/// fixa por conta (não muda após criação): mudar a currency
+/// retroativamente quebra coerência com transações já gravadas.
 /// </summary>
 public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
 {
@@ -15,12 +18,14 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
     {
         Name = string.Empty;
         OpeningBalance = null!;
+        Currency = string.Empty;
     }
 
     public Guid Id { get; private set; }
     public TenantId TenantId { get; private set; }
     public string Name { get; private set; }
     public AccountType Type { get; private set; }
+    public string Currency { get; private set; }
     public Money OpeningBalance { get; private set; }
 
     public DateTimeOffset CreatedAt { get; set; }
@@ -28,9 +33,26 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
     public DateTimeOffset? DeletedAt { get; set; }
     public int Version { get; set; }
 
-    public static Account Create(string name, AccountType type, Money openingBalance, TenantId tenantId)
+    public static Account Create(
+        string name,
+        AccountType type,
+        string currency,
+        Money openingBalance,
+        TenantId tenantId)
     {
         var trimmed = ValidateName(name);
+
+        if (!Sextante.SharedKernel.Currency.IsValidCode(currency))
+        {
+            throw new ArgumentException(
+                $"Currency '{currency}' inválido — esperado ISO 4217 (3 letras maiúsculas).",
+                nameof(currency));
+        }
+
+        if (!string.Equals(openingBalance.Currency, currency, StringComparison.Ordinal))
+        {
+            throw new AccountCurrencyMismatchException(currency, openingBalance.Currency);
+        }
 
         if (openingBalance.Amount < 0m)
         {
@@ -43,6 +65,7 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
             TenantId = tenantId,
             Name = trimmed,
             Type = type,
+            Currency = currency,
             OpeningBalance = openingBalance,
         };
     }

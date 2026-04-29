@@ -74,4 +74,66 @@ describe('FinancialStore', () => {
     expect(store.expenseCategories().length).toBe(1);
     expect(store.incomeCategories().length).toBe(1);
   });
+
+  it('loadCurrencies caches active currencies', async () => {
+    const p = store.loadCurrencies();
+    const req = httpMock.expectOne('/api/currencies');
+    expect(req.request.method).toBe('GET');
+    req.flush([
+      { code: 'EUR', name: 'Euro', symbol: '€', minorUnits: 2, isActive: true },
+      { code: 'USD', name: 'Dollar', symbol: '$', minorUnits: 2, isActive: true },
+    ]);
+    await p;
+
+    expect(store.currencies().length).toBe(2);
+
+    // Second call without force is a no-op (cached).
+    await store.loadCurrencies();
+    httpMock.expectNone('/api/currencies');
+  });
+
+  it('loadTenantSettings caches tenant settings', async () => {
+    const p = store.loadTenantSettings();
+    const req = httpMock.expectOne('/api/tenants/me');
+    req.flush({ id: 't1', name: 'Tenant', primaryCurrency: 'EUR' });
+    await p;
+
+    expect(store.tenantSettings()?.primaryCurrency).toBe('EUR');
+    expect(store.primaryCurrency()).toBe('EUR');
+  });
+
+  it('setViewMode toggles and reloads summary + byCategory', async () => {
+    expect(store.viewMode()).toBe('converted');
+
+    const p = store.setViewMode('original');
+
+    const summaryReq = httpMock.expectOne((r) =>
+      r.url === '/api/financial/transactions/summary',
+    );
+    expect(summaryReq.request.params.get('viewMode')).toBe('original');
+    summaryReq.flush({
+      income: { amount: 0, currency: 'EUR' },
+      expense: { amount: 0, currency: 'EUR' },
+      net: { amount: 0, currency: 'EUR' },
+      viewMode: 'original',
+      perCurrency: [
+        {
+          currency: 'USD',
+          income: { amount: 300, currency: 'USD' },
+          expense: { amount: 0, currency: 'USD' },
+          net: { amount: 300, currency: 'USD' },
+        },
+      ],
+    });
+
+    const byCatReq = httpMock.expectOne((r) =>
+      r.url === '/api/financial/transactions/by-category',
+    );
+    expect(byCatReq.request.params.get('viewMode')).toBe('original');
+    byCatReq.flush([]);
+
+    await p;
+    expect(store.viewMode()).toBe('original');
+    expect(store.summary().perCurrency?.length).toBe(1);
+  });
 });

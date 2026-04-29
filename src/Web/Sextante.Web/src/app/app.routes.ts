@@ -68,6 +68,30 @@ export const routes: Routes = [
           ),
         title: 'Sextante — Categorias',
       },
+      {
+        path: 'settings/general',
+        loadComponent: () =>
+          import('./features/settings/settings-general.page').then(
+            (m) => m.SettingsGeneralPage,
+          ),
+        title: 'Sextante — Definições',
+      },
+      {
+        path: 'admin/currencies',
+        loadComponent: () =>
+          import('./features/admin/currencies.page').then(
+            (m) => m.AdminCurrenciesPage,
+          ),
+        title: 'Sextante — Moedas',
+      },
+      {
+        path: 'admin/exchange-rates',
+        loadComponent: () =>
+          import('./features/admin/exchange-rates.page').then(
+            (m) => m.AdminExchangeRatesPage,
+          ),
+        title: 'Sextante — Taxas de câmbio',
+      },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],
   },

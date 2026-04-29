@@ -80,13 +80,13 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 ### Phase 3 — Multi-moeda + ECB
 
-- [ ] Entidade `Currency` (seed ISO 4217 + crypto base) e `ExchangeRate` em `shared`.
-- [ ] `Money` value object em `SharedKernel` + EF Core converter para storage `(decimal, varchar(3))`.
-- [ ] Integração ECB (`ICurrencyProvider` + `EcbCurrencyProvider`).
-- [ ] Job Hangfire diário (00:30 UTC) que persiste snapshot na `ExchangeRate`.
-- [ ] Inserção manual de taxa quando provider falha (UI + endpoint).
-- [ ] Refactor `Transaction` para carregar `ExchangeRateToPrimary` + `ExchangeRateAt`.
-- [ ] Dashboard com filtro "ver na moeda original" vs "tudo convertido para moeda principal".
+- [x] Entidade `Currency` (seed ISO 4217 + crypto base) e `ExchangeRate` em `shared`.
+- [x] `Money` value object em `SharedKernel` + EF Core converter para storage `(decimal, varchar(3))`.
+- [x] Integração ECB (`ICurrencyProvider` + `EcbCurrencyProvider`).
+- [x] Job Hangfire diário (00:30 UTC) que persiste snapshot na `ExchangeRate`.
+- [x] Inserção manual de taxa quando provider falha (UI + endpoint).
+- [x] Refactor `Transaction` para carregar `ExchangeRateToPrimary` + `ExchangeRateAt`.
+- [x] Dashboard com filtro "ver na moeda original" vs "tudo convertido para moeda principal".
 
 **Saída**: registar transação em USD numa conta EUR persiste o câmbio do momento; dashboard mostra totais consolidados na moeda principal do tenant.
 

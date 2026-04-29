@@ -51,6 +51,10 @@ public sealed class FinancialDbContext : DbContext
                 .HasColumnName("type")
                 .HasConversion<int>()
                 .IsRequired();
+            b.Property(a => a.Currency)
+                .HasColumnName("currency")
+                .HasMaxLength(3)
+                .IsRequired();
             b.OwnsOne(a => a.OpeningBalance, money =>
             {
                 money.Property(m => m.Amount)
@@ -139,6 +143,11 @@ public sealed class FinancialDbContext : DbContext
             b.Property(t => t.Description)
                 .HasColumnName("description")
                 .HasMaxLength(Transaction.DescriptionMaxLength);
+            b.Property(t => t.ExchangeRateToPrimary)
+                .HasColumnName("exchange_rate_to_primary")
+                .HasPrecision(20, 8);
+            b.Property(t => t.ExchangeRateAt)
+                .HasColumnName("exchange_rate_at");
 
             // Tags como jsonb. Backing field via Metadata API porque a
             // propriedade é exposta como IReadOnlyList<string> mas o EF

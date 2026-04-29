@@ -18,6 +18,7 @@ import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
+import { MessageModule } from 'primeng/message';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { TableModule } from 'primeng/table';
@@ -29,6 +30,7 @@ import {
   CategoryDto,
   CreateTransactionRequest,
   TransactionDto,
+  TransactionViewMode,
 } from '../../core/api/financial.types';
 import { MoneyPipe } from '../../core/format/money.pipe';
 import { FinancialStore, ChartKind } from '../financial/state/financial.store';
@@ -48,6 +50,7 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
     SelectModule,
     InputNumberModule,
     InputTextModule,
+    MessageModule,
     MultiSelectModule,
     SelectButtonModule,
     TableModule,
@@ -110,55 +113,113 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
         </form>
       </p-card>
 
-      <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <p-card>
-          <div class="flex flex-col gap-1">
-            <span class="text-sm text-[var(--p-text-muted-color)]">Entrada</span>
-            <span class="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
-              {{ store.summary().income | money }}
-            </span>
-          </div>
-        </p-card>
-        <p-card>
-          <div class="flex flex-col gap-1">
-            <span class="text-sm text-[var(--p-text-muted-color)]">Saída</span>
-            <span class="text-2xl font-semibold text-red-600 dark:text-red-400">
-              {{ store.summary().expense | money }}
-            </span>
-          </div>
-        </p-card>
-        <p-card>
-          <div class="flex flex-col gap-1">
-            <span class="text-sm text-[var(--p-text-muted-color)]">Líquido</span>
-            <span class="text-2xl font-semibold">
-              {{ store.summary().net | money }}
-            </span>
-          </div>
-        </p-card>
-      </section>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-lg font-semibold">Resumo</h2>
+        <p-selectButton
+          data-testid="view-mode-toggle"
+          [options]="viewModeOptions"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="store.viewMode()"
+          (ngModelChange)="onViewModeChange($event)"
+          [allowEmpty]="false"
+          styleClass="w-full md:w-auto"
+        ></p-selectButton>
+      </div>
 
-      <p-card>
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold">Por categoria</h2>
-          <p-selectButton
-            [options]="chartOptions"
-            optionLabel="label"
-            optionValue="value"
-            [ngModel]="store.chartKind()"
-            (ngModelChange)="onChartKindChange($event)"
-            [allowEmpty]="false"
-          ></p-selectButton>
-        </div>
-        @if (chartData(); as data) {
-          @if (data.labels.length) {
-            <p-chart type="doughnut" [data]="data" [options]="chartConfig()"></p-chart>
-          } @else {
-            <p class="text-center text-[var(--p-text-muted-color)] py-8">
-              Sem dados para o filtro atual.
+      @if (store.viewMode() === 'converted') {
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <p-card>
+            <div class="flex flex-col gap-1">
+              <span class="text-sm text-[var(--p-text-muted-color)]">Entrada</span>
+              <span class="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                {{ store.summary().income | money }}
+              </span>
+            </div>
+          </p-card>
+          <p-card>
+            <div class="flex flex-col gap-1">
+              <span class="text-sm text-[var(--p-text-muted-color)]">Saída</span>
+              <span class="text-2xl font-semibold text-red-600 dark:text-red-400">
+                {{ store.summary().expense | money }}
+              </span>
+            </div>
+          </p-card>
+          <p-card>
+            <div class="flex flex-col gap-1">
+              <span class="text-sm text-[var(--p-text-muted-color)]">Líquido</span>
+              <span class="text-2xl font-semibold">
+                {{ store.summary().net | money }}
+              </span>
+            </div>
+          </p-card>
+        </section>
+      } @else {
+        <section class="flex flex-col gap-4">
+          @for (row of store.summary().perCurrency ?? []; track row.currency) {
+            <p-card>
+              <div class="flex flex-col gap-2">
+                <span class="text-sm font-semibold">{{ row.currency }}</span>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div class="flex flex-col gap-1">
+                    <span class="text-xs text-[var(--p-text-muted-color)]">Entrada</span>
+                    <span class="text-xl font-semibold text-emerald-600 dark:text-emerald-400">
+                      {{ row.income | money }}
+                    </span>
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <span class="text-xs text-[var(--p-text-muted-color)]">Saída</span>
+                    <span class="text-xl font-semibold text-red-600 dark:text-red-400">
+                      {{ row.expense | money }}
+                    </span>
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <span class="text-xs text-[var(--p-text-muted-color)]">Líquido</span>
+                    <span class="text-xl font-semibold">
+                      {{ row.net | money }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </p-card>
+          } @empty {
+            <p class="text-center text-[var(--p-text-muted-color)] py-4">
+              Sem transações para o filtro atual.
             </p>
           }
-        }
-      </p-card>
+        </section>
+      }
+
+      @if (store.viewMode() === 'converted') {
+        <p-card>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Por categoria</h2>
+            <p-selectButton
+              [options]="chartOptions"
+              optionLabel="label"
+              optionValue="value"
+              [ngModel]="store.chartKind()"
+              (ngModelChange)="onChartKindChange($event)"
+              [allowEmpty]="false"
+            ></p-selectButton>
+          </div>
+          @if (chartData(); as data) {
+            @if (data.labels.length) {
+              <p-chart type="doughnut" [data]="data" [options]="chartConfig()"></p-chart>
+            } @else {
+              <p class="text-center text-[var(--p-text-muted-color)] py-8">
+                Sem dados para o filtro atual.
+              </p>
+            }
+          }
+        </p-card>
+      } @else {
+        <p-message
+          severity="info"
+          text="Vista por moeda original — soma multi-moeda escondida."
+          data-testid="original-mode-warning"
+        ></p-message>
+      }
 
       <p-card>
         <h2 class="text-lg font-semibold mb-4">Transações</h2>
@@ -255,6 +316,7 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
               optionValue="id"
               formControlName="accountId"
               styleClass="w-full"
+              (onChange)="onAccountChange($event.value)"
             ></p-select>
           </div>
           <div class="flex flex-col gap-1">
@@ -285,16 +347,30 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
               styleClass="w-full"
             ></p-datepicker>
           </div>
-          <div class="flex flex-col gap-1">
-            <label for="t-amount">Valor</label>
-            <p-inputNumber
-              inputId="t-amount"
-              mode="currency"
-              currency="EUR"
-              locale="pt-PT"
-              [min]="0.01"
-              formControlName="amount"
-            ></p-inputNumber>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div class="md:col-span-1 flex flex-col gap-1">
+              <label for="t-currency">Moeda</label>
+              <p-select
+                inputId="t-currency"
+                [options]="store.currencies()"
+                optionLabel="code"
+                optionValue="code"
+                formControlName="currency"
+                styleClass="w-full"
+              ></p-select>
+            </div>
+            <div class="md:col-span-2 flex flex-col gap-1">
+              <label for="t-amount">Valor</label>
+              <p-inputNumber
+                inputId="t-amount"
+                mode="currency"
+                [currency]="form.controls.currency.value || 'EUR'"
+                locale="pt-PT"
+                [min]="0.01"
+                formControlName="amount"
+                styleClass="w-full"
+              ></p-inputNumber>
+            </div>
           </div>
           <div class="flex flex-col gap-1">
             <label for="t-description">Descrição</label>
@@ -338,6 +414,11 @@ export class DashboardPage implements OnInit {
   protected readonly chartOptions = [
     { value: 'Expense', label: 'Despesas' },
     { value: 'Income', label: 'Receitas' },
+  ];
+
+  protected readonly viewModeOptions = [
+    { value: 'converted', label: 'Convertido' },
+    { value: 'original', label: 'Original' },
   ];
 
   private readonly destroyRef = inject(DestroyRef);
@@ -391,6 +472,7 @@ export class DashboardPage implements OnInit {
     categoryId: ['', Validators.required],
     occurredAt: [new Date() as Date | null, Validators.required],
     amount: [0, [Validators.required, Validators.min(0.01)]],
+    currency: ['EUR' as string, Validators.required],
     description: this.fb.control<string | null>(null),
   });
 
@@ -404,6 +486,8 @@ export class DashboardPage implements OnInit {
     await Promise.all([
       this.store.loadAccounts(),
       this.store.loadCategories(),
+      this.store.loadCurrencies(),
+      this.store.loadTenantSettings(),
     ]);
 
     this.filterForm.valueChanges.subscribe((value) => {
@@ -440,12 +524,26 @@ export class DashboardPage implements OnInit {
     void this.store.loadByCategory();
   }
 
+  protected onViewModeChange(value: TransactionViewMode): void {
+    void this.store.setViewMode(value);
+  }
+
+  protected onAccountChange(accountId: string): void {
+    const account = this.store.accounts().find((a) => a.id === accountId);
+    if (account) {
+      this.form.controls.currency.setValue(account.currency);
+    }
+  }
+
   protected openCreate(): void {
+    const defaultCurrency =
+      this.store.tenantSettings()?.primaryCurrency ?? 'EUR';
     this.form.reset({
       accountId: '',
       categoryId: '',
       occurredAt: new Date(),
       amount: 0,
+      currency: defaultCurrency,
       description: null,
     });
     this.dialogOpenSignal.set(true);
@@ -463,11 +561,17 @@ export class DashboardPage implements OnInit {
     try {
       const value = this.form.getRawValue();
       const occurredAt = (value.occurredAt as Date).toISOString();
+      const account = this.store.accounts().find((a) => a.id === value.accountId);
+      const sendCurrency =
+        value.currency && account && value.currency !== account.currency
+          ? value.currency
+          : null;
       const request: CreateTransactionRequest = {
         accountId: value.accountId,
         categoryId: value.categoryId,
         occurredAt,
         amount: value.amount,
+        currency: sendCurrency,
         description: value.description,
       };
       await this.api.createTransaction(request);

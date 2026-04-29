@@ -26,5 +26,6 @@
     <Project Path="tests/Sextante.IntegrationTests/Sextante.IntegrationTests.csproj" />
     <Project Path="tests/Modules/Financial.Domain.Tests/Sextante.Modules.Financial.Domain.Tests.csproj" />
     <Project Path="tests/Modules/Financial.Application.Tests/Sextante.Modules.Financial.Application.Tests.csproj" />
+    <Project Path="tests/Modules/Identity.Application.Tests/Sextante.Modules.Identity.Application.Tests.csproj" />
   </Folder>
 </Solution>

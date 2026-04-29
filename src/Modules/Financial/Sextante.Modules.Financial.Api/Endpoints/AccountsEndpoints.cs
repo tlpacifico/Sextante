@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Sextante.Modules.Financial.Application.Features.Accounts;
+using Sextante.Modules.Financial.Domain.Common;
 using Wolverine;
 
 namespace Sextante.Modules.Financial.Api.Endpoints;
@@ -26,8 +27,20 @@ public static class AccountsEndpoints
 
         group.MapPost("", async (CreateAccountCommand command, IMessageBus bus, CancellationToken ct) =>
         {
-            var created = await bus.InvokeAsync<AccountResponse>(command, ct);
-            return Results.Created($"/api/financial/accounts/{created.Id}", created);
+            try
+            {
+                var created = await bus.InvokeAsync<AccountResponse>(command, ct);
+                return Results.Created($"/api/financial/accounts/{created.Id}", created);
+            }
+            catch (FinancialDomainException ex)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["account"] = [ex.Message],
+                    },
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
         });
 
         group.MapPut("{id:guid}", async (Guid id, UpdateAccountBody body, IMessageBus bus, CancellationToken ct) =>

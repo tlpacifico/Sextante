@@ -10,10 +10,28 @@ public interface ITransactionRepository
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 
     Task<TransactionPage> ListAsync(TransactionFilter filter, CancellationToken cancellationToken);
-    Task<TransactionTotals> GetTotalsAsync(TransactionFilter filter, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Soma converted (em <paramref name="primaryCurrency"/>) usando
+    /// <c>COALESCE(ExchangeRateToPrimary, 1.0)</c>. NULL é "1.0
+    /// implied" para rows pré-Phase-3 ou onde currency==primary.
+    /// </summary>
+    Task<TransactionTotals> GetConvertedTotalsAsync(
+        TransactionFilter filter,
+        string primaryCurrency,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Devolve totais agrupados pela moeda original da transação.
+    /// </summary>
+    Task<IReadOnlyList<TransactionTotalsByCurrencyRow>> GetTotalsByCurrencyAsync(
+        TransactionFilter filter,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<TransactionByCategoryRow>> GetByCategoryAsync(
         TransactionFilter filter,
         CategoryKindFilter kindFilter,
+        string primaryCurrency,
         CancellationToken cancellationToken);
 }
 
@@ -30,6 +48,11 @@ public sealed record TransactionCursor(DateTimeOffset OccurredAt, Guid Id);
 public sealed record TransactionPage(IReadOnlyList<Transaction> Items, TransactionCursor? NextCursor);
 
 public sealed record TransactionTotals(Money Income, Money Expense, Money Net);
+
+public sealed record TransactionTotalsByCurrencyRow(
+    string Currency,
+    decimal Income,
+    decimal Expense);
 
 public sealed record TransactionByCategoryRow(
     Guid CategoryId,

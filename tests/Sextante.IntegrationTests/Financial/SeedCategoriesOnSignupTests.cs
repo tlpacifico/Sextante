@@ -41,8 +41,8 @@ public sealed class SeedCategoriesOnSignupTests : IClassFixture<IdentityIntegrat
         categories.Should().NotBeNull();
         var resolved = categories!;
         resolved.Should().HaveCount(11);
-        resolved.Count(c => c.Kind == 0).Should().Be(7, "Expense categories");
-        resolved.Count(c => c.Kind == 1).Should().Be(4, "Income categories");
+        resolved.Count(c => c.Kind == "Expense").Should().Be(7, "Expense categories");
+        resolved.Count(c => c.Kind == "Income").Should().Be(4, "Income categories");
         resolved.Should().Contain(c => c.Name == "Salário");
         resolved.Should().Contain(c => c.Name == "Alimentação");
     }
@@ -50,7 +50,7 @@ public sealed class SeedCategoriesOnSignupTests : IClassFixture<IdentityIntegrat
     private sealed record CategoryRow(
         Guid Id,
         string Name,
-        int Kind,
+        string Kind,
         string IconName,
         string ColorHex);
 }
