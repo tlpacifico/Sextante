@@ -58,7 +58,36 @@ public sealed class TransactionRepository : ITransactionRepository
         return new TransactionPage(items, nextCursor);
     }
 
-    public async Task<TransactionTotals> GetTotalsAsync(
+    public async Task<TransactionTotals> GetConvertedTotalsAsync(
+        TransactionFilter filter,
+        string primaryCurrency,
+        CancellationToken cancellationToken)
+    {
+        var query = ApplyFilter(_db.Transactions.AsQueryable(), filter);
+
+        var rows = await query
+            .Join(
+                _db.Categories,
+                t => t.CategoryId,
+                c => c.Id,
+                (t, c) => new
+                {
+                    Amount = t.Amount.Amount,
+                    ExchangeRate = t.ExchangeRateToPrimary ?? 1.0m,
+                    c.Kind,
+                })
+            .ToListAsync(cancellationToken);
+
+        var income = rows.Where(r => r.Kind == CategoryKind.Income).Sum(r => r.Amount * r.ExchangeRate);
+        var expense = rows.Where(r => r.Kind == CategoryKind.Expense).Sum(r => r.Amount * r.ExchangeRate);
+
+        return new TransactionTotals(
+            new Money(income, primaryCurrency),
+            new Money(expense, primaryCurrency),
+            new Money(income - expense, primaryCurrency));
+    }
+
+    public async Task<IReadOnlyList<TransactionTotalsByCurrencyRow>> GetTotalsByCurrencyAsync(
         TransactionFilter filter,
         CancellationToken cancellationToken)
     {
@@ -69,23 +98,28 @@ public sealed class TransactionRepository : ITransactionRepository
                 _db.Categories,
                 t => t.CategoryId,
                 c => c.Id,
-                (t, c) => new { Amount = t.Amount.Amount, Currency = t.Amount.Currency, c.Kind })
+                (t, c) => new
+                {
+                    Amount = t.Amount.Amount,
+                    Currency = t.Amount.Currency,
+                    c.Kind,
+                })
             .ToListAsync(cancellationToken);
 
-        var income = rows.Where(r => r.Kind == CategoryKind.Income).Sum(r => r.Amount);
-        var expense = rows.Where(r => r.Kind == CategoryKind.Expense).Sum(r => r.Amount);
-        var currency = rows.Select(r => r.Currency).FirstOrDefault() ?? "EUR";
-
-        var incomeMoney = new Money(income, currency);
-        var expenseMoney = new Money(expense, currency);
-        var netMoney = new Money(income - expense, currency);
-
-        return new TransactionTotals(incomeMoney, expenseMoney, netMoney);
+        return rows
+            .GroupBy(r => r.Currency, StringComparer.Ordinal)
+            .Select(g => new TransactionTotalsByCurrencyRow(
+                g.Key,
+                g.Where(x => x.Kind == CategoryKind.Income).Sum(x => x.Amount),
+                g.Where(x => x.Kind == CategoryKind.Expense).Sum(x => x.Amount)))
+            .OrderBy(r => r.Currency, StringComparer.Ordinal)
+            .ToList();
     }
 
     public async Task<IReadOnlyList<TransactionByCategoryRow>> GetByCategoryAsync(
         TransactionFilter filter,
         CategoryKindFilter kindFilter,
+        string primaryCurrency,
         CancellationToken cancellationToken)
     {
         var kind = kindFilter == CategoryKindFilter.Income ? CategoryKind.Income : CategoryKind.Expense;
@@ -104,7 +138,7 @@ public sealed class TransactionRepository : ITransactionRepository
                     c.IconName,
                     c.ColorHex,
                     Amount = t.Amount.Amount,
-                    Currency = t.Amount.Currency,
+                    ExchangeRate = t.ExchangeRateToPrimary ?? 1.0m,
                 })
             .ToListAsync(cancellationToken);
 
@@ -112,14 +146,13 @@ public sealed class TransactionRepository : ITransactionRepository
             .GroupBy(x => new { x.Id, x.Name, x.IconName, x.ColorHex })
             .Select(g =>
             {
-                var total = g.Sum(x => x.Amount);
-                var currency = g.Select(x => x.Currency).FirstOrDefault() ?? "EUR";
+                var total = g.Sum(x => x.Amount * x.ExchangeRate);
                 return new TransactionByCategoryRow(
                     g.Key.Id,
                     g.Key.Name,
                     g.Key.IconName,
                     g.Key.ColorHex,
-                    new Money(total, currency));
+                    new Money(total, primaryCurrency));
             })
             .OrderByDescending(r => r.Total.Amount)
             .ToList();

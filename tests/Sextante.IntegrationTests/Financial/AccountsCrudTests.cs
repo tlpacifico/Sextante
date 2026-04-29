@@ -56,5 +56,5 @@ public sealed class AccountsCrudTests : IClassFixture<IdentityIntegrationFixture
         finalList.Should().BeEmpty();
     }
 
-    private sealed record AccountRow(Guid Id, string Name, int Type);
+    private sealed record AccountRow(Guid Id, string Name, string Type);
 }

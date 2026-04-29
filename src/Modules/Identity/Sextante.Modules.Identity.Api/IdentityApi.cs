@@ -58,6 +58,10 @@ public static class IdentityApi
         auth.MapMe();
         auth.MapLogout();
 
+        routes.MapCurrenciesEndpoints();
+        routes.MapExchangeRatesEndpoints();
+        routes.MapTenantsEndpoints();
+
         return routes;
     }
 

@@ -40,6 +40,7 @@ public static class TransactionsEndpoints
             [FromQuery] DateTimeOffset? dateTo,
             [FromQuery] Guid[]? categoryIds,
             [FromQuery] Guid[]? accountIds,
+            [FromQuery] string? viewMode,
             IMessageBus bus,
             CancellationToken ct) =>
         {
@@ -47,7 +48,8 @@ public static class TransactionsEndpoints
                 dateFrom,
                 dateTo,
                 categoryIds is { Length: > 0 } ? categoryIds.ToList() : null,
-                accountIds is { Length: > 0 } ? accountIds.ToList() : null);
+                accountIds is { Length: > 0 } ? accountIds.ToList() : null,
+                viewMode);
             var summary = await bus.InvokeAsync<TransactionSummaryResponse>(query, ct);
             return Results.Ok(summary);
         });
@@ -58,6 +60,7 @@ public static class TransactionsEndpoints
             [FromQuery] Guid[]? categoryIds,
             [FromQuery] Guid[]? accountIds,
             [FromQuery] string? kind,
+            [FromQuery] string? viewMode,
             IMessageBus bus,
             CancellationToken ct) =>
         {
@@ -66,7 +69,8 @@ public static class TransactionsEndpoints
                 dateTo,
                 categoryIds is { Length: > 0 } ? categoryIds.ToList() : null,
                 accountIds is { Length: > 0 } ? accountIds.ToList() : null,
-                kind ?? "Expense");
+                kind ?? "Expense",
+                viewMode);
             var rows = await bus.InvokeAsync<IReadOnlyList<TransactionByCategoryResponse>>(query, ct);
             return Results.Ok(rows);
         });

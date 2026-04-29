@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-04-28
+
+- Phase 3 — Multi-moeda + ECB (backend)
+- Entidades novas no schema `shared`: `Currency` (em SharedKernel; ISO 4217 fiat ≈155 rows seedadas; soft-delete via `IsActive=false` em vez de `DeletedAt`), `ExchangeRate` (em Identity.Domain; EUR-base canónico; chave única `(rate_date, from_currency, to_currency)`), `EcbSnapshotState` (singleton com `LastRunAt` / `LastSuccessAt` / `LastError`)
+- Migration `AddCurrencyAndExchangeRate` cria as 3 tabelas, faz seed da lista ISO 4217 (`Iso4217Currencies.cs`) e inicializa o singleton; `DISABLE ROW LEVEL SECURITY` nas 3 (reference data partilhada cross-tenant)
+- `IVersioned` extraído de `IAuditable` para entidades com audit sem soft-delete (Currency, ExchangeRate); `AuditingInterceptor` populando `CreatedAt`/`UpdatedAt`/`Version` em ambas as variantes
+- `ICurrencyProvider` + `EcbCurrencyProvider` (typed `HttpClient`, parser XML do feed `eurofxref-daily.xml`, `EcbProviderException` fail-loud); resilience via `Microsoft.Extensions.Http.Resilience` (`AddStandardResilienceHandler`: retry 3× / backoff 2s exponencial / per-attempt 10s)
+- `EcbSnapshotJob` Hangfire recurring `30 0 * * *` UTC; idempotente (lookup por `(rate_date, from, to)` antes de upsert); falha → `LastError` (truncado a 2000 chars) + re-throw para Hangfire marcar como failed
+- Hangfire registado com Postgres storage (`messaging`/`shared` schemas separados); dashboard em `/api/admin/hangfire` restrito a `SystemAdmin` via `HangfireSystemAdminFilter`
+- `IExchangeRateService.ResolveAsync(from, to, at, ct)` em Financial.Application com cross-rate EUR-base: `from==to` → null (1.0 implied); `from==EUR` → direta; `to==EUR` → inversa; nenhum é EUR → `(1/EUR→from) × EUR→to`. Fallback para a rate mais recente até à data quando o dia exato não tem snapshot (fim-de-semana / feriados)
+- `ExchangeRateUnavailableException` PT-PT em miss; mapeado para `ProblemDetails` 400 nos endpoints REST
+- Domain: VO `ExchangeRateSnapshot(Rate, At)` (Phase 3); `Transaction.ExchangeRateToPrimary` + `ExchangeRateAt` (NULL allowed; `1.0` implied via COALESCE no read-side); rate é frozen — `Transaction.Update` não recomputa
+- Domain: `Account.Currency varchar(3) NOT NULL` (FK a `shared.currencies(code)`); `Account.Create` exige `Currency == OpeningBalance.Currency` (`AccountCurrencyMismatchException`); `Currency` setter privado (fixo após criação)
+- `CreateTransactionHandler` e `CreateAccountHandler` validam currency contra `ICurrencyDirectory.IsActiveAsync` (allowlist ativa em `shared.currencies`); `CreateTransactionHandler` chama `IExchangeRateService.ResolveAsync(amount.Currency, tenantPrimary, occurredAt)` antes de criar a `Transaction`
+- Migration `AddAccountCurrencyAndExchangeRate` em Financial: adiciona `currency` (default-fill por tenant primary; depois drop default + FK constraint a `shared.currencies`); adiciona `exchange_rate_to_primary numeric(20,8) NULL` + `exchange_rate_at timestamptz NULL`
+- Dashboard backend: `TransactionSummaryQuery` e `TransactionsByCategoryQuery` ganham parâmetro `viewMode` ∈ `{converted, original}` (default `converted`); `converted` soma usando `COALESCE(ExchangeRateToPrimary, 1.0)` e devolve `Money` em tenant primary; `original` agrupa por `Amount.Currency` e devolve `IReadOnlyList<CurrencyTotals>`
+- Endpoints admin Identity novos:
+  - `GET /api/currencies` (público autenticado, lista as ativas)
+  - `GET /api/admin/currencies` / `POST` / `PUT {code}` (SystemAdmin)
+  - `GET /api/admin/exchange-rates?from&to&currencies` (default últimos 7 dias × top-5 configuráveis em `ExchangeRates:DefaultDisplayCurrencies`)
+  - `GET /api/admin/exchange-rates/state` (surface do `EcbSnapshotState` para a UI)
+  - `POST /api/admin/exchange-rates` (manual upsert; FluentValidation `ManualExchangeRateValidator`; `Source='manual'` sobreescreve ECB)
+  - `POST /api/admin/exchange-rates/snapshot/run` (enqueue do `EcbSnapshotJob` via `IBackgroundJobClient`)
+  - `GET /api/tenants/me` + `PUT /api/tenants/me { primaryCurrency }` (mudar primary do tenant ativo; histórico fica frozen)
+- `TenantCurrencyResolver`: comment inline atualizado para apontar para `IExchangeRateService` (decisão Phase 3 — resolver continua "primary only"; rate resolution vive no service)
+- Domain unit tests novos: `CurrencyTests` (regex ISO 4217, MinorUnits 0..6), `ExchangeRateSnapshotTests` (rate>0, equality), `Transaction_ExchangeRateSnapshot_Tests` (Create persiste rate+at; Update não recomputa; null persiste null), `AccountCurrencyTests` (mismatch + invalid code rejected; Currency setter privado)
+- Pacotes novos: `Hangfire.AspNetCore`, `Hangfire.PostgreSql`, `Microsoft.Extensions.Http.Resilience`, `FluentValidation`, `FluentValidation.AspNetCore`
+
 ## 2026-04-27
 
 - Phase 2 — Categorias + Contas + Transações manuais + Dashboard mínimo

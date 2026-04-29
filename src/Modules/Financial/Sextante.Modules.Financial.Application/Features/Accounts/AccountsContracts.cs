@@ -7,6 +7,7 @@ public sealed record AccountResponse(
     Guid Id,
     string Name,
     AccountType Type,
+    string Currency,
     Money OpeningBalance,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
@@ -14,6 +15,7 @@ public sealed record AccountResponse(
 public sealed record CreateAccountCommand(
     string Name,
     AccountType Type,
+    string? Currency,
     decimal OpeningBalanceAmount);
 
 public sealed record UpdateAccountCommand(

@@ -133,6 +133,9 @@ export class FinancialApiService {
     if (filter.pageSize) {
       params = params.set('pageSize', filter.pageSize.toString());
     }
+    if (filter.viewMode) {
+      params = params.set('viewMode', filter.viewMode);
+    }
     return params;
   }
 }

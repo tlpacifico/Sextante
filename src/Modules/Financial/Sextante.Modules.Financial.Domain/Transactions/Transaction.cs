@@ -26,6 +26,16 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
     public string? Description { get; private set; }
     public IReadOnlyList<string> Tags => _tags;
 
+    /// <summary>
+    /// Câmbio gravado no momento da criação. Phase 3+: <c>null</c>
+    /// quando <c>Amount.Currency == tenant primary</c> (read-side
+    /// interpreta como <c>1.0 implied</c>) ou em rows pré-Phase-3
+    /// (sem backfill).
+    /// </summary>
+    public decimal? ExchangeRateToPrimary { get; private set; }
+
+    public DateTimeOffset? ExchangeRateAt { get; private set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
@@ -39,6 +49,7 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
         string? description,
         IEnumerable<string>? tags,
         TenantId tenantId,
+        ExchangeRateSnapshot? exchangeRate = null,
         DateTimeOffset? now = null)
     {
         if (amount.Amount <= 0m)
@@ -64,6 +75,8 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
             OccurredAt = occurredAt,
             Amount = amount,
             Description = normalized,
+            ExchangeRateToPrimary = exchangeRate?.Rate,
+            ExchangeRateAt = exchangeRate?.At,
         };
         transaction._tags.AddRange(normalizedTags);
         return transaction;
@@ -94,6 +107,9 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
         OccurredAt = occurredAt;
         Amount = amount;
         Description = NormalizeDescription(description);
+        // ExchangeRateToPrimary / ExchangeRateAt são frozen — não
+        // recomputados em Update (decisão registada em
+        // requirements.md "Decisions").
 
         _tags.Clear();
         _tags.AddRange(NormalizeTags(tags));

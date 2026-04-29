@@ -18,6 +18,10 @@
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="WolverineFx.PostgreSQL" />
     <PackageReference Include="WolverineFx.EntityFrameworkCore" />
+    <PackageReference Include="Hangfire.AspNetCore" />
+    <PackageReference Include="Hangfire.PostgreSql" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>

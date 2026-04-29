@@ -11,6 +11,8 @@ public sealed record TransactionResponse(
     Money Amount,
     string? Description,
     IReadOnlyList<string> Tags,
+    decimal? ExchangeRateToPrimary,
+    DateTimeOffset? ExchangeRateAt,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -19,6 +21,7 @@ public sealed record CreateTransactionCommand(
     Guid CategoryId,
     DateTimeOffset OccurredAt,
     decimal Amount,
+    string? Currency,
     string? Description,
     IReadOnlyList<string>? Tags);
 
@@ -51,16 +54,29 @@ public sealed record TransactionSummaryQuery(
     DateTimeOffset? DateFrom,
     DateTimeOffset? DateTo,
     IReadOnlyList<Guid>? CategoryIds,
-    IReadOnlyList<Guid>? AccountIds);
+    IReadOnlyList<Guid>? AccountIds,
+    string? ViewMode);
 
-public sealed record TransactionSummaryResponse(Money Income, Money Expense, Money Net);
+public sealed record TransactionSummaryResponse(
+    Money Income,
+    Money Expense,
+    Money Net,
+    string ViewMode,
+    IReadOnlyList<CurrencyTotals>? PerCurrency);
+
+public sealed record CurrencyTotals(
+    string Currency,
+    Money Income,
+    Money Expense,
+    Money Net);
 
 public sealed record TransactionsByCategoryQuery(
     DateTimeOffset? DateFrom,
     DateTimeOffset? DateTo,
     IReadOnlyList<Guid>? CategoryIds,
     IReadOnlyList<Guid>? AccountIds,
-    string Kind);
+    string Kind,
+    string? ViewMode);
 
 public sealed record TransactionByCategoryResponse(
     Guid CategoryId,

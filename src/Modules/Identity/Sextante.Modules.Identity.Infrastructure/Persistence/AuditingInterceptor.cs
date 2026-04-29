@@ -44,7 +44,7 @@ public sealed class AuditingInterceptor : SaveChangesInterceptor
 
         foreach (var entry in entries)
         {
-            if (entry.Entity is not IAuditable auditable)
+            if (entry.Entity is not IVersioned versioned)
             {
                 continue;
             }
@@ -52,14 +52,14 @@ public sealed class AuditingInterceptor : SaveChangesInterceptor
             switch (entry.State)
             {
                 case EntityState.Added:
-                    auditable.CreatedAt = now;
-                    auditable.UpdatedAt = now;
-                    auditable.Version = 1;
+                    versioned.CreatedAt = now;
+                    versioned.UpdatedAt = now;
+                    versioned.Version = 1;
                     break;
 
                 case EntityState.Modified:
-                    auditable.UpdatedAt = now;
-                    auditable.Version += 1;
+                    versioned.UpdatedAt = now;
+                    versioned.Version += 1;
                     break;
             }
         }

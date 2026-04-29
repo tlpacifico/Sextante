@@ -6,8 +6,10 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence;
 
 /// <summary>
 /// Lê <c>shared.Tenants.PrimaryCurrency</c> para o tenant ativo. Cache
-/// scoped — uma chamada por request basta. Phase 3 substitui por uma
-/// variante que aceita override por transação.
+/// scoped — uma chamada por request basta. Phase 3+ — resolver continua
+/// responsável apenas pela primary currency; rate resolution vive em
+/// <see cref="Sextante.Modules.Financial.Application.ExchangeRates.IExchangeRateService"/>
+/// (cache, dependências distintas, error handling próprio).
 /// </summary>
 public sealed class TenantCurrencyResolver : ITenantCurrencyResolver
 {

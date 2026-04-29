@@ -142,13 +142,25 @@ import { FinancialStore } from '../state/financial.store';
               styleClass="w-full"
             ></p-select>
           </div>
+          <div class="flex flex-col gap-1">
+            <label for="account-currency">Moeda</label>
+            <p-select
+              inputId="account-currency"
+              [options]="store.currencies()"
+              optionLabel="code"
+              optionValue="code"
+              formControlName="currency"
+              styleClass="w-full"
+              [disabled]="!!editingId()"
+            ></p-select>
+          </div>
           @if (!editingId()) {
             <div class="flex flex-col gap-1">
               <label for="account-balance">Saldo inicial</label>
               <p-inputNumber
                 inputId="account-balance"
                 mode="currency"
-                currency="EUR"
+                [currency]="form.controls.currency.value || 'EUR'"
                 locale="pt-PT"
                 [min]="0"
                 formControlName="openingBalance"
@@ -211,12 +223,17 @@ export class AccountsPage implements OnInit {
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(200)]],
     type: ['Checking' as AccountType, Validators.required],
+    currency: ['EUR' as string, Validators.required],
     openingBalance: [0, [Validators.required, Validators.min(0)]],
   });
 
   async ngOnInit(): Promise<void> {
     try {
-      await this.store.loadAccounts();
+      await Promise.all([
+        this.store.loadAccounts(),
+        this.store.loadCurrencies(),
+        this.store.loadTenantSettings(),
+      ]);
     } catch {
       this.toast.add({
         severity: 'error',
@@ -228,7 +245,14 @@ export class AccountsPage implements OnInit {
 
   protected openCreate(): void {
     this.editingId.set(null);
-    this.form.reset({ name: '', type: 'Checking', openingBalance: 0 });
+    const defaultCurrency =
+      this.store.tenantSettings()?.primaryCurrency ?? 'EUR';
+    this.form.reset({
+      name: '',
+      type: 'Checking',
+      currency: defaultCurrency,
+      openingBalance: 0,
+    });
     this.dialogOpenSignal.set(true);
   }
 
@@ -237,6 +261,7 @@ export class AccountsPage implements OnInit {
     this.form.reset({
       name: account.name,
       type: account.type,
+      currency: account.currency,
       openingBalance: account.openingBalance.amount,
     });
     this.dialogOpenSignal.set(true);
@@ -273,6 +298,7 @@ export class AccountsPage implements OnInit {
         await this.api.createAccount({
           name: value.name,
           type: value.type,
+          currency: value.currency,
           openingBalanceAmount: value.openingBalance,
         });
         this.toast.add({ severity: 'success', summary: 'Conta criada' });
