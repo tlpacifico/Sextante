@@ -135,6 +135,216 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                     b.ToTable("categories", "financial");
                 });
 
+            modelBuilder.Entity("Sextante.Modules.Financial.Domain.CategorizationRules.CategorizationRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("MatchType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("match_type");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Pattern")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("pattern");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer")
+                        .HasColumnName("priority");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Priority");
+
+                    b.ToTable("categorization_rules", "financial");
+                });
+
+            modelBuilder.Entity("Sextante.Modules.Financial.Domain.ImportBatches.ImportBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CategorizationResultJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("categorization_result");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<int>("DuplicateRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("duplicate_rows");
+
+                    b.Property<int>("ErrorRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("error_rows");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("file_name");
+
+                    b.Property<Guid?>("ImportProfileId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_profile_id");
+
+                    b.Property<int>("ImportedRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("imported_rows");
+
+                    b.Property<string>("ParsedPreviewJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("parsed_preview");
+
+                    b.Property<bool>("PreviewTruncated")
+                        .HasColumnType("boolean")
+                        .HasColumnName("preview_truncated");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<int>("TotalRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_rows");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("import_batches", "financial");
+                });
+
+            modelBuilder.Entity("Sextante.Modules.Financial.Domain.ImportProfiles.ImportProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ColumnMappings")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("column_mappings");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DateFormat")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("date_format");
+
+                    b.Property<string>("DecimalSeparator")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("character varying(1)")
+                        .HasColumnName("decimal_separator");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Delimiter")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("character varying(1)")
+                        .HasColumnName("delimiter");
+
+                    b.Property<bool>("HasHeaderRow")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_header_row");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SkipRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("skip_rows");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("import_profiles", "financial");
+                });
+
             modelBuilder.Entity("Sextante.Modules.Financial.Domain.Transactions.Transaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -145,6 +355,14 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uuid")
                         .HasColumnName("account_id");
+
+                    b.Property<Guid?>("CategorizationRuleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("categorization_rule_id");
+
+                    b.Property<DateTimeOffset?>("CategorizedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("categorized_at");
 
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uuid")
@@ -196,6 +414,8 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CategorizationRuleId");
+
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "OccurredAt");
@@ -239,6 +459,11 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Sextante.Modules.Financial.Domain.Transactions.Transaction", b =>
                 {
+                    b.HasOne("Sextante.Modules.Financial.Domain.CategorizationRules.CategorizationRule", null)
+                        .WithMany()
+                        .HasForeignKey("CategorizationRuleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.OwnsOne("Sextante.SharedKernel.Money", "Amount", b1 =>
                         {
                             b1.Property<Guid>("TransactionId")

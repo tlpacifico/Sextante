@@ -11,6 +11,9 @@ public static class FinancialApi
         routes.MapAccountsEndpoints();
         routes.MapCategoriesEndpoints();
         routes.MapTransactionsEndpoints();
+        routes.MapImportProfilesEndpoints();
+        routes.MapCategorizationRulesEndpoints();
+        routes.MapCsvImportEndpoints();
         return routes;
     }
 }

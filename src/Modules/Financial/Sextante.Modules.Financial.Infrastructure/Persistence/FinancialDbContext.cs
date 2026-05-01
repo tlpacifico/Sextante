@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Categories;
+using Sextante.Modules.Financial.Domain.CategorizationRules;
+using Sextante.Modules.Financial.Domain.ImportProfiles;
+using Sextante.Modules.Financial.Domain.ImportBatches;
 using Sextante.Modules.Financial.Domain.Transactions;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 using Sextante.SharedKernel;
@@ -27,6 +30,9 @@ public sealed class FinancialDbContext : DbContext
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<CategorizationRule> CategorizationRules => Set<CategorizationRule>();
+    public DbSet<ImportProfile> ImportProfiles => Set<ImportProfile>();
+    public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -178,6 +184,106 @@ public sealed class FinancialDbContext : DbContext
             b.HasQueryFilter(t =>
                 t.DeletedAt == null
                 && (_tenantContext == null || t.TenantId == _tenantContext.TenantId));
+        });
+
+        // Transaction — Phase 4 audit columns
+        modelBuilder.Entity<Transaction>(cfg =>
+        {
+            cfg.Property(t => t.CategorizationRuleId)
+                .HasColumnName("categorization_rule_id")
+                .HasColumnType("uuid")
+                .IsRequired(false);
+            cfg.Property(t => t.CategorizedAt)
+                .HasColumnName("categorized_at")
+                .HasColumnType("timestamptz")
+                .IsRequired(false);
+            cfg.HasOne<CategorizationRule>()
+                .WithMany()
+                .HasForeignKey(t => t.CategorizationRuleId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // CategorizationRule
+        modelBuilder.Entity<CategorizationRule>(cfg =>
+        {
+            cfg.ToTable("categorization_rules");
+            cfg.HasKey(r => r.Id);
+            cfg.Property(r => r.Id).HasColumnName("id");
+            cfg.Property(r => r.TenantId)
+                .HasConversion(v => v.Value, v => new TenantId(v))
+                .HasColumnName("tenant_id")
+                .HasColumnType("uuid");
+            cfg.Property(r => r.Name).HasColumnName("name").HasMaxLength(128).IsRequired();
+            cfg.Property(r => r.Pattern).HasColumnName("pattern").HasMaxLength(512).IsRequired();
+            cfg.Property(r => r.MatchType).HasColumnName("match_type").HasConversion<string>().IsRequired();
+            cfg.Property(r => r.CategoryId).HasColumnName("category_id").HasColumnType("uuid").IsRequired();
+            cfg.Property(r => r.Priority).HasColumnName("priority").IsRequired();
+            cfg.Property(r => r.IsActive).HasColumnName("is_active").IsRequired();
+            cfg.Property(r => r.Version).HasColumnName("version").IsConcurrencyToken();
+            cfg.Property(r => r.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+            cfg.Property(r => r.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
+            cfg.Property(r => r.DeletedAt).HasColumnName("deleted_at").HasColumnType("timestamptz");
+            cfg.HasIndex(r => new { r.TenantId, r.Priority });
+            cfg.HasQueryFilter(r => r.DeletedAt == null
+                && (_tenantContext == null || r.TenantId == _tenantContext.TenantId));
+        });
+
+        // ImportProfile
+        modelBuilder.Entity<ImportProfile>(cfg =>
+        {
+            cfg.ToTable("import_profiles");
+            cfg.HasKey(p => p.Id);
+            cfg.Property(p => p.Id).HasColumnName("id");
+            cfg.Property(p => p.TenantId)
+                .HasConversion(v => v.Value, v => new TenantId(v))
+                .HasColumnName("tenant_id")
+                .HasColumnType("uuid");
+            cfg.Property(p => p.Name).HasColumnName("name").HasMaxLength(128).IsRequired();
+            cfg.Property(p => p.Delimiter).HasColumnName("delimiter").HasMaxLength(1).IsRequired();
+            cfg.Property(p => p.HasHeaderRow).HasColumnName("has_header_row").IsRequired();
+            cfg.Property(p => p.DateFormat).HasColumnName("date_format").HasMaxLength(32).IsRequired();
+            cfg.Property(p => p.DecimalSeparator).HasColumnName("decimal_separator").HasMaxLength(1).IsRequired();
+            cfg.Property(p => p.SkipRows).HasColumnName("skip_rows").IsRequired();
+            cfg.Property(p => p.Version).HasColumnName("version").IsConcurrencyToken();
+            cfg.Property(p => p.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+            cfg.Property(p => p.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
+            cfg.Property(p => p.DeletedAt).HasColumnName("deleted_at").HasColumnType("timestamptz");
+            cfg.Property(p => p.ColumnMappings)
+                .HasColumnName("column_mappings")
+                .HasConversion(
+                    v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                    v => System.Text.Json.JsonSerializer.Deserialize<List<ColumnMapping>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<ColumnMapping>())
+                .HasColumnType("jsonb");
+            cfg.HasQueryFilter(p => p.DeletedAt == null
+                && (_tenantContext == null || p.TenantId == _tenantContext.TenantId));
+        });
+
+        // ImportBatch
+        modelBuilder.Entity<ImportBatch>(cfg =>
+        {
+            cfg.ToTable("import_batches");
+            cfg.HasKey(b => b.Id);
+            cfg.Property(b => b.Id).HasColumnName("id");
+            cfg.Property(b => b.TenantId)
+                .HasConversion(v => v.Value, v => new TenantId(v))
+                .HasColumnName("tenant_id")
+                .HasColumnType("uuid");
+            cfg.Property(b => b.ImportProfileId).HasColumnName("import_profile_id").HasColumnType("uuid").IsRequired(false);
+            cfg.Property(b => b.FileName).HasColumnName("file_name").HasMaxLength(256).IsRequired();
+            cfg.Property(b => b.Status).HasColumnName("status").HasConversion<string>().IsRequired();
+            cfg.Property(b => b.TotalRows).HasColumnName("total_rows").IsRequired();
+            cfg.Property(b => b.ImportedRows).HasColumnName("imported_rows").IsRequired();
+            cfg.Property(b => b.DuplicateRows).HasColumnName("duplicate_rows").IsRequired();
+            cfg.Property(b => b.ErrorRows).HasColumnName("error_rows").IsRequired();
+            cfg.Property(b => b.ParsedPreviewJson).HasColumnName("parsed_preview").HasColumnType("jsonb").IsRequired(false);
+            cfg.Property(b => b.CategorizationResultJson).HasColumnName("categorization_result").HasColumnType("jsonb").IsRequired(false);
+            cfg.Property(b => b.PreviewTruncated).HasColumnName("preview_truncated").IsRequired();
+            cfg.Property(b => b.Version).HasColumnName("version").IsConcurrencyToken();
+            cfg.Property(b => b.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+            cfg.Property(b => b.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
+            cfg.Property(b => b.DeletedAt).HasColumnName("deleted_at").HasColumnType("timestamptz");
+            cfg.HasQueryFilter(b => b.DeletedAt == null
+                && (_tenantContext == null || b.TenantId == _tenantContext.TenantId));
         });
     }
 }

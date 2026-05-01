@@ -92,6 +92,38 @@ export const routes: Routes = [
           ),
         title: 'Sextante — Taxas de câmbio',
       },
+      {
+        path: 'categorization-rules',
+        loadComponent: () =>
+          import('./features/financial/pages/categorization-rules.page').then(
+            (m) => m.CategorizationRulesPage,
+          ),
+        title: 'Sextante — Regras de categorização',
+      },
+      {
+        path: 'import-profiles',
+        loadComponent: () =>
+          import('./features/financial/pages/import-profiles.page').then(
+            (m) => m.ImportProfilesPage,
+          ),
+        title: 'Sextante — Perfis de importação',
+      },
+      {
+        path: 'imports/new',
+        loadComponent: () =>
+          import('./features/financial/pages/import-wizard.page').then(
+            (m) => m.ImportWizardPage,
+          ),
+        title: 'Sextante — Nova importação',
+      },
+      {
+        path: 'imports',
+        loadComponent: () =>
+          import('./features/financial/pages/import-batches.page').then(
+            (m) => m.ImportBatchesPage,
+          ),
+        title: 'Sextante — Importações',
+      },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],
   },

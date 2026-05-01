@@ -92,14 +92,14 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 ### Phase 4 — Importação CSV + Regras de categorização 🛡️
 
-- [ ] Entidades: `ImportProfile` (mapeamento de colunas reutilizável por banco/cartão), `ImportBatch`, `CategorizationRule`.
-- [ ] Endpoint upload CSV + parse + pré-visualização.
-- [ ] Deduplicação heurística (data + valor + descrição normalizada → "potencial duplicado").
-- [ ] Regras de categorização: matching por Contains / Equals / StartsWith.
-- [ ] Ordem de prioridade entre regras (primeira a fazer match ganha).
-- [ ] Aplicação de regras durante import + endpoint para re-executar regras sobre transações existentes.
-- [ ] Audit: transação categorizada por regra X regista qual.
-- [ ] UI Angular: wizard de import (upload → mapping → preview → confirmar).
+- [x] Entidades: `ImportProfile` (mapeamento de colunas reutilizável por banco/cartão), `ImportBatch`, `CategorizationRule`.
+- [x] Endpoint upload CSV + parse + pré-visualização.
+- [x] Deduplicação heurística (data + valor + descrição normalizada → "potencial duplicado").
+- [x] Regras de categorização: matching por Contains / Equals / StartsWith.
+- [x] Ordem de prioridade entre regras (primeira a fazer match ganha).
+- [x] Aplicação de regras durante import + endpoint para re-executar regras sobre transações existentes.
+- [x] Audit: transação categorizada por regra X regista qual.
+- [x] UI Angular: wizard de import (upload → mapping → preview → confirmar).
 
 **Saída**: utilizador importa extrato CSV do banco e ≥80% das transações ficam categorizadas automaticamente por regras.
 

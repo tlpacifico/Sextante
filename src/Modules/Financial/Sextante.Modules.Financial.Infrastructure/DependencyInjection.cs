@@ -4,7 +4,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Transactions;
+using Sextante.Modules.Financial.Application.CsvImport;
+using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.ExchangeRates;
+using Sextante.Modules.Financial.Domain.CategorizationRules;
+using Sextante.Modules.Financial.Domain.ImportProfiles;
+using Sextante.Modules.Financial.Domain.ImportBatches;
+using Sextante.Modules.Financial.Infrastructure.CsvImport;
+using Sextante.Modules.Financial.Infrastructure.CategorizationRules;
 using Sextante.Modules.Financial.Infrastructure.ExchangeRates;
 using Sextante.Modules.Financial.Infrastructure.Persistence;
 using Sextante.Modules.Financial.Infrastructure.Persistence.Repositories;
@@ -50,6 +57,13 @@ public static class DependencyInjection
 
         services.AddScoped<ITenantCurrencyResolver, TenantCurrencyResolver>();
         services.AddScoped<IExchangeRateService, ExchangeRateService>();
+
+        services.AddScoped<ICategorizationRuleRepository, CategorizationRuleRepository>();
+        services.AddScoped<IImportProfileRepository, ImportProfileRepository>();
+        services.AddScoped<IImportBatchRepository, ImportBatchRepository>();
+        services.AddScoped<ICsvParser, CsvParser>();
+        services.AddScoped<IDuplicateDetector, DuplicateDetector>();
+        services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();
 
         services.AddHostedService<FinancialMigrationRunner>();
 

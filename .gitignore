@@ -110,6 +110,7 @@ appsettings.Development.json
 appsettings.Local.json
 secrets.json
 dev-jwt-key.bin
+cookies.txt
 
 # ============================================================
 # Docker
