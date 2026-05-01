@@ -142,3 +142,173 @@ export const CATEGORY_KIND_LABELS: Record<CategoryKind, string> = {
   Expense: 'Despesa',
   Income: 'Receita',
 };
+
+// --- Categorization Rules (Phase 4) ---
+export type MatchType = 'Contains' | 'Equals' | 'StartsWith';
+
+export interface CategorizationRuleDto {
+  id: string;
+  name: string;
+  pattern: string;
+  matchType: MatchType;
+  categoryId: string;
+  categoryName: string;
+  categoryIcon: string;
+  categoryColor: string;
+  priority: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCategorizationRuleRequest {
+  name: string;
+  pattern: string;
+  matchType: string;
+  categoryId: string;
+  priority: number;
+}
+
+export interface UpdateCategorizationRuleRequest {
+  name: string;
+  pattern: string;
+  matchType: string;
+  categoryId: string;
+  priority: number;
+  isActive: boolean;
+}
+
+export interface ReorderRulesRequest {
+  ruleIds: string[];
+}
+
+export interface ReapplyRulesRequest {
+  categoryId?: string | null;
+  from?: string | null;
+  to?: string | null;
+  onlyUncategorized?: boolean | null;
+}
+
+export interface ReapplyRulesResponse {
+  totalProcessed: number;
+  categorizedCount: number;
+  unchangedCount: number;
+}
+
+export const MATCH_TYPES: MatchType[] = ['Contains', 'Equals', 'StartsWith'];
+export const MATCH_TYPE_LABELS: Record<MatchType, string> = {
+  Contains: 'Contém',
+  Equals: 'Igual a',
+  StartsWith: 'Começa com',
+};
+
+// --- Import Profiles (Phase 4) ---
+export type TransactionField = 'Date' | 'Amount' | 'Currency' | 'Description' | 'Account' | 'Category' | 'CreditDebitIndicator';
+
+export interface ColumnMappingDto {
+  csvColumnName: string;
+  transactionField: string;
+  defaultValue?: string | null;
+}
+
+export interface ImportProfileDto {
+  id: string;
+  name: string;
+  columnMappings: ColumnMappingDto[];
+  delimiter: string;
+  hasHeaderRow: boolean;
+  dateFormat: string;
+  decimalSeparator: string;
+  skipRows: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateImportProfileRequest {
+  name: string;
+  columnMappings: ColumnMappingDto[];
+  delimiter?: string | null;
+  hasHeaderRow?: boolean | null;
+  dateFormat?: string | null;
+  decimalSeparator?: string | null;
+  skipRows?: number | null;
+}
+
+export interface UpdateImportProfileRequest {
+  name: string;
+  columnMappings: ColumnMappingDto[];
+  delimiter: string;
+  hasHeaderRow: boolean;
+  dateFormat: string;
+  decimalSeparator: string;
+  skipRows: number;
+}
+
+export const TRANSACTION_FIELDS: TransactionField[] = ['Date', 'Amount', 'Currency', 'Description', 'Account', 'Category', 'CreditDebitIndicator'];
+export const TRANSACTION_FIELD_LABELS: Record<TransactionField, string> = {
+  Date: 'Data',
+  Amount: 'Valor',
+  Currency: 'Moeda',
+  Description: 'Descrição',
+  Account: 'Conta',
+  Category: 'Categoria',
+  CreditDebitIndicator: 'Débito/Crédito',
+};
+
+// --- CSV Import (Phase 4) ---
+export interface PreviewRow {
+  rowIndex: number;
+  values: string[];
+  isDuplicate: boolean;
+  duplicateTransactionId: string | null;
+  suggestedCategoryName: string | null;
+  suggestedCategoryId: string | null;
+  isAutoCategorized: boolean;
+  error: string | null;
+}
+
+export interface UploadCsvResponse {
+  batchId: string;
+  headers: string[];
+  previewRows: PreviewRow[];
+  totalRowCount: number;
+  truncated: boolean;
+  detectedDelimiter: string;
+  detectedHasHeader: boolean;
+  errors: string[];
+}
+
+export interface ColumnMappingInput {
+  csvColumnName: string;
+  transactionField: string | null;
+}
+
+export interface UpdatePreviewRequest {
+  columnMappings: ColumnMappingInput[];
+  delimiter?: string | null;
+  hasHeaderRow?: boolean | null;
+  dateFormat?: string | null;
+  decimalSeparator?: string | null;
+  skipRows?: number | null;
+}
+
+export interface ConfirmImportResponse {
+  batchId: string;
+  importedRows: number;
+  autoCategorized: number;
+  manualCount: number;
+  errorRows: number;
+  status: string;
+}
+
+export interface ImportBatchDto {
+  id: string;
+  importProfileId: string | null;
+  fileName: string;
+  status: string;
+  totalRows: number;
+  importedRows: number;
+  duplicateRows: number;
+  errorRows: number;
+  createdAt: string;
+}

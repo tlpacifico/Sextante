@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Modules\Financial\Sextante.Modules.Financial.Application\Sextante.Modules.Financial.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Financial\Sextante.Modules.Financial.Infrastructure\Sextante.Modules.Financial.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Financial\Sextante.Modules.Financial.Domain\Sextante.Modules.Financial.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Financial\Sextante.Modules.Financial.PublicApi\Sextante.Modules.Financial.PublicApi.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Identity\Sextante.Modules.Identity.PublicApi\Sextante.Modules.Identity.PublicApi.csproj" />

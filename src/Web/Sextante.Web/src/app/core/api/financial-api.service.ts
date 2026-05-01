@@ -3,18 +3,31 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
   AccountDto,
+  CategorizationRuleDto,
   CategoryDto,
+  ConfirmImportResponse,
   CreateAccountRequest,
+  CreateCategorizationRuleRequest,
   CreateCategoryRequest,
+  CreateImportProfileRequest,
   CreateTransactionRequest,
+  ImportBatchDto,
+  ImportProfileDto,
+  ReapplyRulesRequest,
+  ReapplyRulesResponse,
+  ReorderRulesRequest,
   TransactionByCategoryResponse,
   TransactionDto,
   TransactionFilter,
   TransactionSummaryResponse,
   TransactionsPageResponse,
   UpdateAccountRequest,
+  UpdateCategorizationRuleRequest,
   UpdateCategoryRequest,
+  UpdateImportProfileRequest,
+  UpdatePreviewRequest,
   UpdateTransactionRequest,
+  UploadCsvResponse,
 } from './financial.types';
 
 @Injectable({ providedIn: 'root' })
@@ -114,6 +127,76 @@ export class FinancialApiService {
     return firstValueFrom(
       this.http.delete<void>(`/api/financial/transactions/${id}`),
     );
+  }
+
+  // Categorization Rules (Phase 4) -------------------------------------------
+  listCategorizationRules(): Promise<CategorizationRuleDto[]> {
+    return firstValueFrom(this.http.get<CategorizationRuleDto[]>('/api/financial/categorization-rules'));
+  }
+
+  createCategorizationRule(req: CreateCategorizationRuleRequest): Promise<CategorizationRuleDto> {
+    return firstValueFrom(this.http.post<CategorizationRuleDto>('/api/financial/categorization-rules', req));
+  }
+
+  updateCategorizationRule(id: string, req: UpdateCategorizationRuleRequest): Promise<CategorizationRuleDto> {
+    return firstValueFrom(this.http.put<CategorizationRuleDto>(`/api/financial/categorization-rules/${id}`, req));
+  }
+
+  archiveCategorizationRule(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/financial/categorization-rules/${id}`));
+  }
+
+  reorderRules(req: ReorderRulesRequest): Promise<void> {
+    return firstValueFrom(this.http.put<void>('/api/financial/categorization-rules/reorder', req));
+  }
+
+  reapplyRules(params: ReapplyRulesRequest): Promise<ReapplyRulesResponse> {
+    let httpParams = new HttpParams();
+    if (params.categoryId) httpParams = httpParams.set('categoryId', params.categoryId);
+    if (params.from) httpParams = httpParams.set('from', params.from);
+    if (params.to) httpParams = httpParams.set('to', params.to);
+    if (params.onlyUncategorized != null) httpParams = httpParams.set('onlyUncategorized', String(params.onlyUncategorized));
+    return firstValueFrom(this.http.post<ReapplyRulesResponse>('/api/financial/categorization-rules/reapply', undefined, { params: httpParams }));
+  }
+
+  // Import Profiles (Phase 4) ------------------------------------------------
+  listImportProfiles(): Promise<ImportProfileDto[]> {
+    return firstValueFrom(this.http.get<ImportProfileDto[]>('/api/financial/import-profiles'));
+  }
+
+  createImportProfile(req: CreateImportProfileRequest): Promise<ImportProfileDto> {
+    return firstValueFrom(this.http.post<ImportProfileDto>('/api/financial/import-profiles', req));
+  }
+
+  updateImportProfile(id: string, req: UpdateImportProfileRequest): Promise<ImportProfileDto> {
+    return firstValueFrom(this.http.put<ImportProfileDto>(`/api/financial/import-profiles/${id}`, req));
+  }
+
+  archiveImportProfile(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/financial/import-profiles/${id}`));
+  }
+
+  // CSV Import (Phase 4) -----------------------------------------------------
+  uploadCsv(file: File, importProfileId?: string | null): Promise<UploadCsvResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    let url = '/api/financial/imports/upload';
+    if (importProfileId) {
+      url += `?importProfileId=${importProfileId}`;
+    }
+    return firstValueFrom(this.http.post<UploadCsvResponse>(url, formData));
+  }
+
+  updatePreview(batchId: string, req: UpdatePreviewRequest): Promise<UploadCsvResponse> {
+    return firstValueFrom(this.http.put<UploadCsvResponse>(`/api/financial/imports/${batchId}/preview`, req));
+  }
+
+  confirmImport(batchId: string, includeDuplicates: string[]): Promise<ConfirmImportResponse> {
+    return firstValueFrom(this.http.post<ConfirmImportResponse>(`/api/financial/imports/${batchId}/confirm`, { includeDuplicates }));
+  }
+
+  listImportBatches(): Promise<ImportBatchDto[]> {
+    return firstValueFrom(this.http.get<ImportBatchDto[]>('/api/financial/imports'));
   }
 
   private toParams(filter: TransactionFilter): HttpParams {

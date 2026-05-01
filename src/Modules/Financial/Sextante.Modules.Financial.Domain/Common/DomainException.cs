@@ -1,9 +1,5 @@
 namespace Sextante.Modules.Financial.Domain.Common;
 
-/// <summary>
-/// Base para exceções de invariant do Domain. Handlers da Application
-/// mapeiam para <c>ValidationProblemDetails</c> PT-PT.
-/// </summary>
 public abstract class FinancialDomainException : InvalidOperationException
 {
     protected FinancialDomainException(string message) : base(message)
@@ -99,4 +95,97 @@ public sealed class ExchangeRateUnavailableException : FinancialDomainException
     public string From { get; }
     public string To { get; }
     public DateOnly Date { get; }
+}
+
+// Categorization rule exceptions
+public sealed class CategorizationRuleNameRequiredException : FinancialDomainException
+{
+    public CategorizationRuleNameRequiredException() : base("O nome da regra é obrigatório.") { }
+}
+public sealed class CategorizationRuleNameTooLongException : FinancialDomainException
+{
+    public CategorizationRuleNameTooLongException(int max) : base($"O nome da regra tem no máximo {max} caracteres.") { }
+}
+public sealed class CategorizationRulePatternRequiredException : FinancialDomainException
+{
+    public CategorizationRulePatternRequiredException() : base("O padrão da regra é obrigatório.") { }
+}
+public sealed class CategorizationRulePatternTooLongException : FinancialDomainException
+{
+    public CategorizationRulePatternTooLongException(int max) : base($"O padrão da regra tem no máximo {max} caracteres.") { }
+}
+public sealed class CategorizationRuleCategoryRequiredException : FinancialDomainException
+{
+    public CategorizationRuleCategoryRequiredException() : base("A categoria alvo da regra é obrigatória.") { }
+}
+public sealed class CategorizationRulePriorityNegativeException : FinancialDomainException
+{
+    public CategorizationRulePriorityNegativeException() : base("A prioridade da regra não pode ser negativa.") { }
+}
+public sealed class CategorizationRuleDuplicatePriorityException : FinancialDomainException
+{
+    public CategorizationRuleDuplicatePriorityException(int priority) : base($"Já existe uma regra com prioridade {priority}. Ajuste as prioridades.") { }
+}
+
+// Import profile exceptions
+public sealed class ImportProfileNameRequiredException : FinancialDomainException
+{
+    public ImportProfileNameRequiredException() : base("O nome do perfil é obrigatório.") { }
+}
+public sealed class ImportProfileNameTooLongException : FinancialDomainException
+{
+    public ImportProfileNameTooLongException(int max) : base($"O nome do perfil tem no máximo {max} caracteres.") { }
+}
+public sealed class ImportProfileMappingsRequiredException : FinancialDomainException
+{
+    public ImportProfileMappingsRequiredException() : base("Pelo menos um mapeamento de coluna é obrigatório.") { }
+}
+public sealed class ImportProfileDelimiterInvalidException : FinancialDomainException
+{
+    public ImportProfileDelimiterInvalidException() : base("O delimitador tem de ser um único caractere.") { }
+}
+public sealed class ImportProfileDecimalSeparatorInvalidException : FinancialDomainException
+{
+    public ImportProfileDecimalSeparatorInvalidException() : base("O separador decimal tem de ser um único caractere.") { }
+}
+public sealed class ImportProfileSkipRowsNegativeException : FinancialDomainException
+{
+    public ImportProfileSkipRowsNegativeException() : base("SkipRows não pode ser negativo.") { }
+}
+
+// Import batch exceptions
+public sealed class ImportBatchFileNameRequiredException : FinancialDomainException
+{
+    public ImportBatchFileNameRequiredException() : base("O nome do ficheiro é obrigatório.") { }
+}
+public sealed class ImportBatchFileNameTooLongException : FinancialDomainException
+{
+    public ImportBatchFileNameTooLongException(int max) : base($"O nome do ficheiro tem no máximo {max} caracteres.") { }
+}
+
+// CSV import exceptions
+public sealed class CsvParseException : FinancialDomainException
+{
+    public CsvParseException(string detail) : base($"Erro ao processar o CSV: {detail}.") { }
+}
+public sealed class CsvEmptyException : FinancialDomainException
+{
+    public CsvEmptyException() : base("O ficheiro CSV está vazio ou não contém dados.") { }
+}
+public sealed class CsvEncodingNotSupportedException : FinancialDomainException
+{
+    public CsvEncodingNotSupportedException() : base("Encoding do CSV não suportado. Use UTF-8 ou ISO-8859-1.") { }
+}
+public sealed class CsvDuplicateColumnsException : FinancialDomainException
+{
+    public CsvDuplicateColumnsException(string column) : base($"CSV contém colunas com nome duplicado: '{column}'.") { }
+}
+public sealed class CsvParseTimeoutException : FinancialDomainException
+{
+    public CsvParseTimeoutException() : base("A análise do CSV excedeu o tempo limite de 30 segundos. Use um ficheiro mais pequeno.") { }
+}
+
+public sealed class AccountNotFoundForImportException : FinancialDomainException
+{
+    public AccountNotFoundForImportException(string accountName) : base($"Conta '{accountName}' não encontrada. Crie a conta antes de importar.") { }
 }

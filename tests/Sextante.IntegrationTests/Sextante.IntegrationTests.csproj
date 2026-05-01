@@ -36,6 +36,7 @@
 
   <ItemGroup>
     <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Data\Import\example-activo-bank.csv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

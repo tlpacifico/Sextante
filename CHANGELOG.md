@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-05-01
+
+- Phase 4 — Importação CSV + Regras de categorização (🛡️)
+- Entidades novas no schema `financial`: `CategorizationRule` (Name varchar(128), Pattern varchar(512), MatchType enum-as-string `Contains`/`Equals`/`StartsWith`, CategoryId, Priority int ≥0, IsActive; soft-delete + audit), `ImportProfile` (Delimiter char(1), HasHeaderRow, DateFormat, DecimalSeparator char(1), SkipRows ≥0, ColumnMappings jsonb com `{csvColumnName, transactionField, defaultValue?}`; `TransactionField` enum: Date/Amount/Currency/Description/Account/Category/CreditDebitIndicator), `ImportBatch` (Status state machine `Parsing` → `PreviewReady` → `Confirming` → `Importing` → `Completed`/`Failed`; ParsedPreviewJson + CategorizationResultJson em jsonb; PreviewTruncated flag; FileName/total/imported/duplicate/error counters)
+- `Transaction` estendida com `CategorizationRuleId (uuid NULL)` + `CategorizedAt (timestamptz NULL)`; mutators `MarkCategorizedByRule(ruleId)` e `SetCategory(categoryId)`; FK para `categorization_rules(id)` com `ON DELETE SET NULL`
+- Migration `AddCsvImport` cria as 3 tabelas, adiciona as 2 colunas a `transactions`, índice `(tenant_id, priority)` em `categorization_rules` e índice em `transactions(categorization_rule_id)`; FK preserva audit mesmo após archive da regra
+- `ICsvParser` + `CsvParser` (CsvHelper 33.0.1) com auto-detect de delimitador (`,` / `;` / `\t` / `|` por variance scoring sobre ≤5 linhas), strict UTF-8 com fallback transparente para ISO-8859-1, timeout 30s via `CancellationTokenSource`, truncation a `MaxPreviewRows` (default 1000) com flag `truncated`, deteção de colunas duplicadas case-insensitive
+- Excepções CSV PT-PT: `CsvEmptyException`, `CsvParseTimeoutException`, `CsvDuplicateColumnsException`, `CsvEncodingNotSupportedException` — mapeadas para `ValidationProblem` 400 nos endpoints
+- `IDuplicateDetector` + `DuplicateDetector`: matching heurístico `(Date + Amount + Currency + descrição normalizada)`; normalização aplica lowercase + remove diacríticos (FormD) + colapsa pontuação `.,;:_-` em espaços + reduz whitespace; query batched a 100 linhas para limitar tamanho do `WHERE IN`; devolve `IReadOnlyList<DuplicateMatch>(rowIndex, existingTransactionId)` para a UI marcar
+- `ICategorizationRuleEngine` + `CategorizationRuleEngine`: regras ordenadas por `Priority ASC` (menor = maior prioridade), first-match-wins; comparações `OrdinalIgnoreCase` para Contains/Equals/StartsWith; descrição vazia/null → no match (não consome regra)
+- Endpoints REST novos:
+  - `POST /api/financial/imports/upload` (multipart, DisableAntiforgery; 5 MB max; só `.csv`; valida no handler, devolve `UploadCsvResponse` com batch + preview + duplicates + auto-categorization suggestions)
+  - `PUT /api/financial/imports/{batchId}/preview` (re-parse com mapping editado pelo utilizador)
+  - `POST /api/financial/imports/{batchId}/confirm` (persiste transações; `ConfirmImportResponse` com totals)
+  - `GET /api/financial/imports` (lista batches do tenant)
+  - `GET/POST/PUT/DELETE /api/financial/categorization-rules` + `PUT /reorder` (drag-drop) + `POST /reapply?categoryId&from&to&onlyUncategorized` (default `onlyUncategorized=true`; devolve counts re-categorizados)
+  - `GET/POST/PUT/DELETE /api/financial/import-profiles`
+- FluentValidation `CreateCategorizationRuleValidator` / `UpdateCategorizationRuleValidator` / `CreateImportProfileValidator` com mensagens PT-PT (limites de length, MatchType allowlist, Priority não-negativa, ColumnMappings não-vazia)
+- `SeedDefaultImportProfilesHandler` (`[NonTransactional]` Wolverine subscriber de `UserRegisteredIntegrationEvent`) cria perfil "ActivoBank / Millennium CSV" no signup (delimiter `;`, header sim, `dd/MM/yyyy`, decimal `,`, mappings Data Valor → Date / Descrição → Description / Valor → Amount) — utilizador importa extrato desde o primeiro dia sem configurar mapeamentos
+- Frontend Angular: 4 páginas novas em `features/financial/pages/`
+  - `import-wizard.page.ts` — 4 steps (upload → mapping editável → preview com badges "Possível duplicado" / "Auto-categorizada" → confirmar) usando `p-steps`, `p-table`, `p-select`, `p-checkbox`, `p-tag`
+  - `import-batches.page.ts` — histórico de batches com status badges
+  - `import-profiles.page.ts` — CRUD de perfis com editor de mapping
+  - `categorization-rules.page.ts` — CRUD com drag-drop reorder + endpoint reapply triggers UI
+- `FinancialApiService` ganha métodos `uploadCsv`, `updatePreview`, `confirmImport`, `listBatches`, CRUD de rules/profiles, `reorderRules`, `reapplyRules`; `financial.types.ts` com `UploadCsvResponse`, `PreviewRow`, `ColumnMappingInput`, `ConfirmImportResponse`, `TRANSACTION_FIELD_LABELS` (PT-PT)
+- `app-shell.component.ts` adiciona links de navegação para Importar / Histórico / Perfis / Regras; rotas lazy-loaded em `app.routes.ts` sob `authGuard`
+- Domain unit tests: `CategorizationRuleTests` (length limits, MatchType, Priority ≥0, Archive), `ImportProfileTests` (Delimiter char(1), DecimalSeparator char(1), SkipRows ≥0, ColumnMappings não-vazia), `ImportBatchTests` (state machine + completion stats), `TransactionCategorizationTests` (`MarkCategorizedByRule` + `SetCategory` + audit columns persistem)
+- Application unit tests: `CsvParserTests` (delimiters, encoding fallback, truncation, timeout, duplicate columns), `DuplicateDetectorTests` (normalização + heurística), `CategorizationRuleEngineTests` (first-match-wins por prioridade, case-insensitive, descrição vazia), `ReapplyCategorizationRulesHandlerTests` (filtros categoryId/from/to/onlyUncategorized)
+- Architecture test `CsvImportDependencyTests` valida que Domain/Application/Infrastructure das novas features respeitam regras de dependência (sem leakage de Infra para Domain, sem referências indevidas)
+- Integration test `CsvImportRealFileTests` exercita pipeline completo (upload → preview → mapping → duplicates → confirm → re-categorize) com fixture CSV em `tests/Sextante.IntegrationTests/Data/`
+- Pacote novo: `CsvHelper` 33.0.1; `FluentValidation` adicionada à `Sextante.Modules.Financial.Api.csproj` para registo dos validators
+- Walkthrough manual com extrato bancário real (ActivoBank) confirmou ≥80% das transações auto-categorizadas — *Saída* do roadmap §Phase 4 cumprida
+- Mark phase 4 as complete
+
 ## 2026-04-29
 
 - Mark phase 3 as complete

@@ -76,6 +76,8 @@ try
     // vivem em Identity.Api).
     builder.Services.AddValidatorsFromAssemblyContaining<
         Sextante.Modules.Identity.Api.Endpoints.ManualExchangeRateValidator>();
+    builder.Services.AddValidatorsFromAssemblyContaining<
+        Sextante.Modules.Financial.Api.Validators.CreateCategorizationRuleValidator>();
 
     // Bearer token (encrypted ticket; fica funcional desde Phase 1a).
     // JWT proper (HS256 com chave assinada) é Phase 6 — chave é exigida já

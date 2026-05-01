@@ -36,6 +36,9 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
 
     public DateTimeOffset? ExchangeRateAt { get; private set; }
 
+    public Guid? CategorizationRuleId { get; private set; }
+    public DateTimeOffset? CategorizedAt { get; private set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
@@ -118,6 +121,17 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
     public void Archive()
     {
         DeletedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void MarkCategorizedByRule(Guid ruleId)
+    {
+        CategorizationRuleId = ruleId;
+        CategorizedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void SetCategory(Guid categoryId)
+    {
+        CategoryId = categoryId;
     }
 
     private static string? NormalizeDescription(string? description)

@@ -66,4 +66,84 @@ describe('FinancialApiService', () => {
     req.flush(null);
     await promise;
   });
+
+  // Phase 4 — CSV import / categorization rules / import profiles ----------
+
+  it('listImportProfiles GETs /api/financial/import-profiles', async () => {
+    const promise = service.listImportProfiles();
+    const req = httpMock.expectOne('/api/financial/import-profiles');
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+    expect(await promise).toEqual([]);
+  });
+
+  it('listCategorizationRules GETs /api/financial/categorization-rules', async () => {
+    const promise = service.listCategorizationRules();
+    const req = httpMock.expectOne('/api/financial/categorization-rules');
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+    await promise;
+  });
+
+  it('reorderRules PUTs to /api/financial/categorization-rules/reorder', async () => {
+    const promise = service.reorderRules({ ruleIds: ['a', 'b'] });
+    const req = httpMock.expectOne('/api/financial/categorization-rules/reorder');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ ruleIds: ['a', 'b'] });
+    req.flush(null);
+    await promise;
+  });
+
+  it('reapplyRules POSTs to .../reapply with query params', async () => {
+    const promise = service.reapplyRules({
+      categoryId: 'cat-1',
+      from: '2026-01-01',
+      to: '2026-01-31',
+      onlyUncategorized: true,
+    });
+    const req = httpMock.expectOne((r) => r.url === '/api/financial/categorization-rules/reapply');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.params.get('categoryId')).toBe('cat-1');
+    expect(req.request.params.get('from')).toBe('2026-01-01');
+    expect(req.request.params.get('to')).toBe('2026-01-31');
+    expect(req.request.params.get('onlyUncategorized')).toBe('true');
+    req.flush({ totalProcessed: 0, categorizedCount: 0, unchangedCount: 0 });
+    await promise;
+  });
+
+  it('uploadCsv POSTs FormData to /api/financial/imports/upload', async () => {
+    const file = new File(['Data;Valor\n01-01;10'], 'test.csv', { type: 'text/csv' });
+    const promise = service.uploadCsv(file);
+    const req = httpMock.expectOne('/api/financial/imports/upload');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body instanceof FormData).toBeTrue();
+    req.flush({ batchId: 'b1', headers: [], rows: [], totalRowCount: 0, truncated: false });
+    await promise;
+  });
+
+  it('uploadCsv appends importProfileId as query param when provided', async () => {
+    const file = new File(['x'], 'test.csv', { type: 'text/csv' });
+    const promise = service.uploadCsv(file, 'profile-1');
+    const req = httpMock.expectOne('/api/financial/imports/upload?importProfileId=profile-1');
+    expect(req.request.method).toBe('POST');
+    req.flush({ batchId: 'b1', headers: [], rows: [], totalRowCount: 0, truncated: false });
+    await promise;
+  });
+
+  it('confirmImport POSTs includeDuplicates list', async () => {
+    const promise = service.confirmImport('batch-1', ['tx-1', 'tx-2']);
+    const req = httpMock.expectOne('/api/financial/imports/batch-1/confirm');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ includeDuplicates: ['tx-1', 'tx-2'] });
+    req.flush({ importedCount: 0, autoCategorizedCount: 0, errorCount: 0 });
+    await promise;
+  });
+
+  it('listImportBatches GETs /api/financial/imports', async () => {
+    const promise = service.listImportBatches();
+    const req = httpMock.expectOne('/api/financial/imports');
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+    await promise;
+  });
 });

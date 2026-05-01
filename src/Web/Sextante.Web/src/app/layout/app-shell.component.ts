@@ -154,6 +154,21 @@ export class AppShellComponent {
         routerLink: ['/app/categories'],
       },
       {
+        label: 'Regras',
+        icon: 'pi pi-filter',
+        routerLink: ['/app/categorization-rules'],
+      },
+      {
+        label: 'Perfis de importação',
+        icon: 'pi pi-file-import',
+        routerLink: ['/app/import-profiles'],
+      },
+      {
+        label: 'Importações',
+        icon: 'pi pi-upload',
+        routerLink: ['/app/imports'],
+      },
+      {
         label: 'Definições',
         icon: 'pi pi-cog',
         routerLink: ['/app/settings/general'],

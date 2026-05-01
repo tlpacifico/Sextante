@@ -45,6 +45,9 @@
     <!-- Resilience (Phase 3) -->
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="9.10.0" />
 
+    <!-- CSV parsing (Phase 4) -->
+    <PackageVersion Include="CsvHelper" Version="33.0.1" />
+
     <!-- Validation (Phase 3) -->
     <PackageVersion Include="FluentValidation" Version="12.0.0" />
     <PackageVersion Include="FluentValidation.AspNetCore" Version="11.3.1" />
