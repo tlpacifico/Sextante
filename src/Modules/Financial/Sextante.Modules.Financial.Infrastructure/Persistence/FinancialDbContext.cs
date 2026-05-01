@@ -4,6 +4,7 @@ using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.CategorizationRules;
 using Sextante.Modules.Financial.Domain.ImportProfiles;
 using Sextante.Modules.Financial.Domain.ImportBatches;
+using Sextante.Modules.Financial.Domain.RecurringRules;
 using Sextante.Modules.Financial.Domain.Transactions;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 using Sextante.SharedKernel;
@@ -33,6 +34,7 @@ public sealed class FinancialDbContext : DbContext
     public DbSet<CategorizationRule> CategorizationRules => Set<CategorizationRule>();
     public DbSet<ImportProfile> ImportProfiles => Set<ImportProfile>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+    public DbSet<RecurringRule> RecurringRules => Set<RecurringRule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -201,6 +203,82 @@ public sealed class FinancialDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(t => t.CategorizationRuleId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Transaction — Phase 5a recurring audit column
+        modelBuilder.Entity<Transaction>(cfg =>
+        {
+            cfg.Property(t => t.RecurringRuleId)
+                .HasColumnName("recurring_rule_id")
+                .HasColumnType("uuid")
+                .IsRequired(false);
+            cfg.HasOne<RecurringRule>()
+                .WithMany()
+                .HasForeignKey(t => t.RecurringRuleId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // RecurringRule
+        modelBuilder.Entity<RecurringRule>(cfg =>
+        {
+            cfg.ToTable("recurring_rules");
+            cfg.HasKey(r => r.Id);
+            cfg.Property(r => r.Id).HasColumnName("id");
+            cfg.Property(r => r.TenantId)
+                .HasConversion(v => v.Value, v => new TenantId(v))
+                .HasColumnName("tenant_id")
+                .HasColumnType("uuid");
+            cfg.Property(r => r.Description)
+                .HasColumnName("description")
+                .HasMaxLength(RecurringRule.DescriptionMaxLength)
+                .IsRequired();
+            cfg.OwnsOne(r => r.Amount, money =>
+            {
+                money.Property(m => m.Amount)
+                    .HasColumnName("amount_amount")
+                    .HasPrecision(20, 8)
+                    .IsRequired();
+                money.Property(m => m.Currency)
+                    .HasColumnName("amount_currency")
+                    .HasMaxLength(3)
+                    .IsRequired();
+            });
+            cfg.Property(r => r.AccountId).HasColumnName("account_id").HasColumnType("uuid").IsRequired();
+            cfg.Property(r => r.CategoryId).HasColumnName("category_id").HasColumnType("uuid").IsRequired(false);
+            cfg.Property(r => r.Frequency)
+                .HasColumnName("frequency")
+                .HasConversion<string>()
+                .IsRequired();
+            cfg.Property(r => r.Interval).HasColumnName("interval").IsRequired().HasDefaultValue(1);
+            cfg.Property(r => r.StartDate).HasColumnName("start_date").HasColumnType("date").IsRequired();
+            cfg.Property(r => r.EndDate).HasColumnName("end_date").HasColumnType("date").IsRequired(false);
+            cfg.Property(r => r.NextOccurrence).HasColumnName("next_occurrence").HasColumnType("date").IsRequired(false);
+            cfg.Property(r => r.IsActive).HasColumnName("is_active").IsRequired().HasDefaultValue(true);
+
+            var tagsProperty = cfg.Metadata.AddProperty(
+                "_tags",
+                typeof(List<string>),
+                typeof(RecurringRule).GetField("_tags",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!);
+            tagsProperty.SetField("_tags");
+            tagsProperty.SetColumnName("tags");
+            tagsProperty.SetColumnType("jsonb");
+            tagsProperty.SetValueConverter(new TagsJsonConverter());
+            tagsProperty.IsNullable = false;
+
+            cfg.Ignore(r => r.Tags);
+
+            cfg.Property(r => r.Version).HasColumnName("version").IsConcurrencyToken();
+            cfg.Property(r => r.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+            cfg.Property(r => r.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
+            cfg.Property(r => r.DeletedAt).HasColumnName("deleted_at").HasColumnType("timestamptz");
+
+            cfg.HasIndex(r => r.TenantId);
+            cfg.HasIndex(r => new { r.TenantId, r.NextOccurrence })
+                .HasFilter("next_occurrence IS NOT NULL AND is_active = true AND deleted_at IS NULL");
+
+            cfg.HasQueryFilter(r => r.DeletedAt == null
+                && (_tenantContext == null || r.TenantId == _tenantContext.TenantId));
         });
 
         // CategorizationRule

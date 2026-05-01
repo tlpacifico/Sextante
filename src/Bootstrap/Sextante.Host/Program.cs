@@ -11,6 +11,7 @@ using Serilog.Events;
 using Sextante.Host;
 using Sextante.Modules.Financial.Api;
 using Sextante.Modules.Financial.Infrastructure;
+using Sextante.Modules.Financial.Infrastructure.RecurringRules;
 using Sextante.Modules.Identity.Api;
 using Sextante.Modules.Identity.Application;
 using Sextante.Modules.Identity.Application.Middleware;
@@ -77,7 +78,7 @@ try
     builder.Services.AddValidatorsFromAssemblyContaining<
         Sextante.Modules.Identity.Api.Endpoints.ManualExchangeRateValidator>();
     builder.Services.AddValidatorsFromAssemblyContaining<
-        Sextante.Modules.Financial.Api.Validators.CreateCategorizationRuleValidator>();
+        Sextante.Modules.Financial.Api.Validators.CreateRecurringRuleValidator>();
 
     // Bearer token (encrypted ticket; fica funcional desde Phase 1a).
     // JWT proper (HS256 com chave assinada) é Phase 6 — chave é exigida já
@@ -243,6 +244,13 @@ try
         job => job.RunAsync(CancellationToken.None),
         "30 0 * * *",
         new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+    // Recurring materializer de transações recorrentes às 00:15 UTC.
+    // Corre antes do ECB (00:30) para que transações materializadas
+    // estejam disponíveis quando o utilizador abrir o sistema de manhã.
+    // Job global: faz scan cross-tenant de regras activas e invoca
+    // TenantAwareJob<T> para cada tenant (opção (a) do requirements.md).
+    RecurringMaterializerGlobalJob.Register();
 
     if (Directory.Exists(app.Environment.WebRootPath))
     {

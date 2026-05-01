@@ -39,6 +39,7 @@ public static class AccountsEndpoints
                     {
                         ["account"] = [ex.Message],
                     },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         });

@@ -25,6 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\Sextante.Infrastructure\Sextante.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Identity\Sextante.Modules.Identity.Api\Sextante.Modules.Identity.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Identity\Sextante.Modules.Identity.Application\Sextante.Modules.Identity.Application.csproj" />
     <ProjectReference Include="..\..\Modules\Identity\Sextante.Modules.Identity.Infrastructure\Sextante.Modules.Identity.Infrastructure.csproj" />

@@ -158,6 +158,7 @@ public static class CategorizationRuleHandlers
             command.To,
             command.CategoryId is not null ? new[] { command.CategoryId.Value } : null,
             null,
+            null,
             10000,
             null);
 

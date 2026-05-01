@@ -144,6 +144,11 @@ export class AppShellComponent {
         routerLink: ['/app/dashboard'],
       },
       {
+        label: 'Transações',
+        icon: 'pi pi-list',
+        routerLink: ['/app/dashboard'],
+      },
+      {
         label: 'Contas',
         icon: 'pi pi-wallet',
         routerLink: ['/app/accounts'],
@@ -152,6 +157,11 @@ export class AppShellComponent {
         label: 'Categorias',
         icon: 'pi pi-tag',
         routerLink: ['/app/categories'],
+      },
+      {
+        label: 'Recorrentes',
+        icon: 'pi pi-sync',
+        routerLink: ['/app/recurrings'],
       },
       {
         label: 'Regras',

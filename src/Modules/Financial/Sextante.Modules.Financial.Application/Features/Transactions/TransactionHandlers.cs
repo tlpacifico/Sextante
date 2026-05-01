@@ -132,6 +132,7 @@ public static class TransactionHandlers
             query.DateTo,
             query.CategoryIds,
             query.AccountIds,
+            query.RecurringRuleId,
             pageSize,
             Cursor.Decode(query.Cursor));
 
@@ -156,6 +157,7 @@ public static class TransactionHandlers
             query.DateTo,
             query.CategoryIds,
             query.AccountIds,
+            null,
             DefaultPageSize,
             null);
 
@@ -212,6 +214,7 @@ public static class TransactionHandlers
             query.DateTo,
             query.CategoryIds,
             query.AccountIds,
+            null,
             DefaultPageSize,
             null);
 
@@ -242,6 +245,7 @@ public static class TransactionHandlers
             transaction.Tags.ToList(),
             transaction.ExchangeRateToPrimary,
             transaction.ExchangeRateAt,
+            transaction.RecurringRuleId,
             transaction.CreatedAt,
             transaction.UpdatedAt);
 }

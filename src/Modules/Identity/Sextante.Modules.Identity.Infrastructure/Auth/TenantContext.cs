@@ -6,9 +6,10 @@ using Sextante.SharedKernel;
 
 namespace Sextante.Modules.Identity.Infrastructure.Auth;
 
-public sealed class TenantContext : ITenantContext
+public sealed class TenantContext : ITenantContext, ITenantContextSetter
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private TenantId? _override;
 
     public TenantContext(IHttpContextAccessor httpContextAccessor)
     {
@@ -19,6 +20,11 @@ public sealed class TenantContext : ITenantContext
     {
         get
         {
+            if (_override.HasValue)
+            {
+                return _override.Value;
+            }
+
             var http = _httpContextAccessor.HttpContext
                 ?? throw new UnauthorizedAccessException(
                     "TenantContext acedido fora de um pipeline HTTP — endpoint anonymous?");
@@ -41,5 +47,21 @@ public sealed class TenantContext : ITenantContext
 
             return new TenantId(tenantGuid);
         }
+    }
+
+    public void SetCurrent(Guid tenantId)
+    {
+        if (_httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated == true)
+        {
+            throw new InvalidOperationException(
+                "ITenantContextSetter não pode ser usado dentro de uma request HTTP autenticada.");
+        }
+
+        _override = new TenantId(tenantId);
+    }
+
+    public void Clear()
+    {
+        _override = null;
     }
 }

@@ -182,6 +182,11 @@ public sealed class TransactionRepository : ITransactionRepository
             query = query.Where(t => accountIds.Contains(t.AccountId));
         }
 
+        if (filter.RecurringRuleId is { } recurringRuleId)
+        {
+            query = query.Where(t => t.RecurringRuleId == recurringRuleId);
+        }
+
         return query;
     }
 }

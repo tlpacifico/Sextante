@@ -105,10 +105,10 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 ### Phase 5 — Recorrentes + Hangfire + Metas
 
-- [ ] Entidade `RecurringRule` (Daily / Weekly / Monthly / Yearly + start/end date).
-- [ ] Job Hangfire que gera transações nas datas previstas, **wrapped em `TenantAwareJob<T>`**.
-- [ ] Preview de futuras na UI.
-- [ ] Edição de recorrente: opção "aplicar só a futuras" vs "aplicar a todas pendentes".
+- [x] Entidade `RecurringRule` (Daily / Weekly / Monthly / Yearly + start/end date).
+- [x] Job Hangfire que gera transações nas datas previstas, **wrapped em `TenantAwareJob<T>`**.
+- [x] Preview de futuras na UI.
+- [x] Edição de recorrente: opção "aplicar só a futuras" vs "aplicar a todas pendentes".
 - [ ] Entidade `Budget` (meta por categoria + período).
 - [ ] Dashboard: % consumido, valor restante, projeção de fim de período.
 - [ ] Alertas em 80% e 100% (configurável).

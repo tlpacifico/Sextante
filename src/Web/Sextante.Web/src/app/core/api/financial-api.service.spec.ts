@@ -146,4 +146,99 @@ describe('FinancialApiService', () => {
     req.flush([]);
     await promise;
   });
+
+  // Phase 5a — Recurring Rules -------------------------------------------
+
+  it('listRecurringRules GETs /api/financial/recurring-rules', async () => {
+    const promise = service.listRecurringRules();
+    const req = httpMock.expectOne('/api/financial/recurring-rules');
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+    expect(await promise).toEqual([]);
+  });
+
+  it('getRecurringRule GETs /api/financial/recurring-rules/:id', async () => {
+    const promise = service.getRecurringRule('rule-1');
+    const req = httpMock.expectOne('/api/financial/recurring-rules/rule-1');
+    expect(req.request.method).toBe('GET');
+    const mockRule = {
+      id: 'rule-1',
+      description: 'Netflix',
+      frequency: 'Monthly',
+      interval: 1,
+      isActive: true,
+      startDate: '2026-01-01',
+      amount: { amount: 15.99, currency: 'EUR' },
+      accountId: 'a',
+      categoryId: 'c',
+      tags: ['subscription'],
+      nextOccurrence: '2026-02-01',
+      endDate: null,
+      createdAt: '2026-01-01',
+      updatedAt: '2026-01-01',
+    };
+    req.flush(mockRule);
+    expect(await promise).toEqual(mockRule as any);
+  });
+
+  it('createRecurringRule POSTs to /api/financial/recurring-rules', async () => {
+    const promise = service.createRecurringRule({
+      description: 'Test',
+      amount: 100,
+      currency: 'EUR',
+      accountId: 'a',
+      categoryId: 'c',
+      frequency: 'Monthly',
+      interval: 1,
+      startDate: '2026-05-01',
+      endDate: null,
+      tags: ['tag1'],
+    });
+    const req = httpMock.expectOne('/api/financial/recurring-rules');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body.description).toBe('Test');
+    expect(req.request.body.amount).toBe(100);
+    expect(req.request.body.frequency).toBe('Monthly');
+    req.flush({ id: 'new-id', description: 'Test' });
+    await promise;
+  });
+
+  it('updateRecurringRule PUTs to /api/financial/recurring-rules/:id', async () => {
+    const promise = service.updateRecurringRule('rid', {
+      description: 'Updated',
+      amount: 50,
+      currency: 'EUR',
+      accountId: 'a',
+      categoryId: null,
+      frequency: 'Weekly',
+      interval: 2,
+      startDate: '2026-05-01',
+      endDate: null,
+      isActive: true,
+      tags: [],
+    });
+    const req = httpMock.expectOne('/api/financial/recurring-rules/rid');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body.description).toBe('Updated');
+    expect(req.request.body.frequency).toBe('Weekly');
+    req.flush({ id: 'rid' });
+    await promise;
+  });
+
+  it('archiveRecurringRule DELETEs /api/financial/recurring-rules/:id', async () => {
+    const promise = service.archiveRecurringRule('rid');
+    const req = httpMock.expectOne('/api/financial/recurring-rules/rid');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+    await promise;
+  });
+
+  it('getUpcomingOccurrences GETs /api/financial/recurring-rules/:id/upcoming', async () => {
+    const promise = service.getUpcomingOccurrences('rid', 5);
+    const req = httpMock.expectOne('/api/financial/recurring-rules/rid/upcoming?count=5');
+    expect(req.request.method).toBe('GET');
+    const dates = ['2026-06-01', '2026-07-01', '2026-08-01'];
+    req.flush(dates);
+    expect(await promise).toEqual(dates);
+  });
 });

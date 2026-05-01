@@ -36,6 +36,7 @@ public static class CategorizationRulesEndpoints
             {
                 return Results.ValidationProblem(
                     new Dictionary<string, string[]> { ["categorizationRule"] = [ex.Message] },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         });
@@ -52,6 +53,7 @@ public static class CategorizationRulesEndpoints
             {
                 return Results.ValidationProblem(
                     new Dictionary<string, string[]> { ["categorizationRule"] = [ex.Message] },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         });

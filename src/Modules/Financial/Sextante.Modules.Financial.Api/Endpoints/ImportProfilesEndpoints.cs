@@ -36,6 +36,7 @@ public static class ImportProfilesEndpoints
             {
                 return Results.ValidationProblem(
                     new Dictionary<string, string[]> { ["importProfile"] = [ex.Message] },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         });

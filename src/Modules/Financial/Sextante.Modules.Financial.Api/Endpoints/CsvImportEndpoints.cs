@@ -32,15 +32,18 @@ public static class CsvImportEndpoints
             if (file is null || file.Length == 0)
                 return Results.ValidationProblem(
                     new Dictionary<string, string[]> { ["file"] = ["Ficheiro CSV obrigatório."] },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
                 return Results.ValidationProblem(
                     new Dictionary<string, string[]> { ["file"] = ["Apenas ficheiros .csv são aceites."] },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             const int maxSize = 5 * 1024 * 1024;
             if (file.Length > maxSize)
                 return Results.ValidationProblem(
                     new Dictionary<string, string[]> { ["file"] = ["O ficheiro excede o tamanho máximo de 5 MB."] },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
 
             try
@@ -55,6 +58,7 @@ public static class CsvImportEndpoints
             {
                 return Results.ValidationProblem(
                     new Dictionary<string, string[]> { ["csv"] = [ex.Message] },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         }).DisableAntiforgery();
@@ -86,12 +90,14 @@ public static class CsvImportEndpoints
             {
                 return Results.ValidationProblem(
                     new Dictionary<string, string[]> { ["import"] = [ex.Message] },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             }
             catch (InvalidOperationException ex)
             {
                 return Results.ValidationProblem(
                     new Dictionary<string, string[]> { ["import"] = [ex.Message] },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         });

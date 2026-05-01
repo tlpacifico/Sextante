@@ -6,6 +6,7 @@
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/SharedKernel/Sextante.SharedKernel.csproj" />
     <Project Path="src/BuildingBlocks/Messaging/Sextante.Messaging.csproj" />
+    <Project Path="src/BuildingBlocks/Sextante.Infrastructure/Sextante.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Identity/">
     <Project Path="src/Modules/Identity/Sextante.Modules.Identity.Domain/Sextante.Modules.Identity.Domain.csproj" />

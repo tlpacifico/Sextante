@@ -39,6 +39,8 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
     public Guid? CategorizationRuleId { get; private set; }
     public DateTimeOffset? CategorizedAt { get; private set; }
 
+    public Guid? RecurringRuleId { get; private set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
@@ -53,7 +55,8 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
         IEnumerable<string>? tags,
         TenantId tenantId,
         ExchangeRateSnapshot? exchangeRate = null,
-        DateTimeOffset? now = null)
+        DateTimeOffset? now = null,
+        Guid? recurringRuleId = null)
     {
         if (amount.Amount <= 0m)
         {
@@ -80,6 +83,7 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
             Description = normalized,
             ExchangeRateToPrimary = exchangeRate?.Rate,
             ExchangeRateAt = exchangeRate?.At,
+            RecurringRuleId = recurringRuleId,
         };
         transaction._tags.AddRange(normalizedTags);
         return transaction;
@@ -132,6 +136,11 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
     public void SetCategory(Guid categoryId)
     {
         CategoryId = categoryId;
+    }
+
+    public void SetRecurringRuleId(Guid recurringRuleId)
+    {
+        RecurringRuleId = recurringRuleId;
     }
 
     private static string? NormalizeDescription(string? description)

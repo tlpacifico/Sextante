@@ -10,11 +10,13 @@ import {
   CreateCategorizationRuleRequest,
   CreateCategoryRequest,
   CreateImportProfileRequest,
+  CreateRecurringRuleRequest,
   CreateTransactionRequest,
   ImportBatchDto,
   ImportProfileDto,
   ReapplyRulesRequest,
   ReapplyRulesResponse,
+  RecurringRuleDto,
   ReorderRulesRequest,
   TransactionByCategoryResponse,
   TransactionDto,
@@ -26,6 +28,7 @@ import {
   UpdateCategoryRequest,
   UpdateImportProfileRequest,
   UpdatePreviewRequest,
+  UpdateRecurringRuleRequest,
   UpdateTransactionRequest,
   UploadCsvResponse,
 } from './financial.types';
@@ -199,6 +202,33 @@ export class FinancialApiService {
     return firstValueFrom(this.http.get<ImportBatchDto[]>('/api/financial/imports'));
   }
 
+  // Recurring Rules (Phase 5a) ---------------------------------------------
+  listRecurringRules(): Promise<RecurringRuleDto[]> {
+    return firstValueFrom(this.http.get<RecurringRuleDto[]>('/api/financial/recurring-rules'));
+  }
+
+  getRecurringRule(id: string): Promise<RecurringRuleDto> {
+    return firstValueFrom(this.http.get<RecurringRuleDto>(`/api/financial/recurring-rules/${id}`));
+  }
+
+  createRecurringRule(req: CreateRecurringRuleRequest): Promise<RecurringRuleDto> {
+    return firstValueFrom(this.http.post<RecurringRuleDto>('/api/financial/recurring-rules', req));
+  }
+
+  updateRecurringRule(id: string, req: UpdateRecurringRuleRequest): Promise<RecurringRuleDto> {
+    return firstValueFrom(this.http.put<RecurringRuleDto>(`/api/financial/recurring-rules/${id}`, req));
+  }
+
+  archiveRecurringRule(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/financial/recurring-rules/${id}`));
+  }
+
+  getUpcomingOccurrences(id: string, count: number = 10): Promise<string[]> {
+    return firstValueFrom(this.http.get<string[]>(`/api/financial/recurring-rules/${id}/upcoming`, {
+      params: { count: count.toString() },
+    }));
+  }
+
   private toParams(filter: TransactionFilter): HttpParams {
     let params = new HttpParams();
     if (filter.dateFrom) params = params.set('dateFrom', filter.dateFrom);
@@ -212,6 +242,9 @@ export class FinancialApiService {
       for (const id of filter.accountIds) {
         params = params.append('accountIds', id);
       }
+    }
+    if (filter.recurringRuleId) {
+      params = params.set('recurringRuleId', filter.recurringRuleId);
     }
     if (filter.pageSize) {
       params = params.set('pageSize', filter.pageSize.toString());

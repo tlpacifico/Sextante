@@ -19,6 +19,7 @@ public static class TransactionsEndpoints
             [FromQuery] DateTimeOffset? dateTo,
             [FromQuery] Guid[]? categoryIds,
             [FromQuery] Guid[]? accountIds,
+            [FromQuery] Guid? recurringRuleId,
             [FromQuery] int? pageSize,
             [FromQuery] string? cursor,
             IMessageBus bus,
@@ -29,6 +30,7 @@ public static class TransactionsEndpoints
                 dateTo,
                 categoryIds is { Length: > 0 } ? categoryIds.ToList() : null,
                 accountIds is { Length: > 0 } ? accountIds.ToList() : null,
+                recurringRuleId,
                 pageSize,
                 cursor);
             var result = await bus.InvokeAsync<TransactionsPageResponse>(query, ct);
@@ -95,6 +97,7 @@ public static class TransactionsEndpoints
                     {
                         ["transaction"] = [ex.Message],
                     },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         });
@@ -122,6 +125,7 @@ public static class TransactionsEndpoints
                     {
                         ["transaction"] = [ex.Message],
                     },
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         });

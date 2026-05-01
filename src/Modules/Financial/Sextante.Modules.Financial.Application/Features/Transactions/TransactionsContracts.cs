@@ -13,6 +13,7 @@ public sealed record TransactionResponse(
     IReadOnlyList<string> Tags,
     decimal? ExchangeRateToPrimary,
     DateTimeOffset? ExchangeRateAt,
+    Guid? RecurringRuleId,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -43,6 +44,7 @@ public sealed record ListTransactionsQuery(
     DateTimeOffset? DateTo,
     IReadOnlyList<Guid>? CategoryIds,
     IReadOnlyList<Guid>? AccountIds,
+    Guid? RecurringRuleId,
     int? PageSize,
     string? Cursor);
 

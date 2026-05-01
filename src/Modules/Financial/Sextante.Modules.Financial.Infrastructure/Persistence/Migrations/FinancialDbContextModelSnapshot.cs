@@ -345,6 +345,92 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                     b.ToTable("import_profiles", "financial");
                 });
 
+            modelBuilder.Entity("Sextante.Modules.Financial.Domain.RecurringRules.RecurringRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("description");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date")
+                        .HasColumnName("end_date");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("frequency");
+
+                    b.Property<int>("Interval")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("interval");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<DateOnly?>("NextOccurrence")
+                        .HasColumnType("date")
+                        .HasColumnName("next_occurrence");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.Property<string>("_tags")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("tags");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "NextOccurrence")
+                        .HasFilter("next_occurrence IS NOT NULL AND is_active = true AND deleted_at IS NULL");
+
+                    b.ToTable("recurring_rules", "financial");
+                });
+
             modelBuilder.Entity("Sextante.Modules.Financial.Domain.Transactions.Transaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -394,6 +480,10 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
 
+                    b.Property<Guid?>("RecurringRuleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recurring_rule_id");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
@@ -415,6 +505,8 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CategorizationRuleId");
+
+                    b.HasIndex("RecurringRuleId");
 
                     b.HasIndex("TenantId");
 
@@ -457,11 +549,46 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Sextante.Modules.Financial.Domain.RecurringRules.RecurringRule", b =>
+                {
+                    b.OwnsOne("Sextante.SharedKernel.Money", "Amount", b1 =>
+                        {
+                            b1.Property<Guid>("RecurringRuleId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(20, 8)
+                                .HasColumnType("numeric(20,8)")
+                                .HasColumnName("amount_amount");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character varying(3)")
+                                .HasColumnName("amount_currency");
+
+                            b1.HasKey("RecurringRuleId");
+
+                            b1.ToTable("recurring_rules", "financial");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RecurringRuleId");
+                        });
+
+                    b.Navigation("Amount")
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Sextante.Modules.Financial.Domain.Transactions.Transaction", b =>
                 {
                     b.HasOne("Sextante.Modules.Financial.Domain.CategorizationRules.CategorizationRule", null)
                         .WithMany()
                         .HasForeignKey("CategorizationRuleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Sextante.Modules.Financial.Domain.RecurringRules.RecurringRule", null)
+                        .WithMany()
+                        .HasForeignKey("RecurringRuleId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.OwnsOne("Sextante.SharedKernel.Money", "Amount", b1 =>

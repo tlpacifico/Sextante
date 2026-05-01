@@ -66,6 +66,7 @@ export interface TransactionDto {
   tags: string[];
   exchangeRateToPrimary?: number | null;
   exchangeRateAt?: string | null;
+  recurringRuleId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -96,6 +97,7 @@ export interface TransactionFilter {
   dateTo?: string | null;
   categoryIds?: string[] | null;
   accountIds?: string[] | null;
+  recurringRuleId?: string | null;
   pageSize?: number | null;
   viewMode?: TransactionViewMode | null;
 }
@@ -312,3 +314,58 @@ export interface ImportBatchDto {
   errorRows: number;
   createdAt: string;
 }
+
+// --- Recurring Rules (Phase 5a) ---
+export type Frequency = 'Daily' | 'Weekly' | 'Monthly' | 'Yearly';
+
+export interface RecurringRuleDto {
+  id: string;
+  description: string;
+  amount: Money;
+  accountId: string;
+  categoryId: string | null;
+  frequency: Frequency;
+  interval: number;
+  startDate: string;
+  endDate: string | null;
+  nextOccurrence: string | null;
+  isActive: boolean;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRecurringRuleRequest {
+  description: string;
+  amount: number;
+  currency: string;
+  accountId: string;
+  categoryId?: string | null;
+  frequency: Frequency;
+  interval: number;
+  startDate: string;
+  endDate?: string | null;
+  tags?: string[] | null;
+}
+
+export interface UpdateRecurringRuleRequest {
+  description: string;
+  amount: number;
+  currency: string;
+  accountId: string;
+  categoryId?: string | null;
+  frequency: Frequency;
+  interval: number;
+  startDate: string;
+  endDate?: string | null;
+  isActive: boolean;
+  tags?: string[] | null;
+}
+
+export const FREQUENCIES: Frequency[] = ['Daily', 'Weekly', 'Monthly', 'Yearly'];
+export const FREQUENCY_LABELS: Record<Frequency, string> = {
+  Daily: 'Diária',
+  Weekly: 'Semanal',
+  Monthly: 'Mensal',
+  Yearly: 'Anual',
+};

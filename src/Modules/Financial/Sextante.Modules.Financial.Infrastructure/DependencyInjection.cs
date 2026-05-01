@@ -1,12 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Sextante.Infrastructure.Jobs;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Transactions;
+using Sextante.Modules.Financial.Domain.RecurringRules;
 using Sextante.Modules.Financial.Application.CsvImport;
 using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.ExchangeRates;
+using Sextante.Modules.Financial.Application.Features.RecurringRules;
+using Sextante.Modules.Financial.Application.Features.RecurringRules.Materialization;
 using Sextante.Modules.Financial.Domain.CategorizationRules;
 using Sextante.Modules.Financial.Domain.ImportProfiles;
 using Sextante.Modules.Financial.Domain.ImportBatches;
@@ -15,6 +19,7 @@ using Sextante.Modules.Financial.Infrastructure.CategorizationRules;
 using Sextante.Modules.Financial.Infrastructure.ExchangeRates;
 using Sextante.Modules.Financial.Infrastructure.Persistence;
 using Sextante.Modules.Financial.Infrastructure.Persistence.Repositories;
+using Sextante.Modules.Financial.Infrastructure.RecurringRules;
 using Sextante.Modules.Identity.Infrastructure.Persistence;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 
@@ -54,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<ITransactionRepository, TransactionRepository>();
+        services.AddScoped<IRecurringRuleRepository, RecurringRuleRepository>();
 
         services.AddScoped<ITenantCurrencyResolver, TenantCurrencyResolver>();
         services.AddScoped<IExchangeRateService, ExchangeRateService>();
@@ -64,6 +70,13 @@ public static class DependencyInjection
         services.AddScoped<ICsvParser, CsvParser>();
         services.AddScoped<IDuplicateDetector, DuplicateDetector>();
         services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();
+
+        services.AddScoped<RecurringTransactionMaterializerHandler>();
+        services.AddScoped(typeof(TenantAwareJob<>));
+        services.AddScoped<
+            ITenantAwareJobHandler<RecurringMaterializerPayload>,
+            RecurringMaterializerJobAdapter>();
+        services.AddScoped<RecurringMaterializerGlobalJob>();
 
         services.AddHostedService<FinancialMigrationRunner>();
 

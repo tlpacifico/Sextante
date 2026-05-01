@@ -124,6 +124,14 @@ export const routes: Routes = [
           ),
         title: 'Sextante — Importações',
       },
+      {
+        path: 'recurrings',
+        loadComponent: () =>
+          import('./features/financial/pages/recurring-rules.page').then(
+            (m) => m.RecurringRulesPage,
+          ),
+        title: 'Sextante — Recorrentes',
+      },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],
   },

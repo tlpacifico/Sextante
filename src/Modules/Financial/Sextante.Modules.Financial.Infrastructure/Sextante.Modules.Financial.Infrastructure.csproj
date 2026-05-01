@@ -29,6 +29,7 @@
     <ProjectReference Include="..\Sextante.Modules.Financial.PublicApi\Sextante.Modules.Financial.PublicApi.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\SharedKernel\Sextante.SharedKernel.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Messaging\Sextante.Messaging.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Sextante.Infrastructure\Sextante.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Identity\Sextante.Modules.Identity.Infrastructure\Sextante.Modules.Identity.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Identity\Sextante.Modules.Identity.PublicApi\Sextante.Modules.Identity.PublicApi.csproj" />
   </ItemGroup>

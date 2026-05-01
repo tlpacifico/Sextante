@@ -34,6 +34,7 @@
     <ProjectReference Include="..\Sextante.Modules.Identity.PublicApi\Sextante.Modules.Identity.PublicApi.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\SharedKernel\Sextante.SharedKernel.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Messaging\Sextante.Messaging.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Sextante.Infrastructure\Sextante.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

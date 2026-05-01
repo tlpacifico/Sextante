@@ -38,6 +38,7 @@ public static class DependencyInjection
 
         services.AddHttpContextAccessor();
         services.AddScoped<ITenantContext, TenantContext>();
+        services.AddScoped<ITenantContextSetter>(sp => (TenantContext)sp.GetRequiredService<ITenantContext>());
         services.AddScoped<TenantConnectionInterceptor>();
         services.AddScoped<TenantPopulationInterceptor>();
         services.AddScoped<AuditingInterceptor>();

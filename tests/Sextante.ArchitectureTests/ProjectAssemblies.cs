@@ -37,4 +37,7 @@ internal static class ProjectAssemblies
 
     public static Assembly Financial_PublicApi { get; } =
         typeof(Sextante.Modules.Financial.PublicApi.AssemblyMarker).Assembly;
+
+    public static Assembly Sextante_Infrastructure { get; } =
+        typeof(Sextante.Infrastructure.AssemblyMarker).Assembly;
 }

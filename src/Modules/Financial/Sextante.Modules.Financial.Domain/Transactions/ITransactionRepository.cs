@@ -40,6 +40,7 @@ public sealed record TransactionFilter(
     DateTimeOffset? DateTo,
     IReadOnlyCollection<Guid>? CategoryIds,
     IReadOnlyCollection<Guid>? AccountIds,
+    Guid? RecurringRuleId,
     int PageSize,
     TransactionCursor? Cursor);
 

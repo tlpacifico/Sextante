@@ -59,6 +59,7 @@ public static class CategoriesEndpoints
                         ["category"] = ["Não é possível arquivar uma categoria com transações ativas."],
                     },
                     detail: ex.Message,
+                    title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         });
