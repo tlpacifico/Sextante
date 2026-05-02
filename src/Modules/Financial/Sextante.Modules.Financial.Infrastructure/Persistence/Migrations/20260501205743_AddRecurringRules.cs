@@ -116,9 +116,14 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
             // Índice unique partial — defesa contra race condition em multi-worker.
             // Garante idempotência a nível de DB: um (recurring_rule_id, ocorrência)
             // só pode ter uma Transaction.
+            // `occurred_at` é timestamptz; `date_trunc(text, timestamptz)` é STABLE
+            // (depende da TIMEZONE da sessão) e Postgres rejeita-a em índices.
+            // `AT TIME ZONE 'UTC'` converte para timestamp sem TZ — `date_trunc(text,
+            // timestamp)` é IMMUTABLE. O materializer insere sempre OccurredAt a 00:00 UTC,
+            // por isso o trunc devolve a data original.
             migrationBuilder.Sql("""
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_recurring_occurrence
-                    ON financial.transactions (recurring_rule_id, date_trunc('day', occurred_at))
+                    ON financial.transactions (recurring_rule_id, date_trunc('day', occurred_at AT TIME ZONE 'UTC'))
                     WHERE recurring_rule_id IS NOT NULL AND deleted_at IS NULL;
                 """);
         }

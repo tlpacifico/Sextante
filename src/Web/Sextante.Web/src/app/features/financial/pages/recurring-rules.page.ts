@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
@@ -32,7 +32,6 @@ import { UpcomingOccurrencesDialogComponent } from './upcoming-occurrences.dialo
   imports: [
     CommonModule,
     FormsModule,
-    RouterLink,
     ButtonModule,
     ConfirmDialogModule,
     DialogModule,
@@ -123,6 +122,13 @@ import { UpcomingOccurrencesDialogComponent } from './upcoming-occurrences.dialo
                 ariaLabel="Ver próximas"
               ></p-button>
               <p-button
+                icon="pi pi-list"
+                severity="secondary"
+                [text]="true"
+                (onClick)="goToTransactions(rule)"
+                ariaLabel="Ver transações"
+              ></p-button>
+              <p-button
                 icon="pi pi-trash"
                 severity="danger"
                 [text]="true"
@@ -167,6 +173,7 @@ export class RecurringRulesPage implements OnInit {
   private readonly api = inject(FinancialApiService);
   private readonly toast = inject(MessageService);
   private readonly confirm = inject(ConfirmationService);
+  private readonly router = inject(Router);
 
   protected readonly rules = signal<RecurringRuleDto[]>([]);
   protected readonly dialogRuleId = signal<string | null>(null);
@@ -216,6 +223,12 @@ export class RecurringRulesPage implements OnInit {
 
   protected openUpcoming(rule: RecurringRuleDto): void {
     this.upcomingRule.set(rule);
+  }
+
+  protected goToTransactions(rule: RecurringRuleDto): void {
+    void this.router.navigate(['/app/dashboard'], {
+      queryParams: { recurringRuleId: rule.id },
+    });
   }
 
   protected async toggleActive(rule: RecurringRuleDto): Promise<void> {

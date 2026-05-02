@@ -199,14 +199,18 @@ public sealed class RecurringMaterializationTests : IClassFixture<IdentityIntegr
         var accountId = await CreateAccountAsync(client, "EUR");
         var categoryId = await CreateCategoryAsync(client);
 
-        // Criar regra com currency USD. A primary do tenant é EUR.
-        // A tabela shared.exchange_rates está vazia (sem snapshot ECB
-        // corrido), logo o materializer deve pular por falta de taxa.
+        // Criar regra com currency JPY. A primary do tenant é EUR.
+        // shared.exchange_rates é reference data global (sem tenant_id);
+        // usamos JPY (em vez de USD) para evitar colisão com seeds de
+        // outros testes nesta mesma class fixture (e.g.
+        // Multi_currency_rule_materializes_with_exchange_rate_when_rate_is_seeded
+        // semeia EUR→USD). Sem snapshot ECB corrido para JPY, o
+        // materializer deve pular por falta de taxa.
         var ruleResponse = await client.PostAsJsonAsync("/api/financial/recurring-rules", new
         {
-            description = "USD subscription",
-            amount = 10m,
-            currency = "USD",
+            description = "JPY subscription",
+            amount = 1000m,
+            currency = "JPY",
             accountId,
             categoryId,
             frequency = "Daily",
@@ -221,7 +225,7 @@ public sealed class RecurringMaterializationTests : IClassFixture<IdentityIntegr
 
         // Nenhuma transacção deve ter sido criada — SkippedNoRate.
         var page = await client.GetFromJsonAsync<TxPage>("/api/financial/transactions?pageSize=50");
-        page!.Items.Should().BeEmpty("sem taxa de câmbio USD→EUR — ocorrência foi saltada");
+        page!.Items.Should().BeEmpty("sem taxa de câmbio JPY→EUR — ocorrência foi saltada");
     }
 
     [Fact]
@@ -270,12 +274,16 @@ public sealed class RecurringMaterializationTests : IClassFixture<IdentityIntegr
         await InvokeMaterializerAsync(tenantId, today);
 
         // Verificar via HTTP API que a transacção foi criada com ExchangeRateToPrimary.
+        // Convenção do projeto (ExchangeRateSnapshot): Rate é o multiplicador
+        // de currency origem → tenant primary. ECB cota EUR→X; aqui resolvemos
+        // USD→EUR, logo a rate efetiva é 1/1.09 ≈ 0.91743119 (ver
+        // CrossRate.Compute quando to == EUR).
         var page = await client.GetFromJsonAsync<TxPageWithRate>("/api/financial/transactions?pageSize=50");
         page!.Items.Should().HaveCount(1);
         var tx = page.Items[0];
         tx.RecurringRuleId.Should().Be(rule!.Id);
         tx.Amount.Currency.Should().Be("USD");
-        tx.ExchangeRateToPrimary.Should().Be(1.09m);
+        tx.ExchangeRateToPrimary.Should().BeApproximately(1m / 1.09m, 0.0000001m);
     }
 
     [Fact]
