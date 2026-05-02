@@ -241,4 +241,98 @@ describe('FinancialApiService', () => {
     req.flush(dates);
     expect(await promise).toEqual(dates);
   });
+
+  // ── Phase 5b — Budgets ──────────────────────────────────────────────
+
+  it('listBudgets passes year and month query params', async () => {
+    const promise = service.listBudgets(2026, 5);
+    const req = httpMock.expectOne((r) => r.url === '/api/financial/budgets');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('year')).toBe('2026');
+    expect(req.request.params.get('month')).toBe('5');
+    req.flush([]);
+    expect(await promise).toEqual([]);
+  });
+
+  it('listBudgets without args calls plain endpoint', async () => {
+    const promise = service.listBudgets();
+    const req = httpMock.expectOne((r) => r.url === '/api/financial/budgets');
+    expect(req.request.params.has('year')).toBe(false);
+    expect(req.request.params.has('month')).toBe(false);
+    req.flush([]);
+    await promise;
+  });
+
+  it('createBudget POSTs to /api/financial/budgets with payload', async () => {
+    const promise = service.createBudget({
+      categoryId: 'c1',
+      year: 2026,
+      month: 5,
+      limitAmount: 500,
+      limitCurrency: 'EUR',
+      alertThresholdPercent: 80,
+      notes: 'Renda',
+    });
+    const req = httpMock.expectOne('/api/financial/budgets');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body.limitAmount).toBe(500);
+    expect(req.request.body.alertThresholdPercent).toBe(80);
+    req.flush({});
+    await promise;
+  });
+
+  it('updateBudget PUTs to /api/financial/budgets/:id', async () => {
+    const promise = service.updateBudget('b1', {
+      limitAmount: 700,
+      limitCurrency: 'EUR',
+      alertThresholdPercent: 90,
+      notes: null,
+    });
+    const req = httpMock.expectOne('/api/financial/budgets/b1');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body.limitAmount).toBe(700);
+    req.flush({});
+    await promise;
+  });
+
+  it('archiveBudget DELETEs /api/financial/budgets/:id', async () => {
+    const promise = service.archiveBudget('b1');
+    const req = httpMock.expectOne('/api/financial/budgets/b1');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+    await promise;
+  });
+
+  it('getBudgetProgress GETs /api/financial/budgets/:id/progress', async () => {
+    const promise = service.getBudgetProgress('b1');
+    const req = httpMock.expectOne('/api/financial/budgets/b1/progress');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      limitAmount: 500,
+      limitCurrency: 'EUR',
+      spentAmount: 100,
+      remainingAmount: 400,
+      percentUsed: 20,
+      projectedAmount: null,
+      hasIncompleteRates: false,
+    });
+    const result = await promise;
+    expect(result.spentAmount).toBe(100);
+  });
+
+  it('listActiveBudgetAlerts GETs /api/financial/budgets/alerts/active', async () => {
+    const promise = service.listActiveBudgetAlerts();
+    const req = httpMock.expectOne('/api/financial/budgets/alerts/active');
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+    expect(await promise).toEqual([]);
+  });
+
+  it('acknowledgeBudgetAlert POSTs to /api/financial/budgets/alerts/:id/acknowledge', async () => {
+    const promise = service.acknowledgeBudgetAlert('a1');
+    const req = httpMock.expectOne('/api/financial/budgets/alerts/a1/acknowledge');
+    expect(req.request.method).toBe('POST');
+    req.flush(null);
+    await promise;
+  });
 });

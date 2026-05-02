@@ -3,10 +3,14 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
   AccountDto,
+  BudgetAlertDto,
+  BudgetDto,
+  BudgetProgressDto,
   CategorizationRuleDto,
   CategoryDto,
   ConfirmImportResponse,
   CreateAccountRequest,
+  CreateBudgetRequest,
   CreateCategorizationRuleRequest,
   CreateCategoryRequest,
   CreateImportProfileRequest,
@@ -24,6 +28,7 @@ import {
   TransactionSummaryResponse,
   TransactionsPageResponse,
   UpdateAccountRequest,
+  UpdateBudgetRequest,
   UpdateCategorizationRuleRequest,
   UpdateCategoryRequest,
   UpdateImportProfileRequest,
@@ -227,6 +232,44 @@ export class FinancialApiService {
     return firstValueFrom(this.http.get<string[]>(`/api/financial/recurring-rules/${id}/upcoming`, {
       params: { count: count.toString() },
     }));
+  }
+
+  // ── Phase 5b — Budgets ─────────────────────────────────────────────
+
+  listBudgets(year?: number, month?: number): Promise<BudgetDto[]> {
+    let params = new HttpParams();
+    if (year !== undefined) params = params.set('year', year.toString());
+    if (month !== undefined) params = params.set('month', month.toString());
+    return firstValueFrom(this.http.get<BudgetDto[]>('/api/financial/budgets', { params }));
+  }
+
+  getBudget(id: string): Promise<BudgetDto> {
+    return firstValueFrom(this.http.get<BudgetDto>(`/api/financial/budgets/${id}`));
+  }
+
+  getBudgetProgress(id: string): Promise<BudgetProgressDto> {
+    return firstValueFrom(this.http.get<BudgetProgressDto>(`/api/financial/budgets/${id}/progress`));
+  }
+
+  createBudget(req: CreateBudgetRequest): Promise<BudgetDto> {
+    return firstValueFrom(this.http.post<BudgetDto>('/api/financial/budgets', req));
+  }
+
+  updateBudget(id: string, req: UpdateBudgetRequest): Promise<BudgetDto> {
+    return firstValueFrom(this.http.put<BudgetDto>(`/api/financial/budgets/${id}`, req));
+  }
+
+  archiveBudget(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/financial/budgets/${id}`));
+  }
+
+  listActiveBudgetAlerts(): Promise<BudgetAlertDto[]> {
+    return firstValueFrom(this.http.get<BudgetAlertDto[]>('/api/financial/budgets/alerts/active'));
+  }
+
+  acknowledgeBudgetAlert(id: string): Promise<void> {
+    return firstValueFrom(this.http.post<void>(
+      `/api/financial/budgets/alerts/${id}/acknowledge`, {}));
   }
 
   private toParams(filter: TransactionFilter): HttpParams {

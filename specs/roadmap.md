@@ -107,15 +107,16 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 > Dividida durante kickoff em **Phase 5a (recurrings + Hangfire)** e
 > **Phase 5b (Budget + alertas)**. Phase 5a fechada em 2026-05-02.
+> Phase 5b fechada em 2026-05-02.
 
 - [x] **(5a)** Entidade `RecurringRule` (Daily / Weekly / Monthly / Yearly + start/end date).
 - [x] **(5a)** Job Hangfire que gera transações nas datas previstas, **wrapped em `TenantAwareJob<T>`**.
 - [x] **(5a)** Preview de futuras na UI.
 - [x] **(5a)** Edição de recorrente afeta só ocorrências futuras (a partir de `NextOccurrence`); ocorrências já materializadas ficam imutáveis e editáveis individualmente via Phase 2 CRUD. Semântica "aplicar a todas pendentes" deferida (backlog se vier a ser necessário).
-- [ ] **(5b)** Entidade `Budget` (meta por categoria + período).
-- [ ] **(5b)** Dashboard: % consumido, valor restante, projeção de fim de período.
-- [ ] **(5b)** Alertas em 80% e 100% (configurável).
-- [ ] **(5b)** Suporte a metas em moeda específica.
+- [x] **(5b)** Entidade `Budget` (meta por categoria + período).
+- [x] **(5b)** Dashboard: % consumido, valor restante, projeção de fim de período.
+- [x] **(5b)** Alertas em 80% e 100% (configurável).
+- [x] **(5b)** Suporte a metas em moeda específica.
 
 **Saída**: utilizador define renda mensal e ela aparece automaticamente no dia 1; tem 3 metas configuradas e o dashboard mostra progresso.
 
