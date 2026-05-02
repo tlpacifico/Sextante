@@ -18,4 +18,4 @@ public sealed record TransactionUpdatedIntegrationEvent(
     decimal AmountAmount,
     string AmountCurrency,
     DateTimeOffset OccurredAtTransaction,
-    DateTimeOffset OccurredAt) : IIntegrationEvent;
+    DateTimeOffset OccurredAt) : ITenantOwnedIntegrationEvent;

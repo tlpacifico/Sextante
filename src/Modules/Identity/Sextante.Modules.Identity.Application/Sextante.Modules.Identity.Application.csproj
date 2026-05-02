@@ -13,6 +13,7 @@
     <ProjectReference Include="..\Sextante.Modules.Identity.Domain\Sextante.Modules.Identity.Domain.csproj" />
     <ProjectReference Include="..\Sextante.Modules.Identity.PublicApi\Sextante.Modules.Identity.PublicApi.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\SharedKernel\Sextante.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Messaging\Sextante.Messaging.csproj" />
   </ItemGroup>
 
 </Project>
