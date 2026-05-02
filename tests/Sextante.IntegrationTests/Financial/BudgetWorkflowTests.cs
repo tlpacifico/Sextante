@@ -1,8 +1,8 @@
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using Sextante.Modules.Financial.Application.Features.Budgets.Alerts;
 using Sextante.Modules.Financial.PublicApi.Events;
+using Wolverine;
 
 namespace Sextante.IntegrationTests.Financial;
 
@@ -123,21 +123,15 @@ public sealed class BudgetWorkflowTests : IClassFixture<IdentityIntegrationFixtu
 
     private async Task DispatchForCategoryAsync(Guid tenantId, Guid categoryId, DateTimeOffset occurredAt)
     {
-        // Dispatcher direto via DI: contorna o outbox para tornar
-        // o teste determinístico. Em produção é o Wolverine que chama
-        // o handler — comportamento idêntico, só sem o atraso.
-        var scopeFactory = _fixture.Factory.Services.GetRequiredService<IServiceScopeFactory>();
-        using var scope = scopeFactory.CreateScope();
+        // Invoca o handler via IMessageBus.InvokeAsync para correr o
+        // pipeline Wolverine completo (TenantSettingMiddleware +
+        // TenantLoggingMiddleware + handler). Síncrono — não passa pelo
+        // outbox, mas executa o mesmo middleware stack que produção.
+        await using var scope = _fixture.Factory.Services
+            .GetRequiredService<IServiceScopeFactory>()
+            .CreateAsyncScope();
 
-        // Setar tenant context manualmente (o Wolverine subscriber usa
-        // ITenantContext do DI; aqui temos de configurar o GUC).
-        using var conn = _fixture.OpenAppConnection();
-        await using var cmd = new Npgsql.NpgsqlCommand(
-            "SELECT set_config('app.current_tenant_id', @tid, false)", conn);
-        cmd.Parameters.AddWithValue("tid", tenantId.ToString());
-        await cmd.ExecuteNonQueryAsync();
-
-        var handler = scope.ServiceProvider.GetRequiredService<BudgetAlertDispatchHandlers>();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var @event = new TransactionCreatedIntegrationEvent(
             TransactionId: Guid.NewGuid(),
             TenantId: tenantId,
@@ -148,7 +142,7 @@ public sealed class BudgetWorkflowTests : IClassFixture<IdentityIntegrationFixtu
             OccurredAtTransaction: occurredAt,
             OccurredAt: DateTimeOffset.UtcNow);
 
-        await handler.Handle(@event, CancellationToken.None);
+        await bus.InvokeAsync(@event);
     }
 
     private static async Task<Guid> CreateAccountAsync(HttpClient client, string currency = "EUR")

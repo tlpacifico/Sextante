@@ -29,6 +29,9 @@
 - Karma tests: `financial-api.service.spec.ts` ganha 8 testes de Budget endpoints; `budget-alerts-banner.component.spec.ts` (5 — fetch + count, critical msg, hidden when empty, acknowledge batch); `budget-progress-card.component.spec.ts` (6 — color severity por percent, badge HasIncompleteRates, projection rendering, categoryName input). Total: 91 Karma tests verdes
 - 409 testes não-integration verdes (172 Domain + 106 Application + 40 Architecture + 91 Karma); integration tests requerem Docker (Testcontainers PostgreSQL 16) — validados no CI
 - Pacotes novos: nenhum
+- Mark phase 5b (Budgets) as complete
+- Marcar Phase 5a como completa no roadmap
+- Resolver findings da validação da Phase 5a
 
 ## 2026-05-02
 

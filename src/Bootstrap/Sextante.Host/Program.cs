@@ -147,6 +147,10 @@ try
             x.Includes.WithNameSuffix("Handlers");
         });
 
+        // TenantSettingMiddleware corre antes de TenantLoggingMiddleware:
+        // configura ITenantContextSetter para subscribers fora de HTTP
+        // (Wolverine outbox em background scope) — ver tech-stack §4.4.
+        opts.Policies.AddMiddleware<TenantSettingMiddleware>();
         opts.Policies.AddMiddleware<TenantLoggingMiddleware>();
     });
 
