@@ -3,6 +3,7 @@ using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Financial.Domain.Transactions;
+using Sextante.Modules.Financial.PublicApi.Events;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 using Sextante.SharedKernel;
 using Wolverine.Attributes;
@@ -26,6 +27,7 @@ public static class TransactionHandlers
         ITenantCurrencyResolver currency,
         IExchangeRateService exchangeRates,
         ICurrencyDirectory currencyDirectory,
+        IIntegrationEventPublisher events,
         CancellationToken cancellationToken)
     {
         var primaryCurrency = await currency.GetPrimaryCurrencyAsync(cancellationToken);
@@ -63,12 +65,27 @@ public static class TransactionHandlers
 
         await repository.AddAsync(transaction, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
+
+        await events.PublishAsync(
+            new TransactionCreatedIntegrationEvent(
+                transaction.Id,
+                tenant.TenantId.Value,
+                transaction.AccountId,
+                transaction.CategoryId == Guid.Empty ? null : transaction.CategoryId,
+                transaction.Amount.Amount,
+                transaction.Amount.Currency,
+                transaction.OccurredAt,
+                DateTimeOffset.UtcNow),
+            cancellationToken);
+
         return ToResponse(transaction);
     }
 
     public static async Task<TransactionResponse?> Handle(
         UpdateTransactionCommand command,
         ITransactionRepository repository,
+        ITenantContext tenant,
+        IIntegrationEventPublisher events,
         CancellationToken cancellationToken)
     {
         var transaction = await repository.GetByIdAsync(command.Id, cancellationToken);
@@ -89,6 +106,19 @@ public static class TransactionHandlers
 
         repository.Update(transaction);
         await repository.SaveChangesAsync(cancellationToken);
+
+        await events.PublishAsync(
+            new TransactionUpdatedIntegrationEvent(
+                transaction.Id,
+                tenant.TenantId.Value,
+                transaction.AccountId,
+                transaction.CategoryId == Guid.Empty ? null : transaction.CategoryId,
+                transaction.Amount.Amount,
+                transaction.Amount.Currency,
+                transaction.OccurredAt,
+                DateTimeOffset.UtcNow),
+            cancellationToken);
+
         return ToResponse(transaction);
     }
 

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Sextante.Modules.Financial.Domain.Accounts;
+using Sextante.Modules.Financial.Domain.Budgets;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.CategorizationRules;
 using Sextante.Modules.Financial.Domain.ImportProfiles;
@@ -35,6 +36,8 @@ public sealed class FinancialDbContext : DbContext
     public DbSet<ImportProfile> ImportProfiles => Set<ImportProfile>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
     public DbSet<RecurringRule> RecurringRules => Set<RecurringRule>();
+    public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<BudgetAlert> BudgetAlerts => Set<BudgetAlert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -334,6 +337,105 @@ public sealed class FinancialDbContext : DbContext
                 .HasColumnType("jsonb");
             cfg.HasQueryFilter(p => p.DeletedAt == null
                 && (_tenantContext == null || p.TenantId == _tenantContext.TenantId));
+        });
+
+        // Budget — Phase 5b
+        modelBuilder.Entity<Budget>(cfg =>
+        {
+            cfg.ToTable("budgets");
+            cfg.HasKey(b => b.Id);
+            cfg.Property(b => b.Id).HasColumnName("id");
+            cfg.Property(b => b.TenantId)
+                .HasConversion(v => v.Value, v => new TenantId(v))
+                .HasColumnName("tenant_id")
+                .HasColumnType("uuid")
+                .IsRequired();
+            cfg.Property(b => b.CategoryId).HasColumnName("category_id").HasColumnType("uuid").IsRequired();
+            cfg.OwnsOne(b => b.Period, period =>
+            {
+                period.Property(p => p.Year)
+                    .HasColumnName("period_year")
+                    .IsRequired();
+                period.Property(p => p.Month)
+                    .HasColumnName("period_month")
+                    .IsRequired();
+            });
+            cfg.Navigation(b => b.Period).IsRequired();
+            cfg.OwnsOne(b => b.Limit, money =>
+            {
+                money.Property(m => m.Amount)
+                    .HasColumnName("limit_amount")
+                    .HasPrecision(20, 8)
+                    .IsRequired();
+                money.Property(m => m.Currency)
+                    .HasColumnName("limit_currency")
+                    .HasMaxLength(3)
+                    .IsRequired();
+            });
+            cfg.Property(b => b.AlertThresholdPercent)
+                .HasColumnName("alert_threshold_percent")
+                .HasDefaultValue(Budget.DefaultThreshold)
+                .IsRequired();
+            cfg.Property(b => b.Notes)
+                .HasColumnName("notes")
+                .HasMaxLength(Budget.NotesMaxLength)
+                .IsRequired(false);
+
+            cfg.Property(b => b.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").IsRequired();
+            cfg.Property(b => b.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz").IsRequired();
+            cfg.Property(b => b.DeletedAt).HasColumnName("deleted_at").HasColumnType("timestamptz");
+            cfg.Property(b => b.Version).HasColumnName("version").IsConcurrencyToken();
+
+            cfg.HasIndex(b => b.TenantId);
+            cfg.HasOne<Category>()
+                .WithMany()
+                .HasForeignKey(b => b.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            cfg.HasQueryFilter(b => b.DeletedAt == null
+                && (_tenantContext == null || b.TenantId == _tenantContext.TenantId));
+        });
+
+        // BudgetAlert — Phase 5b
+        modelBuilder.Entity<BudgetAlert>(cfg =>
+        {
+            cfg.ToTable("budget_alerts");
+            cfg.HasKey(a => a.Id);
+            cfg.Property(a => a.Id).HasColumnName("id");
+            cfg.Property(a => a.TenantId)
+                .HasConversion(v => v.Value, v => new TenantId(v))
+                .HasColumnName("tenant_id")
+                .HasColumnType("uuid")
+                .IsRequired();
+            cfg.Property(a => a.BudgetId).HasColumnName("budget_id").HasColumnType("uuid").IsRequired();
+            cfg.Property(a => a.Threshold).HasColumnName("threshold").IsRequired();
+            cfg.Property(a => a.TriggeredAt).HasColumnName("triggered_at").HasColumnType("timestamptz").IsRequired();
+            cfg.OwnsOne(a => a.SpentAtTrigger, money =>
+            {
+                money.Property(m => m.Amount)
+                    .HasColumnName("spent_at_trigger_amount")
+                    .HasPrecision(20, 8)
+                    .IsRequired();
+                money.Property(m => m.Currency)
+                    .HasColumnName("spent_at_trigger_currency")
+                    .HasMaxLength(3)
+                    .IsRequired();
+            });
+            cfg.Property(a => a.Acknowledged).HasColumnName("acknowledged").HasDefaultValue(false).IsRequired();
+            cfg.Property(a => a.AcknowledgedAt).HasColumnName("acknowledged_at").HasColumnType("timestamptz").IsRequired(false);
+            cfg.Property(a => a.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").IsRequired();
+            cfg.Property(a => a.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz").IsRequired();
+            cfg.Property(a => a.DeletedAt).HasColumnName("deleted_at").HasColumnType("timestamptz");
+            cfg.Property(a => a.Version).HasColumnName("version").IsConcurrencyToken();
+
+            cfg.HasIndex(a => a.TenantId);
+            cfg.HasOne<Budget>()
+                .WithMany()
+                .HasForeignKey(a => a.BudgetId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            cfg.HasQueryFilter(a => a.DeletedAt == null
+                && (_tenantContext == null || a.TenantId == _tenantContext.TenantId));
         });
 
         // ImportBatch

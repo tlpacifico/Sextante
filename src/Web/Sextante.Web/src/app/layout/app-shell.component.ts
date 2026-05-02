@@ -8,6 +8,7 @@ import { MenuModule } from 'primeng/menu';
 import { ToastModule } from 'primeng/toast';
 import { AuthService } from '../auth/auth.service';
 import { ThemeService } from '../core/theme.service';
+import { BudgetAlertsBannerComponent } from '../features/financial/pages/components/budget-alerts-banner.component';
 
 /**
  * Shell autenticada — topbar (PrimeNG <c>p-menubar</c>) com o nome do
@@ -26,6 +27,7 @@ import { ThemeService } from '../core/theme.service';
     ButtonModule,
     DrawerModule,
     ToastModule,
+    BudgetAlertsBannerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [MessageService],
@@ -107,6 +109,8 @@ import { ThemeService } from '../core/theme.service';
         </ul>
       </p-drawer>
 
+      <app-budget-alerts-banner></app-budget-alerts-banner>
+
       <section class="flex-1 px-4 py-6 md:px-8 md:py-8">
         <router-outlet></router-outlet>
       </section>
@@ -162,6 +166,11 @@ export class AppShellComponent {
         label: 'Recorrentes',
         icon: 'pi pi-sync',
         routerLink: ['/app/recurrings'],
+      },
+      {
+        label: 'Orçamentos',
+        icon: 'pi pi-chart-bar',
+        routerLink: ['/app/budgets'],
       },
       {
         label: 'Regras',

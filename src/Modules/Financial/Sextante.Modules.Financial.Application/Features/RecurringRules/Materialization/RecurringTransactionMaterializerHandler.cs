@@ -1,9 +1,11 @@
+using Sextante.Modules.Financial.Application.Common;
 using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Financial.Domain.RecurringRules;
 using Sextante.Modules.Financial.Domain.Transactions;
+using Sextante.Modules.Financial.PublicApi.Events;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 using Sextante.SharedKernel;
 using Microsoft.Extensions.Logging;
@@ -17,6 +19,7 @@ public sealed class RecurringTransactionMaterializerHandler
     private readonly ICategoryRepository _categoryRepo;
     private readonly IExchangeRateService _exchangeRateService;
     private readonly ITenantCurrencyResolver _currencyResolver;
+    private readonly IIntegrationEventPublisher _events;
     private readonly ILogger<RecurringTransactionMaterializerHandler> _logger;
 
     public RecurringTransactionMaterializerHandler(
@@ -25,6 +28,7 @@ public sealed class RecurringTransactionMaterializerHandler
         ICategoryRepository categoryRepo,
         IExchangeRateService exchangeRateService,
         ITenantCurrencyResolver currencyResolver,
+        IIntegrationEventPublisher events,
         ILogger<RecurringTransactionMaterializerHandler> logger)
     {
         _ruleRepo = ruleRepo;
@@ -32,6 +36,7 @@ public sealed class RecurringTransactionMaterializerHandler
         _categoryRepo = categoryRepo;
         _exchangeRateService = exchangeRateService;
         _currencyResolver = currencyResolver;
+        _events = events;
         _logger = logger;
     }
 
@@ -55,6 +60,7 @@ public sealed class RecurringTransactionMaterializerHandler
         var skippedDuplicate = 0;
         var skippedNoRate = 0;
         var completed = 0;
+        var publishQueue = new List<TransactionCreatedIntegrationEvent>();
 
         foreach (var rule in rules)
         {
@@ -135,6 +141,15 @@ public sealed class RecurringTransactionMaterializerHandler
                             recurringRuleId: rule.Id);
 
                         await _txRepo.AddAsync(transaction, ct);
+                        publishQueue.Add(new TransactionCreatedIntegrationEvent(
+                            transaction.Id,
+                            tenant.TenantId.Value,
+                            transaction.AccountId,
+                            transaction.CategoryId == Guid.Empty ? null : transaction.CategoryId,
+                            transaction.Amount.Amount,
+                            transaction.Amount.Currency,
+                            transaction.OccurredAt,
+                            DateTimeOffset.UtcNow));
                         materialized++;
                     }
                     catch (Exception ex)
@@ -158,6 +173,13 @@ public sealed class RecurringTransactionMaterializerHandler
         }
 
         await _txRepo.SaveChangesAsync(ct);
+
+        // Publica eventos pós-commit (mesmo padrão SignupEndpoint).
+        // Phase 5b: BudgetAlertDispatchHandler subscreve.
+        foreach (var @event in publishQueue)
+        {
+            await _events.PublishAsync(@event, ct);
+        }
 
         _logger.LogInformation(
             "Materializer tenant={TenantId}: {Total} regras, {Materialized} materializadas, " +

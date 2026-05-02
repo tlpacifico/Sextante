@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { CardModule } from 'primeng/card';
@@ -28,6 +28,7 @@ import { ToastModule } from 'primeng/toast';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { FinancialApiService } from '../../core/api/financial-api.service';
 import {
+  BudgetDto,
   CategoryDto,
   CreateTransactionRequest,
   TransactionDto,
@@ -35,6 +36,7 @@ import {
 } from '../../core/api/financial.types';
 import { MoneyPipe } from '../../core/format/money.pipe';
 import { FinancialStore, ChartKind } from '../financial/state/financial.store';
+import { BudgetProgressCardComponent } from '../financial/pages/components/budget-progress-card.component';
 
 @Component({
   selector: 'app-dashboard-page',
@@ -60,6 +62,8 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
     ConfirmDialogModule,
     MoneyPipe,
     DatePipe,
+    RouterLink,
+    BudgetProgressCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [MessageService, ConfirmationService],
@@ -188,6 +192,28 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
               Sem transações para o filtro atual.
             </p>
           }
+        </section>
+      }
+
+      @if (topBudgets().length > 0) {
+        <section>
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <h2 class="text-lg font-semibold">Orçamentos do mês</h2>
+            <a
+              routerLink="/app/budgets"
+              class="text-sm text-[var(--p-primary-600)] hover:underline"
+            >
+              Ver todos
+            </a>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            @for (budget of topBudgets(); track budget.id) {
+              <app-budget-progress-card
+                [budget]="budget"
+                [categoryName]="categoryNameFor(budget.categoryId)"
+              ></app-budget-progress-card>
+            }
+          </div>
         </section>
       }
 
@@ -435,6 +461,18 @@ export class DashboardPage implements OnInit {
 
   protected readonly recurringRuleId = signal<string | null>(null);
 
+  // Phase 5b: top 4 budgets do mês corrente, ordenados por percent DESC.
+  protected readonly budgets = signal<BudgetDto[]>([]);
+  protected readonly topBudgets = computed(() =>
+    [...this.budgets()]
+      .sort((a, b) => b.progress.percentUsed - a.progress.percentUsed)
+      .slice(0, 4),
+  );
+
+  protected categoryNameFor(categoryId: string): string {
+    return this.store.categories().find((c) => c.id === categoryId)?.name ?? 'Categoria';
+  }
+
   protected readonly chartOptions = [
     { value: 'Expense', label: 'Despesas' },
     { value: 'Income', label: 'Receitas' },
@@ -512,6 +550,7 @@ export class DashboardPage implements OnInit {
       this.store.loadCategories(),
       this.store.loadCurrencies(),
       this.store.loadTenantSettings(),
+      this.loadBudgets(),
     ]);
 
     this.filterForm.valueChanges.subscribe((value) => {
@@ -676,6 +715,16 @@ export class DashboardPage implements OnInit {
         summary: 'Erro',
         detail: 'Não foi possível arquivar a transação.',
       });
+    }
+  }
+
+  private async loadBudgets(): Promise<void> {
+    const today = new Date();
+    try {
+      const list = await this.api.listBudgets(today.getFullYear(), today.getMonth() + 1);
+      this.budgets.set(list);
+    } catch {
+      // Silencioso — dashboard não deve bloquear se /budgets falhar.
     }
   }
 }

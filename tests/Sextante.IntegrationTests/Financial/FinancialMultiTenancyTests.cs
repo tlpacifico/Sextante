@@ -62,5 +62,95 @@ public sealed class FinancialMultiTenancyTests : IClassFixture<IdentityIntegrati
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task Tenant_A_cannot_read_tenant_B_budgets()
+    {
+        var (clientA, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtA-bdg");
+        var (clientB, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtB-bdg");
+
+        var year = DateOnly.FromDateTime(DateTime.UtcNow).Year;
+        var month = DateOnly.FromDateTime(DateTime.UtcNow).Month;
+
+        // Tenant A cria categoria + budget.
+        var categoryA = await CreateCategoryAsync(clientA, "Habitação");
+        var budgetA = await CreateBudgetAsync(clientA, categoryA, year, month);
+
+        // Tenant B lista budgets do mesmo período: vazio.
+        var listB = await clientB.GetFromJsonAsync<List<BudgetIdRow>>(
+            $"/api/financial/budgets?year={year}&month={month}");
+        listB.Should().NotBeNull();
+        listB!.Should().NotContain(b => b.Id == budgetA);
+
+        // Tenant B tenta GET / PUT / DELETE no budget de A → 404.
+        var get = await clientB.GetAsync($"/api/financial/budgets/{budgetA}");
+        get.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var put = await clientB.PutAsJsonAsync($"/api/financial/budgets/{budgetA}", new
+        {
+            limitAmount = 999m,
+            limitCurrency = "EUR",
+            alertThresholdPercent = 90,
+            notes = "hijack",
+        });
+        put.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var del = await clientB.DeleteAsync($"/api/financial/budgets/{budgetA}");
+        del.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var progress = await clientB.GetAsync($"/api/financial/budgets/{budgetA}/progress");
+        progress.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Tenant_A_cannot_acknowledge_tenant_B_alerts()
+    {
+        // Set-up minimal: B tem o seu próprio espaço, sem alerts.
+        // A tenta acknowledge de uma id arbitrária — deve dar 404
+        // (mesmo comportamento que se fosse um alert do B).
+        var (clientA, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtA-alert");
+        var (clientB, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtB-alert");
+
+        var listA = await clientA.GetFromJsonAsync<List<BudgetIdRow>>(
+            "/api/financial/budgets/alerts/active");
+        listA.Should().BeEmpty();
+
+        var listB = await clientB.GetFromJsonAsync<List<BudgetIdRow>>(
+            "/api/financial/budgets/alerts/active");
+        listB.Should().BeEmpty();
+
+        var ackA = await clientA.PostAsync(
+            $"/api/financial/budgets/alerts/{Guid.NewGuid()}/acknowledge",
+            content: null);
+        ackA.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    private static async Task<Guid> CreateCategoryAsync(HttpClient client, string name)
+    {
+        var response = await client.PostAsJsonAsync("/api/financial/categories", new
+        {
+            name,
+            kind = 0,
+            iconName = "pi-tag",
+            colorHex = "#64748B",
+        });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<IdRow>())!.Id;
+    }
+
+    private static async Task<Guid> CreateBudgetAsync(HttpClient client, Guid categoryId, int year, int month)
+    {
+        var response = await client.PostAsJsonAsync("/api/financial/budgets", new
+        {
+            categoryId, year, month,
+            limitAmount = 500m,
+            limitCurrency = "EUR",
+            alertThresholdPercent = 80,
+            notes = (string?)null,
+        });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<BudgetIdRow>())!.Id;
+    }
+
     private sealed record IdRow(Guid Id);
+    private sealed record BudgetIdRow(Guid Id);
 }

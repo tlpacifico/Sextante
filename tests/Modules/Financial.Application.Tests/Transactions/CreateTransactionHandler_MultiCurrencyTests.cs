@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Application.Features.Transactions;
+using Sextante.Modules.Financial.Application.Tests.TestSupport;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Financial.Domain.Transactions;
@@ -41,6 +42,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             fixture.TenantCurrency,
             fixture.ExchangeRates,
             fixture.CurrencyDirectory,
+            fixture.Events,
             CancellationToken.None);
 
         response.ExchangeRateToPrimary.Should().BeNull();
@@ -81,6 +83,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             fixture.TenantCurrency,
             fixture.ExchangeRates,
             fixture.CurrencyDirectory,
+            fixture.Events,
             CancellationToken.None);
 
         response.ExchangeRateToPrimary.Should().Be(0.9m);
@@ -121,6 +124,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             fixture.TenantCurrency,
             fixture.ExchangeRates,
             fixture.CurrencyDirectory,
+            fixture.Events,
             CancellationToken.None);
 
         response.Amount.Currency.Should().Be("BRL");
@@ -155,6 +159,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             fixture.TenantCurrency,
             fixture.ExchangeRates,
             fixture.CurrencyDirectory,
+            fixture.Events,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<CurrencyNotActiveException>();
@@ -188,6 +193,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             fixture.TenantCurrency,
             fixture.ExchangeRates,
             fixture.CurrencyDirectory,
+            fixture.Events,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<ExchangeRateUnavailableException>();
@@ -211,6 +217,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             Transactions = new InMemoryTransactionRepository();
             CurrencyDirectory = new StubCurrencyDirectory(active: new[] { "EUR", "USD", "BRL", "GBP" });
             ExchangeRates = new StubExchangeRateService(returnsNull: true);
+            Events = new StubIntegrationEventPublisher();
         }
 
         public StubTenantContext TenantContext { get; }
@@ -219,6 +226,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
         public InMemoryTransactionRepository Transactions { get; }
         public StubCurrencyDirectory CurrencyDirectory { get; set; }
         public StubExchangeRateService ExchangeRates { get; set; }
+        public StubIntegrationEventPublisher Events { get; }
     }
 
     private sealed class StubTenantContext : ITenantContext

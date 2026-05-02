@@ -369,3 +369,58 @@ export const FREQUENCY_LABELS: Record<Frequency, string> = {
   Monthly: 'Mensal',
   Yearly: 'Anual',
 };
+
+// ── Phase 5b — Budgets ───────────────────────────────────────────────
+
+export interface BudgetProgressDto {
+  limitAmount: number;
+  limitCurrency: string;
+  spentAmount: number;
+  remainingAmount: number;
+  percentUsed: number;
+  projectedAmount?: number | null;
+  hasIncompleteRates: boolean;
+}
+
+export interface BudgetDto {
+  id: string;
+  categoryId: string;
+  year: number;
+  month: number;
+  limitAmount: number;
+  limitCurrency: string;
+  alertThresholdPercent: number;
+  notes?: string | null;
+  progress: BudgetProgressDto;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BudgetAlertDto {
+  id: string;
+  budgetId: string;
+  categoryId: string;
+  threshold: number;
+  triggeredAt: string;
+  spentAtTriggerAmount: number;
+  spentAtTriggerCurrency: string;
+  acknowledged: boolean;
+  acknowledgedAt?: string | null;
+}
+
+export interface CreateBudgetRequest {
+  categoryId: string;
+  year: number;
+  month: number;
+  limitAmount: number;
+  limitCurrency: string;
+  alertThresholdPercent?: number | null;
+  notes?: string | null;
+}
+
+export interface UpdateBudgetRequest {
+  limitAmount: number;
+  limitCurrency: string;
+  alertThresholdPercent?: number | null;
+  notes?: string | null;
+}

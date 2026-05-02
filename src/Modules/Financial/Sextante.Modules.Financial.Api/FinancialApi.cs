@@ -15,6 +15,7 @@ public static class FinancialApi
         routes.MapCategorizationRulesEndpoints();
         routes.MapCsvImportEndpoints();
         routes.MapRecurringRulesEndpoints();
+        routes.MapBudgetsEndpoints();
         return routes;
     }
 }

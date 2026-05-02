@@ -1,7 +1,9 @@
 using FluentValidation;
+using Sextante.Modules.Financial.Application.Features.Budgets;
 using Sextante.Modules.Financial.Application.Features.CategorizationRules;
 using Sextante.Modules.Financial.Application.Features.ImportProfiles;
 using Sextante.Modules.Financial.Application.Features.RecurringRules;
+using Sextante.Modules.Financial.Domain.Budgets;
 using Sextante.Modules.Financial.Domain.CategorizationRules;
 using Sextante.Modules.Financial.Domain.RecurringRules;
 
@@ -114,5 +116,54 @@ public sealed class UpdateRecurringRuleValidator : AbstractValidator<UpdateRecur
         RuleFor(c => c)
             .Must(c => c.EndDate is null || c.StartDate <= c.EndDate)
             .WithMessage("A data de início não pode ser superior à data de fim.");
+    }
+}
+
+public sealed class CreateBudgetValidator : AbstractValidator<CreateBudgetCommand>
+{
+    public CreateBudgetValidator()
+    {
+        RuleFor(c => c.CategoryId)
+            .NotEmpty().WithMessage("A categoria é obrigatória.");
+        RuleFor(c => c.Year)
+            .InclusiveBetween(BudgetPeriod.MinYear, BudgetPeriod.MaxYear)
+            .WithMessage($"O ano tem de estar entre {BudgetPeriod.MinYear} e {BudgetPeriod.MaxYear}.");
+        RuleFor(c => c.Month)
+            .InclusiveBetween(1, 12)
+            .WithMessage("O mês tem de estar entre 1 e 12.");
+        RuleFor(c => c.LimitAmount)
+            .GreaterThan(0m).WithMessage("O limite tem de ser maior que zero.");
+        RuleFor(c => c.LimitCurrency)
+            .NotEmpty().WithMessage("A moeda é obrigatória.")
+            .Length(3).WithMessage("A moeda deve ter 3 caracteres (ISO 4217).");
+        RuleFor(c => c.AlertThresholdPercent!.Value)
+            .InclusiveBetween(Budget.MinThreshold, Budget.MaxThreshold)
+            .WithMessage($"O threshold de alerta tem de estar entre {Budget.MinThreshold} e {Budget.MaxThreshold}%.")
+            .When(c => c.AlertThresholdPercent.HasValue);
+        RuleFor(c => c.Notes!)
+            .MaximumLength(Budget.NotesMaxLength)
+            .WithMessage($"As notas têm no máximo {Budget.NotesMaxLength} caracteres.")
+            .When(c => c.Notes is not null);
+    }
+}
+
+public sealed class UpdateBudgetValidator : AbstractValidator<UpdateBudgetCommand>
+{
+    public UpdateBudgetValidator()
+    {
+        RuleFor(c => c.Id).NotEmpty();
+        RuleFor(c => c.LimitAmount)
+            .GreaterThan(0m).WithMessage("O limite tem de ser maior que zero.");
+        RuleFor(c => c.LimitCurrency)
+            .NotEmpty().WithMessage("A moeda é obrigatória.")
+            .Length(3).WithMessage("A moeda deve ter 3 caracteres (ISO 4217).");
+        RuleFor(c => c.AlertThresholdPercent!.Value)
+            .InclusiveBetween(Budget.MinThreshold, Budget.MaxThreshold)
+            .WithMessage($"O threshold de alerta tem de estar entre {Budget.MinThreshold} e {Budget.MaxThreshold}%.")
+            .When(c => c.AlertThresholdPercent.HasValue);
+        RuleFor(c => c.Notes!)
+            .MaximumLength(Budget.NotesMaxLength)
+            .WithMessage($"As notas têm no máximo {Budget.NotesMaxLength} caracteres.")
+            .When(c => c.Notes is not null);
     }
 }

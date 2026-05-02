@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Application.Features.RecurringRules.Materialization;
+using Sextante.Modules.Financial.Application.Tests.TestSupport;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Financial.Domain.RecurringRules;
@@ -247,6 +248,7 @@ public sealed class RecurringTransactionMaterializerHandlerTests
             Rules = new StubRecurringRuleRepository();
             ExchangeRateService = new StubExchangeRateService(returnsNull: true);
             Categories = new StubCategoryRepository();
+            Events = new StubIntegrationEventPublisher();
         }
 
         public StubTenantContext TenantContext { get; }
@@ -255,6 +257,7 @@ public sealed class RecurringTransactionMaterializerHandlerTests
         public StubRecurringRuleRepository Rules { get; }
         public StubExchangeRateService ExchangeRateService { get; private set; }
         public StubCategoryRepository Categories { get; }
+        public StubIntegrationEventPublisher Events { get; }
 
         public RecurringTransactionMaterializerHandler Sut =>
             new(
@@ -263,6 +266,7 @@ public sealed class RecurringTransactionMaterializerHandlerTests
                 Categories,
                 ExchangeRateService,
                 TenantCurrency,
+                Events,
                 NullLoggerFactory.Instance.CreateLogger<RecurringTransactionMaterializerHandler>());
 
         public HandlerFixture WithRule(RecurringRule rule)

@@ -132,6 +132,14 @@ export const routes: Routes = [
           ),
         title: 'Sextante — Recorrentes',
       },
+      {
+        path: 'budgets',
+        loadComponent: () =>
+          import('./features/financial/pages/budgets.page').then(
+            (m) => m.BudgetsPage,
+          ),
+        title: 'Sextante — Orçamentos',
+      },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],
   },
