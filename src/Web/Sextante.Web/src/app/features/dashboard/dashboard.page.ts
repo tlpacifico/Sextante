@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { CardModule } from 'primeng/card';
@@ -222,7 +223,26 @@ import { FinancialStore, ChartKind } from '../financial/state/financial.store';
       }
 
       <p-card>
-        <h2 class="text-lg font-semibold mb-4">Transações</h2>
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h2 class="text-lg font-semibold">Transações</h2>
+          @if (recurringRuleId(); as rid) {
+            <p-tag
+              severity="info"
+              [rounded]="true"
+              data-testid="recurring-filter-banner"
+            >
+              <span class="flex items-center gap-2">
+                <i class="pi pi-filter"></i>
+                Filtrado por regra recorrente
+                <button
+                  type="button"
+                  class="underline ml-1"
+                  (click)="clearRecurringFilter()"
+                >Limpar</button>
+              </span>
+            </p-tag>
+          }
+        </div>
         <div class="overflow-x-auto">
         <p-table
           [value]="store.transactions()"
@@ -410,6 +430,10 @@ export class DashboardPage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly toast = inject(MessageService);
   private readonly confirm = inject(ConfirmationService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
+  protected readonly recurringRuleId = signal<string | null>(null);
 
   protected readonly chartOptions = [
     { value: 'Expense', label: 'Despesas' },
@@ -499,12 +523,41 @@ export class DashboardPage implements OnInit {
         dateTo,
         categoryIds: value.categoryIds && value.categoryIds.length ? value.categoryIds : null,
         accountIds: value.accountIds && value.accountIds.length ? value.accountIds : null,
+        recurringRuleId: this.recurringRuleId(),
         pageSize: 50,
       });
       void this.store.refreshDashboard();
     });
 
+    // Filtro vindo de "Ver transações" da página /app/recurrings.
+    this.route.queryParamMap.subscribe((params) => {
+      const ruleId = params.get('recurringRuleId');
+      const previous = this.recurringRuleId();
+      this.recurringRuleId.set(ruleId);
+      if (ruleId !== previous) {
+        const value = this.filterForm.getRawValue();
+        const period = value.period;
+        this.store.setFilter({
+          dateFrom: period?.[0] ? period[0].toISOString() : null,
+          dateTo: period?.[1] ? period[1].toISOString() : null,
+          categoryIds: value.categoryIds && value.categoryIds.length ? value.categoryIds : null,
+          accountIds: value.accountIds && value.accountIds.length ? value.accountIds : null,
+          recurringRuleId: ruleId,
+          pageSize: 50,
+        });
+        void this.store.refreshDashboard();
+      }
+    });
+
     await this.store.refreshDashboard();
+  }
+
+  protected clearRecurringFilter(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { recurringRuleId: null },
+      queryParamsHandling: 'merge',
+    });
   }
 
   protected accountName(id: string): string {
