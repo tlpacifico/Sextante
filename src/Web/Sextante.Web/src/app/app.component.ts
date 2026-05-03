@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { AuthService } from './auth/auth.service';
 import { ThemeService } from './core/theme.service';
 
 @Component({
@@ -11,14 +10,13 @@ import { ThemeService } from './core/theme.service';
   template: `<router-outlet></router-outlet>`,
 })
 export class AppComponent {
-  private readonly auth = inject(AuthService);
+  // Phase 5.5 — a re-hidratação da sessão acontece em provideAppInitializer
+  // (app.config.ts), antes de o AuthGuard decidir o redirect inicial.
+  // O ThemeService precisa de ser instanciado cedo para aplicar o tema
+  // antes do primeiro paint.
   private readonly theme = inject(ThemeService);
 
   constructor() {
     void this.theme;
-    // Phase 5.5 — re-hidrata a sessão a partir de localStorage
-    // (access + refresh tokens). Fallback: cookie httpOnly se localStorage
-    // vazio. Se ambos falharem, fica deslogado e o guard manda para /login.
-    void this.auth.rehydrateFromStorage();
   }
 }

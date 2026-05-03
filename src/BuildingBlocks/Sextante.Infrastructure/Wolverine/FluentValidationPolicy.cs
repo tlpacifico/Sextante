@@ -36,7 +36,7 @@ public sealed class FluentValidationMiddleware
 
 /// <summary>
 /// Phase 5.5 — Métricas mínimas de handlers Wolverine.
-/// Loga duração de cada handler invocation via ILogger.
+/// Loga duração + sucesso/falha de cada handler invocation via ILogger.
 /// </summary>
 public sealed class MetricsMiddleware
 {
@@ -64,9 +64,13 @@ public sealed class MetricsMiddleware
 
             var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(_startedAt);
             var messageType = _envelope.Message?.GetType().Name ?? "unknown";
+            // Wolverine envelope expõe a Failure quando o handler lança;
+            // usá-la determina success=true/false sem precisar de try/catch
+            // explícito no middleware.
+            var success = _envelope.Failure is null;
             _logger.LogInformation(
-                "Wolverine handler {HandlerType} completed in {DurationMs}ms",
-                messageType, (long)elapsed.TotalMilliseconds);
+                "Wolverine handler {HandlerType} completed in {DurationMs}ms (success={Success})",
+                messageType, (long)elapsed.TotalMilliseconds, success);
         }
     }
 }

@@ -18,6 +18,11 @@ public sealed class TenantSwitchDetectorMiddleware
         _logger = logger;
     }
 
+    // ITenantContext.TenantId é re-lido em cada acesso a partir de
+    // HttpContext.User.FindFirst(IdentityClaimTypes.TenantId) — não é
+    // cached no scoped service. Logo, comparar o valor (Guid) no início
+    // e no fim do pipeline detecta uma mutação de User mid-request
+    // (cenário típico: middleware/handler que substitui ClaimsPrincipal).
     public async Task InvokeAsync(HttpContext context)
     {
         var endpoint = context.GetEndpoint();
@@ -27,41 +32,49 @@ public sealed class TenantSwitchDetectorMiddleware
             return;
         }
 
-        string? initialTenantId = null;
-        try
-        {
-            var tenantContext = context.RequestServices.GetService<ITenantContext>();
-            initialTenantId = tenantContext?.TenantId.Value.ToString();
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Request não autenticada.
-        }
+        var initialTenantId = TryReadTenantId(context);
 
         await _next(context);
 
         if (initialTenantId is null) return;
 
+        var finalTenantId = TryReadTenantId(context);
+        if (finalTenantId is null)
+        {
+            // TenantContext desapareceu (claim stripped) num request que começou
+            // autenticado — também é suspeito.
+            LogSwitch(context, initialTenantId.Value, finalTenantId: null);
+            return;
+        }
+
+        if (initialTenantId.Value != finalTenantId.Value)
+        {
+            LogSwitch(context, initialTenantId.Value, finalTenantId.Value);
+        }
+    }
+
+    private static Guid? TryReadTenantId(HttpContext context)
+    {
         try
         {
             var tenantContext = context.RequestServices.GetService<ITenantContext>();
-            var finalTenantId = tenantContext?.TenantId.Value.ToString();
-
-            if (finalTenantId is not null && !string.Equals(initialTenantId, finalTenantId, StringComparison.Ordinal))
-            {
-                var userId = context.User?.FindFirst(
-                    System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown";
-                var path = $"{context.Request.Method} {context.Request.Path}";
-
-                _logger.LogError(
-                    "Tenant switched mid-request: {TenantInitial} -> {TenantFinal}, user={UserId}, path={Path}",
-                    initialTenantId, finalTenantId, userId, path);
-            }
+            return tenantContext?.TenantId.Value;
         }
         catch (UnauthorizedAccessException)
         {
-            // Tenant context desapareceu — cenário anómalo mas não crítico.
+            return null;
         }
+    }
+
+    private void LogSwitch(HttpContext context, Guid initial, Guid? finalTenantId)
+    {
+        var userId = context.User?.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown";
+        var path = $"{context.Request.Method} {context.Request.Path}";
+
+        _logger.LogError(
+            "Tenant switched mid-request: {TenantInitial} -> {TenantFinal}, user={UserId}, path={Path}",
+            initial, finalTenantId?.ToString() ?? "<missing>", userId, path);
     }
 }
 

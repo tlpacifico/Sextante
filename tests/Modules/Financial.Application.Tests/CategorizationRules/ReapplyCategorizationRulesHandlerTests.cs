@@ -167,6 +167,8 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         public Task<Transaction?> GetByIdAsync(Guid id, CancellationToken ct)
             => Task.FromResult<Transaction?>(Items.FirstOrDefault(t => t.Id == id));
+        public Task<IReadOnlyList<Transaction>> GetByIdsAsync(IReadOnlyList<Guid> ids, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<Transaction>>(Items.Where(t => ids.Contains(t.Id)).ToList());
         public Task AddAsync(Transaction t, CancellationToken ct) { Items.Add(t); return Task.CompletedTask; }
         public void Update(Transaction t) { /* tracked in-place via shared instances */ }
         public Task<int> SaveChangesAsync(CancellationToken ct) => Task.FromResult(0);

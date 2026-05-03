@@ -354,6 +354,9 @@ public sealed class RecurringTransactionMaterializerHandlerTests
         public Task<Transaction?> GetByIdAsync(Guid id, CancellationToken ct)
             => Task.FromResult<Transaction?>(Added.FirstOrDefault(t => t.Id == id));
 
+        public Task<IReadOnlyList<Transaction>> GetByIdsAsync(IReadOnlyList<Guid> ids, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<Transaction>>(Added.Where(t => ids.Contains(t.Id)).ToList());
+
         public Task AddAsync(Transaction transaction, CancellationToken ct)
         {
             Added.Add(transaction);

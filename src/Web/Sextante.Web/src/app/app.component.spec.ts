@@ -10,6 +10,9 @@ class FakeAuthService {
   loadProfile() {
     return Promise.resolve(false);
   }
+  rehydrateFromStorage() {
+    return Promise.resolve(false);
+  }
   getAccessToken() {
     return null;
   }

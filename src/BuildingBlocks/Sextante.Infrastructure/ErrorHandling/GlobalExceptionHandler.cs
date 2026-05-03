@@ -47,10 +47,15 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         }
 
         httpContext.Response.StatusCode = statusCode;
-        httpContext.Response.ContentType = "application/problem+json";
 
+        // WriteAsJsonAsync sobrescreve ContentType para "application/json;
+        // charset=utf-8" — passamos o ContentType pelo overload para preservar
+        // "application/problem+json" (RFC 7807 §3).
         await httpContext.Response.WriteAsJsonAsync(
-            problem, cancellationToken: cancellationToken);
+            problem,
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken);
 
         return true;
     }

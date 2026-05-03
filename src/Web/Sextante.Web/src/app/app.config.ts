@@ -2,6 +2,8 @@ import {
   ApplicationConfig,
   ErrorHandler,
   LOCALE_ID,
+  inject,
+  provideAppInitializer,
   provideZoneChangeDetection,
 } from '@angular/core';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
@@ -20,6 +22,7 @@ import * as Sentry from '@sentry/angular';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './auth/auth.interceptor';
+import { AuthService } from './auth/auth.service';
 
 registerLocaleData(localePt, 'pt-PT');
 
@@ -29,6 +32,14 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes, withComponentInputBinding()),
     provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
     provideAnimationsAsync(),
+    // Phase 5.5 — bloqueia bootstrap até a sessão ser re-hidratada a partir
+    // de localStorage / refresh cookie. Sem isto, o AuthGuard corre antes
+    // do AuthService saber que há uma sessão válida e redirecciona para
+    // /login depois de F5 (regressão da DoD #27).
+    provideAppInitializer(() => {
+      const auth = inject(AuthService);
+      return auth.rehydrateFromStorage();
+    }),
     providePrimeNG({
       theme: {
         preset: definePreset(Aura, {

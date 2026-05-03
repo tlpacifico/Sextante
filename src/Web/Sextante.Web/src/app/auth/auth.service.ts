@@ -114,14 +114,14 @@ export class AuthService {
     try {
       const storedAccess = localStorage.getItem(STORAGE_KEYS.access);
       if (storedAccess) {
-        const tokens = JSON.parse(storedAccess) as { accessToken: string; expiresIn: number; refreshToken: string };
-        const expiresAt = Date.now() + tokens.expiresIn * 1000;
-        if (Date.now() < expiresAt) {
+        const tokens = JSON.parse(storedAccess) as { accessToken: string; expiresAt: number; refreshToken: string };
+        if (typeof tokens.expiresAt === 'number' && Date.now() < tokens.expiresAt) {
           // Access token ainda válido — carrega profile.
           try {
+            const remainingSeconds = Math.max(0, Math.floor((tokens.expiresAt - Date.now()) / 1000));
             const profile = await this.fetchProfile(tokens.accessToken);
             this.state.set(this.buildState(
-              { accessToken: tokens.accessToken, expiresIn: tokens.expiresIn, refreshToken: tokens.refreshToken, tokenType: 'Bearer' },
+              { accessToken: tokens.accessToken, expiresIn: remainingSeconds, refreshToken: tokens.refreshToken, tokenType: 'Bearer' },
               profile,
             ));
             return true;
@@ -210,9 +210,12 @@ export class AuthService {
 
   private persistTokens(tokens: TokenResponse, extended: boolean): void {
     try {
+      // Phase 5.5 — persistir o timestamp absoluto de expiry (não a duração
+      // relativa) para que rehydrate consiga decidir se o token ainda é
+      // válido sem assumir que o storage acabou de ser escrito.
       localStorage.setItem(STORAGE_KEYS.access, JSON.stringify({
         accessToken: tokens.accessToken,
-        expiresIn: tokens.expiresIn,
+        expiresAt: Date.now() + tokens.expiresIn * 1000,
         refreshToken: tokens.refreshToken,
       }));
       localStorage.setItem(STORAGE_KEYS.refresh, tokens.refreshToken);
