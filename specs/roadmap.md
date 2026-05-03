@@ -9,7 +9,7 @@
 - Cada **phase** tem **1–3 features** (nano-fases).
 - Cada phase corresponde a 1 branch `phase-N-<kebab-name>` e termina com merge para `main`.
 - **Definition of Done por phase**: testes a passar (incluindo multi-tenancy desde Phase 1), code review (sub-agent deep review obrigatório nas phases marcadas com 🛡️), changelog atualizado, commit `Mark phase N as complete`.
-- **Phases que tocam UI** (1b, 2, 3 (filtro), 4 (wizard), 5 (recorrentes/metas), 6 (polish), 7+) têm de respeitar `tech-stack.md` §19.5 — sanity check responsivo em 375 / 768 / 1280 px é parte do DoD; "só funciona em desktop" é regressão do princípio `mission.md` §4.6.
+- **Phases que tocam UI** (1b, 2, 3 (filtro), 4 (wizard), 5 (recorrentes/metas), 5.5 (design system), 6 (polish), 7+) têm de respeitar `tech-stack.md` §19.5 — sanity check responsivo em 375 / 768 / 1280 px é parte do DoD; "só funciona em desktop" é regressão do princípio `mission.md` §4.6.
 - Phases pós-MVP estão deliberadamente menos detalhadas — são revisitadas em Replanning antes de arrancar.
 
 ---
@@ -119,6 +119,42 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 - [x] **(5b)** Suporte a metas em moeda específica.
 
 **Saída**: utilizador define renda mensal e ela aparece automaticamente no dia 1; tem 3 metas configuradas e o dashboard mostra progresso.
+
+### Phase 5.5 — Refinement: observability, middlewares e design system 🛡️
+
+> Branch: `phase-5.5-refinement`. Hardening estrutural antes do deploy. Sem
+> features novas de utilizador — fecha lacunas entre `tech-stack.md` e
+> implementação corrente das Phases 1a–5.
+
+#### Backend — observability e middlewares
+
+- [ ] **Filtros PII no Serilog** em `appsettings.json` (mascarar emails, valores monetários, descrições livres em texto). Tech-stack §13.
+- [ ] **Correlation/traceId** propagado via `Activity.Current.TraceId` e injetado em todos os logs de request via `LogContext.PushProperty`.
+- [ ] **`TenantId` enricher** automático em todos os logs de request autenticada. Tech-stack §13 + AGENTS.md §4.
+- [ ] **Alerta de mudança inesperada de tenant** no mesmo request (log `Warning` ou `Error` se `ITenantContext.TenantId` mudar entre middleware e handler). Tech-stack §13.
+- [ ] **`IExceptionHandler` global** com `ProblemDetails` (RFC 7807) preenchendo `type`, `title`, `status`, `detail`, `instance`, `traceId`. Mensagens PT-PT. Tech-stack §8 + §16.
+- [ ] **Security headers middleware** (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`) e CORS explícito (mesmo que same-origin no MVP, registar a política).
+- [ ] **Wolverine validation policy** centralizada via FluentValidation (handler que valide o command antes de despachar; falha → `ValidationException` → ProblemDetails 400). Tech-stack §3.5.
+- [ ] **Wolverine metrics policy** mínima: contador de invocações + duração por handler, exposta via `ILogger` no momento (sem Prometheus — fica para Phase 7). Tech-stack §3.5.
+
+#### Sentry — error tracking externo
+
+- [ ] **Criar projeto/conta Sentry** (free tier, projetos separados para `sextante-api` e `sextante-web`).
+- [ ] **Escrever ADR-012 — Sentry como error tracker externo** em `docs/adr/`, justificando a divergência face a "Métricas/OTel pós-MVP" do tech-stack §13. Documentar PII scrubbing, sample rate, retenção.
+- [ ] Atualizar `specs/tech-stack.md` §13 e tabela §17 a refletir Sentry como decisão MVP.
+- [ ] **Backend**: integrar `Sentry.AspNetCore` + `Sentry.Serilog` em `Sextante.Host`. DSN via `.env` (`SENTRY__DSN`). Scrubbing de PII alinhado aos filtros Serilog. Tag `tenant_id` em cada evento.
+- [ ] **Frontend**: integrar `@sentry/angular` em `Sextante.Web`. DSN via build env. Source maps publicados no release. Privacy mode (mascarar inputs financeiros).
+- [ ] **Fallback graceful**: se Sentry estiver inacessível ou DSN ausente, app continua a funcionar e Serilog file sink mantém o registo local. Mission §4.4 (self-hosted-friendly).
+
+#### Frontend — design system e responsividade
+
+- [ ] **Design tokens consolidados**: paleta, espaçamento, tipografia em `src/styles/tokens.css` (CSS custom properties) consumidas via Tailwind theme extend e PrimeNG CSS variables.
+- [ ] **Componentes shared** extraídos para `src/app/shared/ui/`: `page-header`, `empty-state`, `confirm-dialog`, `data-table-shell`, `form-field`. Substituir duplicação ad-hoc nas pages existentes.
+- [ ] **Tema PrimeNG Aura customizado** (cores primárias/secundárias do Sextante, dark mode opcional). Documentar em `Vault: 04 - Arquitetura - Frontend.md`.
+- [ ] **Sanity check responsivo retroactivo**: percorrer todas as pages das Phases 1b–5 (login, signup, dashboard, accounts, categories, transactions, recurring rules, budgets, import wizard) em DevTools nas viewports 375 × 667, 768 × 1024, 1280 × 800. Corrigir overflow horizontal, dialogs cortados, gráficos ilegíveis, touch targets < 44 px. Tech-stack §19.5 + mission §4.6.
+- [ ] **Checklist DoD responsivo** adicionado a `AGENTS.md` (ou `tech-stack.md` §19.5) como passo obrigatório no merge de qualquer phase futura que toque UI.
+
+**Saída**: (1) qualquer erro 4xx/5xx do backend chega ao frontend como `ProblemDetails` com `traceId` rastreável em logs Serilog **e** no Sentry; (2) logs de produção não contêm emails nem valores em texto claro; (3) todas as pages do MVP passam sanity check em 3 viewports sem regressões; (4) ADR-012 escrito e tech-stack atualizado a refletir Sentry como integração MVP.
 
 ### Phase 6 — Polish + Deploy + Dogfooding 🛡️
 
