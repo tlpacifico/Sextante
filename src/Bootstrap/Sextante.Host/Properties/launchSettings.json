@@ -4,8 +4,18 @@
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": true,
+      "launchBrowser": false,
       "applicationUrl": "http://localhost:5032",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "http-skip-angular": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5032",
+      "commandLineArgs": "-p:SkipAngularBuild=true",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
