@@ -298,6 +298,7 @@ Sextante.sln
 - **Serilog estruturado → ficheiro** com rotação diária (volume `logs/` no Docker).
 - **`TenantId` em cada log de request** para correlação. Alerta se mudança inesperada de tenant no mesmo request.
 - **Sem PII em texto claro**: filtros configurados em `appsettings.json` para emails, valores, descrições livres.
+- **Sentry como error tracker externo** (sentry.io free tier, ADR-012). Fallback graceful: Serilog file sink mantém log local se Sentry inacessível.
 - Métricas / OpenTelemetry / Prometheus / Grafana — **pós-MVP** (Fase 7 plataforma SaaS).
 
 ---
@@ -367,6 +368,7 @@ Sextante.sln
 | Chart library | **PrimeNG Chart** (Chart.js por baixo) |
 | Versão Angular | **21 LTS** (upgrade do 19 que entrou no scaffold da Phase 0) |
 | Responsive design | **Mobile-first**, breakpoints Tailwind, sanity check em 375 / 768 / 1280 px obrigatório por page (§19.5) |
+| Error tracking externo | Sentry SaaS free tier (sentry.io), ADR-012 |
 
 ---
 
@@ -380,12 +382,15 @@ Sextante.sln
 - ADR-005 Frontend Hosting
 - ADR-006 Messaging (Wolverine + PostgreSQL)
 
+### Escritos no repo (`docs/adr/`)
+- ADR-010 CQRS via Wolverine
+- ADR-011 Frontend UI stack (PrimeNG + Tailwind + Signals)
+- ADR-012 Sentry como error tracker externo
+
 ### Pendentes
 - **ADR-007 Versionamento da API**: adiado. Escrever quando se introduzir versionamento.
 - **ADR-008 Provider de cotações**: para Fase 2. Avaliação comparativa Brapi (BR) + Yahoo Finance/Alpha Vantage (intl) quando começar Sub-fase 2.2.
 - **ADR-009 Soft delete vs hard delete**: **resolvido nesta Constitution** (soft-delete uniforme). Escrever ADR formal quando for tocada a primeira feature que elimine entidades (Sprint 2 ou 3) para registar o porquê.
-- **ADR-010 CQRS via Wolverine**: registar a decisão de usar Wolverine como mediator in-process (sem `MediatR`). Escrever na **Phase 1a**, antes de assentar os primeiros handlers do módulo Identity. Inputs em §3.5 e §11.
-- **ADR-011 Frontend UI stack (PrimeNG + Tailwind + Signals)**: registar a escolha de UI library, state management e versão Angular. Escrever no kickoff da **Phase 1b**, antes de adicionar dependências ao `package.json`. Inputs em §19.
 
 ---
 

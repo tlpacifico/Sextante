@@ -37,6 +37,13 @@ public sealed record UpdateTransactionCommand(
 
 public sealed record ArchiveTransactionCommand(Guid Id);
 
+public sealed record RecategorizeTransactionsCommand(
+    IReadOnlyList<Guid> Ids,
+    Guid CategoryId);
+
+public sealed record RecategorizeTransactionsResponse(
+    int UpdatedCount);
+
 public sealed record GetTransactionByIdQuery(Guid Id);
 
 public sealed record ListTransactionsQuery(

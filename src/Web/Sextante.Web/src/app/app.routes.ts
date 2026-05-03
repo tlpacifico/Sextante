@@ -69,6 +69,14 @@ export const routes: Routes = [
         title: 'Sextante — Categorias',
       },
       {
+        path: 'transactions',
+        loadComponent: () =>
+          import('./features/financial/pages/transactions/transactions.page').then(
+            (m) => m.TransactionsPage,
+          ),
+        title: 'Sextante — Transações',
+      },
+      {
         path: 'settings/general',
         loadComponent: () =>
           import('./features/settings/settings-general.page').then(

@@ -7,6 +7,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
+import { CheckboxModule } from 'primeng/checkbox';
 import { InputTextModule } from 'primeng/inputtext';
 import { PasswordModule } from 'primeng/password';
 import { MessageService } from 'primeng/api';
@@ -22,6 +23,7 @@ import { translateError } from '../error-translator';
     InputTextModule,
     PasswordModule,
     ButtonModule,
+    CheckboxModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -56,6 +58,13 @@ import { translateError } from '../error-translator';
           <small class="text-[var(--p-red-500)]">Palavra-passe obrigatória.</small>
         }
       </label>
+
+      <div class="flex items-center gap-2">
+        <p-checkbox formControlName="extendedSession" inputId="extended" [binary]="true" />
+        <label for="extended" class="text-sm text-neutral-600 dark:text-neutral-400 cursor-pointer">
+          Manter-me ligado
+        </label>
+      </div>
 
       <p-button
         type="submit"
@@ -92,6 +101,7 @@ export class LoginPage implements OnInit {
   protected readonly form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required]],
+    extendedSession: [false],
   });
 
   emailInvalid = () => this.controlInvalid('email');
@@ -105,6 +115,12 @@ export class LoginPage implements OnInit {
   }
 
   ngOnInit(): void {
+    // Phase 5.5 — pre-fill email da última sessão.
+    const lastEmail = this.auth.getLastLoginEmail();
+    if (lastEmail) {
+      this.form.controls.email.setValue(lastEmail);
+    }
+
     const params = this.route.snapshot.queryParamMap;
     if (params.get('signup') === 'success') {
       this.messages.add({
@@ -123,7 +139,8 @@ export class LoginPage implements OnInit {
 
     this.submitting.set(true);
     try {
-      await this.auth.login(this.form.getRawValue());
+      const { email, password, extendedSession } = this.form.getRawValue();
+      await this.auth.login({ email, password, extendedSession });
       const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
       const target = returnUrl && returnUrl.startsWith('/') ? returnUrl : '/app/dashboard';
       await this.router.navigateByUrl(target);

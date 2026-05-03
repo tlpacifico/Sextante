@@ -23,6 +23,7 @@
    - Documentação, comentários de domínio, mensagens de commit: **PT-PT**.
    - Código, identifiers, naming convencional .NET/Angular: **inglês**.
 6. **Secrets**: nunca commit. Usar `.env.local` (já no `.gitignore`) ou `appsettings.Local.json`.
+7. **Responsive DoD**: qualquer phase que toque UI tem de passar sanity check em 375 × 667, 768 × 1024, e 1280 × 800 px (DevTools) antes do merge. Verificar: sem overflow horizontal do `<body>`, dialogs cabem (≤ 95vw em < 640 px), touch targets ≥ 44 px, gráficos legíveis. Documentar achados em `specs/<feature>/responsive-audit.md`. Ver `tech-stack.md` §19.5.
 
 ---
 

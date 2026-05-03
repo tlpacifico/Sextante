@@ -223,6 +223,26 @@ cd src/Web/Sextante.Web && npm start
 
 ---
 
+## Provisionamento inicial (admin CLI)
+
+Depois de a aplicação arrancar pela primeira vez, a base de dados está vazia — sem utilizadores. O comando `create-admin` cria o primeiro utilizador administrador sem precisar de aceder ao Postgres directamente:
+
+```bash
+docker compose exec api dotnet Sextante.Host.dll create-admin \
+  --email admin@exemplo.pt --password 'PalavraForte1!' \
+  --tenant-name 'Sextante Admin'
+```
+
+- **`--email`** (obrigatório): email do administrador.
+- **`--password`** (obrigatório): palavra-passe inicial.
+- **`--tenant-name`** (opcional, default `Admin Tenant`): nome do tenant.
+
+O comando é **idempotente**: re-executar com o mesmo email rotaciona a palavra-passe, garante a role `Admin` e `EmailConfirmed=true`, sem criar duplicados nem erro.
+
+Após execução, o utilizador pode fazer login em `/login` e aceder ao sistema. As categorias padrão são automaticamente criadas para o novo tenant.
+
+---
+
 ## Deploy (manual, primeira vez)
 
 > Este bloco é runbook. O **primeiro deploy à VPS é executado em Phase 6** (pré-dogfooding), não em Phase 0 — Phase 0 entrega o stack `docker compose` validado localmente. CD automático fica fora do MVP; o GitHub Actions corre apenas `build`, `test`, `format`.

@@ -91,7 +91,7 @@ public static class TransactionHandlers
         var transaction = await repository.GetByIdAsync(command.Id, cancellationToken);
         if (transaction is null)
         {
-            return null;
+            throw new KeyNotFoundException($"Transaction with ID '{command.Id}' not found.");
         }
 
         // Update preserva a moeda original e o ER frozen — apenas
@@ -139,13 +139,49 @@ public static class TransactionHandlers
         return true;
     }
 
-    public static async Task<TransactionResponse?> Handle(
+    // Phase 5.5 — bulk recategorize transactions
+    public static async Task<RecategorizeTransactionsResponse> Handle(
+        RecategorizeTransactionsCommand command,
+        ITransactionRepository repository,
+        ITenantContext tenant,
+        IIntegrationEventPublisher events,
+        CancellationToken cancellationToken)
+    {
+        var transactions = await repository.GetByIdsAsync(command.Ids, cancellationToken);
+        var updated = 0;
+
+        foreach (var tx in transactions)
+        {
+            tx.SetCategory(command.CategoryId);
+            repository.Update(tx);
+            updated++;
+
+            await events.PublishAsync(
+                new TransactionUpdatedIntegrationEvent(
+                    tx.Id,
+                    tenant.TenantId.Value,
+                    tx.AccountId,
+                    tx.CategoryId == Guid.Empty ? null : tx.CategoryId,
+                    tx.Amount.Amount,
+                    tx.Amount.Currency,
+                    tx.OccurredAt,
+                    DateTimeOffset.UtcNow),
+                cancellationToken);
+        }
+
+        await repository.SaveChangesAsync(cancellationToken);
+        return new RecategorizeTransactionsResponse(updated);
+    }
+
+    public static async Task<TransactionResponse> Handle(
         GetTransactionByIdQuery query,
         ITransactionRepository repository,
         CancellationToken cancellationToken)
     {
         var transaction = await repository.GetByIdAsync(query.Id, cancellationToken);
-        return transaction is null ? null : ToResponse(transaction);
+        if (transaction is null)
+            throw new KeyNotFoundException($"Transaction with ID '{query.Id}' not found.");
+        return ToResponse(transaction);
     }
 
     public static async Task<TransactionsPageResponse> Handle(

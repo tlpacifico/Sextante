@@ -5,6 +5,7 @@ namespace Sextante.Modules.Financial.Domain.Transactions;
 public interface ITransactionRepository
 {
     Task<Transaction?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Transaction>> GetByIdsAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken);
     Task AddAsync(Transaction transaction, CancellationToken cancellationToken);
     void Update(Transaction transaction);
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);

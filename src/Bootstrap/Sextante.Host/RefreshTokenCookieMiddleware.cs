@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Sextante.Host;
@@ -17,12 +19,17 @@ namespace Sextante.Host;
 /// O backend continua a aceitar o refresh token via body para retro-
 /// compatibilidade com integration tests da Phase 1a; o frontend Angular
 /// passa a depender exclusivamente do cookie.
+///
+/// Phase 5.5 — suporte a "Manter-me ligado" (extended session):
+/// lê <c>extendedSession</c> do body do login para decidir o <c>Max-Age</c>
+/// do cookie (default 7 dias vs 30 dias estendido).
 /// </remarks>
 internal static class RefreshTokenCookieMiddleware
 {
     internal const string CookieName = "refresh_token";
     internal const string CookiePath = "/api/auth/refresh";
-    internal const int MaxAgeSeconds = 604800;
+    internal static readonly TimeSpan DefaultMaxAge = TimeSpan.FromDays(7);
+    internal static readonly TimeSpan ExtendedMaxAge = TimeSpan.FromDays(30);
 
     private const string LoginPath = "/api/auth/login";
     private const string RefreshPath = "/api/auth/refresh";
@@ -49,7 +56,13 @@ internal static class RefreshTokenCookieMiddleware
                 && (path.Equals(LoginPath, StringComparison.OrdinalIgnoreCase)
                     || path.Equals(RefreshPath, StringComparison.OrdinalIgnoreCase)))
             {
-                await CaptureAndForwardAsync(context, next, emitCookieOnSuccess: true);
+                var isExtended = false;
+                if (path.Equals(LoginPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    isExtended = await DetectExtendedSessionAsync(context);
+                }
+
+                await CaptureAndForwardAsync(context, next, emitCookieOnSuccess: true, isExtended);
                 return;
             }
 
@@ -63,6 +76,31 @@ internal static class RefreshTokenCookieMiddleware
 
             await next();
         });
+    }
+
+    private static async Task<bool> DetectExtendedSessionAsync(HttpContext context)
+    {
+        try
+        {
+            context.Request.EnableBuffering();
+            var bodyBytes = await ReadAllAsync(context.Request.Body);
+            context.Request.Body.Position = 0;
+
+            if (bodyBytes.Length > 0)
+            {
+                using var doc = JsonDocument.Parse(bodyBytes);
+                if (doc.RootElement.TryGetProperty("extendedSession", out var ext)
+                    && ext.ValueKind == JsonValueKind.True)
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            // Se o body não for JSON válido, usa default.
+        }
+        return false;
     }
 
     private static async Task EnsureRefreshBodyAsync(HttpContext context)
@@ -116,7 +154,8 @@ internal static class RefreshTokenCookieMiddleware
     private static async Task CaptureAndForwardAsync(
         HttpContext context,
         Func<Task> next,
-        bool emitCookieOnSuccess)
+        bool emitCookieOnSuccess,
+        bool isExtended)
     {
         var originalBody = context.Response.Body;
         var originalBodyFeature = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>();
@@ -147,7 +186,8 @@ internal static class RefreshTokenCookieMiddleware
                     var refreshToken = rt.GetString();
                     if (!string.IsNullOrEmpty(refreshToken))
                     {
-                        AppendRefreshCookie(context, refreshToken);
+                        var maxAge = isExtended ? ExtendedMaxAge : DefaultMaxAge;
+                        AppendRefreshCookie(context, refreshToken, maxAge);
                     }
                 }
             }
@@ -165,10 +205,10 @@ internal static class RefreshTokenCookieMiddleware
         await buffer.CopyToAsync(originalBody);
     }
 
-    private static void AppendRefreshCookie(HttpContext context, string refreshToken)
+    private static void AppendRefreshCookie(HttpContext context, string refreshToken, TimeSpan maxAge)
     {
         var options = BuildCookieOptions(context);
-        options.MaxAge = TimeSpan.FromSeconds(MaxAgeSeconds);
+        options.MaxAge = maxAge;
         context.Response.Cookies.Append(CookieName, refreshToken, options);
     }
 

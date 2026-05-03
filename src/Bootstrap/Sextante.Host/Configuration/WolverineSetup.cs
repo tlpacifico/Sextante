@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Sextante.Infrastructure.Wolverine;
 using Sextante.Modules.Identity.Application.Middleware;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
@@ -56,6 +57,10 @@ internal static class WolverineSetup
             // (Wolverine outbox em background scope) — ver tech-stack §4.4.
             opts.Policies.AddMiddleware<TenantSettingMiddleware>();
             opts.Policies.AddMiddleware<TenantLoggingMiddleware>();
+
+            // Phase 5.5 — FluentValidation centralizada + métricas mínimas.
+            opts.Policies.AddMiddleware<FluentValidationMiddleware>();
+            opts.Policies.AddMiddleware<MetricsMiddleware>();
         });
     }
 }

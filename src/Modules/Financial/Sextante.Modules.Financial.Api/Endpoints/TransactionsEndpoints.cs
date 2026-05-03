@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Sextante.Modules.Financial.Application.Features.Transactions;
-using Sextante.Modules.Financial.Domain.Common;
 using Wolverine;
 
 namespace Sextante.Modules.Financial.Api.Endpoints;
@@ -79,55 +78,29 @@ public static class TransactionsEndpoints
 
         group.MapGet("{id:guid}", async (Guid id, IMessageBus bus, CancellationToken ct) =>
         {
-            var transaction = await bus.InvokeAsync<TransactionResponse?>(new GetTransactionByIdQuery(id), ct);
-            return transaction is null ? Results.NotFound() : Results.Ok(transaction);
+            var transaction = await bus.InvokeAsync<TransactionResponse>(new GetTransactionByIdQuery(id), ct);
+            return Results.Ok(transaction);
         });
 
         group.MapPost("", async (CreateTransactionCommand command, IMessageBus bus, CancellationToken ct) =>
         {
-            try
-            {
-                var created = await bus.InvokeAsync<TransactionResponse>(command, ct);
-                return Results.Created($"/api/financial/transactions/{created.Id}", created);
-            }
-            catch (FinancialDomainException ex)
-            {
-                return Results.ValidationProblem(
-                    new Dictionary<string, string[]>
-                    {
-                        ["transaction"] = [ex.Message],
-                    },
-                    title: "Erros de validação",
-                    statusCode: StatusCodes.Status400BadRequest);
-            }
+            var created = await bus.InvokeAsync<TransactionResponse>(command, ct);
+            return Results.Created($"/api/financial/transactions/{created.Id}", created);
         });
 
         group.MapPut("{id:guid}", async (Guid id, UpdateTransactionBody body, IMessageBus bus, CancellationToken ct) =>
         {
-            try
-            {
-                var updated = await bus.InvokeAsync<TransactionResponse?>(
-                    new UpdateTransactionCommand(
-                        id,
-                        body.AccountId,
-                        body.CategoryId,
-                        body.OccurredAt,
-                        body.Amount,
-                        body.Description,
-                        body.Tags),
-                    ct);
-                return updated is null ? Results.NotFound() : Results.Ok(updated);
-            }
-            catch (FinancialDomainException ex)
-            {
-                return Results.ValidationProblem(
-                    new Dictionary<string, string[]>
-                    {
-                        ["transaction"] = [ex.Message],
-                    },
-                    title: "Erros de validação",
-                    statusCode: StatusCodes.Status400BadRequest);
-            }
+            var updated = await bus.InvokeAsync<TransactionResponse>(
+                new UpdateTransactionCommand(
+                    id,
+                    body.AccountId,
+                    body.CategoryId,
+                    body.OccurredAt,
+                    body.Amount,
+                    body.Description,
+                    body.Tags),
+                ct);
+            return Results.Ok(updated);
         });
 
         group.MapDelete("{id:guid}", async (Guid id, IMessageBus bus, CancellationToken ct) =>
@@ -135,6 +108,12 @@ public static class TransactionsEndpoints
             var archived = await bus.InvokeAsync<bool>(new ArchiveTransactionCommand(id), ct);
             return archived ? Results.NoContent() : Results.NotFound();
         });
+
+        group.MapPatch("recategorize", async (RecategorizeTransactionsCommand command, IMessageBus bus, CancellationToken ct) =>
+        {
+            var result = await bus.InvokeAsync<RecategorizeTransactionsResponse>(command, ct);
+            return Results.Ok(result);
+        }).RequireAuthorization();
 
         return routes;
     }

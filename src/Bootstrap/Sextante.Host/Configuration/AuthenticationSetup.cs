@@ -23,7 +23,20 @@ internal static class AuthenticationSetup
             .AddBearerToken(IdentityConstants.BearerScheme, options =>
             {
                 options.BearerTokenExpiration = TimeSpan.FromMinutes(15);
-                options.RefreshTokenExpiration = TimeSpan.FromDays(7);
+
+                var extendedLifetime = builder.Configuration.GetValue(
+                    "Auth:RefreshTokenLifetimeExtended",
+                    TimeSpan.FromDays(30));
+                var defaultLifetime = builder.Configuration.GetValue(
+                    "Auth:RefreshTokenLifetime",
+                    TimeSpan.FromDays(7));
+
+                // Usa o lifetime máximo como default do Identity; o cookie
+                // Max-Age controla o tempo que o browser mantém o cookie.
+                // "Manter-me ligado" usa o lifetime estendido no cookie.
+                options.RefreshTokenExpiration = extendedLifetime > defaultLifetime
+                    ? extendedLifetime
+                    : defaultLifetime;
             });
         builder.Services.AddAuthorization();
 

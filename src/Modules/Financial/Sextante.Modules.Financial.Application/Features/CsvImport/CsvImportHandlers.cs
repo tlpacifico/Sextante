@@ -367,14 +367,19 @@ public static class CsvImportHandlers
 
                 var money = new Money(absAmount, currency);
 
-                // Category: use suggested (from preview) or first expense category
+                // Category: use suggested (from preview) or infer from amount sign
                 var categoryId = row.SuggestedCategoryId;
                 if (categoryId is null)
                 {
-                    var firstExpense = categories.FirstOrDefault(c => c.Kind == CategoryKind.Expense);
-                    if (firstExpense is not null)
+                    // Phase 5.5 — inferir tipo pelo sinal do valor:
+                    // parsedAmount > 0 → receita; parsedAmount < 0 → despesa.
+                    // Credit/debit indicator já é considerado acima via finalAmount.
+                    var isIncome = finalAmount > 0;
+                    var firstMatchingKind = categories.FirstOrDefault(c =>
+                        c.Kind == (isIncome ? CategoryKind.Income : CategoryKind.Expense));
+                    if (firstMatchingKind is not null)
                     {
-                        categoryId = firstExpense.Id;
+                        categoryId = firstMatchingKind.Id;
                         manualCount++;
                     }
                     else

@@ -17,6 +17,9 @@ public sealed class TransactionRepository : ITransactionRepository
     public Task<Transaction?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
         => _db.Transactions.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<Transaction>> GetByIdsAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken)
+        => await _db.Transactions.Where(t => ids.Contains(t.Id)).ToListAsync(cancellationToken);
+
     public Task AddAsync(Transaction transaction, CancellationToken cancellationToken)
         => _db.Transactions.AddAsync(transaction, cancellationToken).AsTask();
 

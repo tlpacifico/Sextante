@@ -16,6 +16,8 @@ export interface AuthState {
 export interface LoginRequest {
   email: string;
   password: string;
+  /** Phase 5.5 — "Manter-me ligado": emite refresh token com lifetime estendido. */
+  extendedSession?: boolean;
 }
 
 export interface SignupRequest {

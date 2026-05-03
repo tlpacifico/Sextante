@@ -11,21 +11,7 @@ import {
   TokenResponse,
 } from './auth.types';
 
-/**
- * Marca um request como "sem auth header" (skip do `authInterceptor`).
- * Usado pelo signup, login, forgot-password — endpoints que não devem
- * carregar `Authorization`. Usa `HttpContext` em vez de URL allowlist
- * para evitar que o interceptor tenha de manter listas que deslocadas
- * com novos endpoints.
- */
 export const SKIP_AUTH = new HttpContextToken<boolean>(() => false);
-
-/**
- * Marca um request como "withCredentials: true" para que o browser envie
- * o cookie httpOnly do refresh token. O interceptor aplica isto sempre
- * a `/api/auth/refresh` mas o token está disponível para requests
- * personalizados (e.g. logout, que precisa do bearer mas não do cookie).
- */
 export const WITH_REFRESH_COOKIE = new HttpContextToken<boolean>(() => false);
 
 const ALLOWED_ROLES: ReadonlySet<TenantRole> = new Set<TenantRole>([
@@ -34,12 +20,18 @@ const ALLOWED_ROLES: ReadonlySet<TenantRole> = new Set<TenantRole>([
   'ReadOnly',
 ]);
 
+const STORAGE_KEYS = {
+  access: 'sextante.access',
+  refresh: 'sextante.refresh',
+  lastLoginEmail: 'sextante.last-login-email',
+  extendedSession: 'sextante.extended-session',
+} as const;
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
 
   private readonly state = signal<AuthState | null>(null);
-  /** Promise in-flight do refresh — usado para evitar "refresh storm". */
   private inflightRefresh: Promise<string> | null = null;
 
   readonly snapshot = this.state.asReadonly();
@@ -51,7 +43,15 @@ export class AuthService {
   readonly tenantRole = computed<TenantRole | null>(() => this.state()?.tenantRole ?? null);
   readonly userEmail = computed(() => this.state()?.email ?? null);
 
-  /** Devolve o access token actual, ou null se não houver sessão. */
+  /** Phase 5.5 — email da última sessão para pre-fill no login. */
+  getLastLoginEmail(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.lastLoginEmail);
+    } catch {
+      return null;
+    }
+  }
+
   getAccessToken(): string | null {
     return this.state()?.accessToken ?? null;
   }
@@ -65,8 +65,9 @@ export class AuthService {
 
   async login(request: LoginRequest): Promise<void> {
     const ctx = new HttpContext().set(SKIP_AUTH, true).set(WITH_REFRESH_COOKIE, true);
+    const body = { email: request.email, password: request.password, extendedSession: request.extendedSession ?? false };
     const tokens = await lastValueFrom(
-      this.http.post<TokenResponse>('/api/auth/login', request, {
+      this.http.post<TokenResponse>('/api/auth/login', body, {
         context: ctx,
         withCredentials: true,
       }),
@@ -74,6 +75,9 @@ export class AuthService {
 
     const profile = await this.fetchProfile(tokens.accessToken);
     this.state.set(this.buildState(tokens, profile));
+
+    this.persistTokens(tokens, request.extendedSession ?? false);
+    this.persistLastLoginEmail(request.email);
   }
 
   async logout(): Promise<void> {
@@ -84,18 +88,13 @@ export class AuthService {
           this.http.post('/api/auth/logout', {}, { withCredentials: true }),
         );
       } catch {
-        // Logout server-side é "best effort" — clear local state mesmo
-        // se a chamada falhar (rede off-line, token expirado).
+        // Logout server-side é "best effort".
       }
     }
+    this.clearStorage();
     this.state.set(null);
   }
 
-  /**
-   * Refresh storm guard: a primeira chamada cria a Promise; chamadores
-   * concorrentes recebem a mesma Promise pendente. Em sucesso, devolve
-   * o novo access token; em falha, limpa state e propaga.
-   */
   refresh(): Promise<string> {
     if (this.inflightRefresh) {
       return this.inflightRefresh;
@@ -104,6 +103,51 @@ export class AuthService {
       this.inflightRefresh = null;
     });
     return this.inflightRefresh;
+  }
+
+  /**
+   * Phase 5.5 — re-hidrata a sessão a partir de localStorage.
+   * Tenta primeiro o access token; se expirado, tenta o refresh token
+   * via cookie httpOnly. Se ambos falharem, limpa storage.
+   */
+  async rehydrateFromStorage(): Promise<boolean> {
+    try {
+      const storedAccess = localStorage.getItem(STORAGE_KEYS.access);
+      if (storedAccess) {
+        const tokens = JSON.parse(storedAccess) as { accessToken: string; expiresIn: number; refreshToken: string };
+        const expiresAt = Date.now() + tokens.expiresIn * 1000;
+        if (Date.now() < expiresAt) {
+          // Access token ainda válido — carrega profile.
+          try {
+            const profile = await this.fetchProfile(tokens.accessToken);
+            this.state.set(this.buildState(
+              { accessToken: tokens.accessToken, expiresIn: tokens.expiresIn, refreshToken: tokens.refreshToken, tokenType: 'Bearer' },
+              profile,
+            ));
+            return true;
+          } catch {
+            // Access token inválido — tenta refresh.
+          }
+        }
+      }
+
+      // Tenta refresh via cookie httpOnly.
+      await this.refresh();
+      return true;
+    } catch {
+      this.clearStorage();
+      this.state.set(null);
+      return false;
+    }
+  }
+
+  async loadProfile(): Promise<boolean> {
+    try {
+      await this.refresh();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async doRefresh(): Promise<string> {
@@ -118,13 +162,13 @@ export class AuthService {
         ),
       );
     } catch (err) {
+      this.clearStorage();
       this.state.set(null);
       throw err;
     }
 
     const current = this.state();
     if (current === null) {
-      // Refresh succeeded but we don't have profile yet — fetch it.
       const profile = await this.fetchProfile(tokens.accessToken);
       this.state.set(this.buildState(tokens, profile));
     } else {
@@ -134,21 +178,9 @@ export class AuthService {
         accessTokenExpiresAt: Date.now() + tokens.expiresIn * 1000,
       });
     }
-    return tokens.accessToken;
-  }
 
-  /**
-   * Re-hidrata a sessão a partir do cookie httpOnly (usado no bootstrap
-   * da app e no refresh do browser). Tenta um `/refresh`; se o cookie
-   * estiver inválido ou ausente, devolve `false` e fica deslogado.
-   */
-  async loadProfile(): Promise<boolean> {
-    try {
-      await this.refresh();
-      return true;
-    } catch {
-      return false;
-    }
+    this.persistTokens(tokens, localStorage.getItem(STORAGE_KEYS.extendedSession) === 'true');
+    return tokens.accessToken;
   }
 
   private async fetchProfile(accessToken: string): Promise<MeResponse> {
@@ -174,5 +206,38 @@ export class AuthService {
       tenantName: profile.tenantName,
       tenantRole: role,
     };
+  }
+
+  private persistTokens(tokens: TokenResponse, extended: boolean): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.access, JSON.stringify({
+        accessToken: tokens.accessToken,
+        expiresIn: tokens.expiresIn,
+        refreshToken: tokens.refreshToken,
+      }));
+      localStorage.setItem(STORAGE_KEYS.refresh, tokens.refreshToken);
+      localStorage.setItem(STORAGE_KEYS.extendedSession, extended ? 'true' : 'false');
+    } catch {
+      // localStorage pode não estar disponível.
+    }
+  }
+
+  private persistLastLoginEmail(email: string): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.lastLoginEmail, email);
+    } catch {
+      // localStorage pode não estar disponível.
+    }
+  }
+
+  private clearStorage(): void {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.access);
+      localStorage.removeItem(STORAGE_KEYS.refresh);
+      localStorage.removeItem(STORAGE_KEYS.extendedSession);
+      // Mantém lastLoginEmail para pre-fill no próximo login.
+    } catch {
+      // localStorage pode não estar disponível.
+    }
   }
 }

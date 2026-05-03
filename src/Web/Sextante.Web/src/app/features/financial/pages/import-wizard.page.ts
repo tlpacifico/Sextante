@@ -326,7 +326,7 @@ const DECIMAL_SEPARATOR_OPTIONS = [
                       @if (row.isDuplicate) {
                         <p-checkbox
                           [binary]="true"
-                          [ngModel]="duplicateSelection()[row.rowIndex] ?? false"
+                          [ngModel]="duplicateSelection()[row.rowIndex]"
                           (onChange)="toggleDuplicate(row.rowIndex)"
                         ></p-checkbox>
                       }

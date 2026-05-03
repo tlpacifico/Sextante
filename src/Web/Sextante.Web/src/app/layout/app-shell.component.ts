@@ -150,7 +150,7 @@ export class AppShellComponent {
       {
         label: 'Transações',
         icon: 'pi pi-list',
-        routerLink: ['/app/dashboard'],
+        routerLink: ['/app/transactions'],
       },
       {
         label: 'Contas',

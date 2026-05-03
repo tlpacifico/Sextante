@@ -137,6 +137,36 @@ export class FinancialApiService {
     );
   }
 
+  /** Phase 5.5 — list all transactions without cursor pagination. */
+  async listTransactionsSimple(filter: {
+    dateFrom?: string;
+    dateTo?: string;
+    accountIds?: string[];
+    categoryIds?: string[];
+  }): Promise<TransactionDto[]> {
+    let params = new HttpParams();
+    if (filter.dateFrom) params = params.set('dateFrom', filter.dateFrom);
+    if (filter.dateTo) params = params.set('dateTo', filter.dateTo);
+    if (filter.accountIds?.length) params = params.set('accountIds', filter.accountIds.join(','));
+    if (filter.categoryIds?.length) params = params.set('categoryIds', filter.categoryIds.join(','));
+    params = params.set('pageSize', '500'); // fetch all in one call for MVP
+
+    const page = await firstValueFrom(
+      this.http.get<TransactionsPageResponse>('/api/financial/transactions', { params }),
+    );
+    return page.items;
+  }
+
+  /** Phase 5.5 — bulk recategorize transactions. */
+  recategorizeTransactions(ids: string[], categoryId: string): Promise<{ updatedCount: number }> {
+    return firstValueFrom(
+      this.http.patch<{ updatedCount: number }>(
+        '/api/financial/transactions/recategorize',
+        { ids, categoryId },
+      ),
+    );
+  }
+
   // Categorization Rules (Phase 4) -------------------------------------------
   listCategorizationRules(): Promise<CategorizationRuleDto[]> {
     return firstValueFrom(this.http.get<CategorizationRuleDto[]>('/api/financial/categorization-rules'));
