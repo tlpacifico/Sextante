@@ -122,9 +122,9 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 ### Phase 5.5 — Refinement: observability, middlewares e design system 🛡️
 
-> Branch: `phase-5.5-refinement`. Hardening estrutural antes do deploy. Sem
-> features novas de utilizador — fecha lacunas entre `tech-stack.md` e
-> implementação corrente das Phases 1a–5.
+> Branch: `phase-5.5-refinement`. Hardening estrutural antes do deploy +
+> bugs prioritários e UX crítica encontrados no dogfooding inicial. Fecha
+> lacunas entre `tech-stack.md` e implementação corrente das Phases 1a–5.
 
 #### Backend — observability e middlewares
 
@@ -154,7 +154,15 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 - [ ] **Sanity check responsivo retroactivo**: percorrer todas as pages das Phases 1b–5 (login, signup, dashboard, accounts, categories, transactions, recurring rules, budgets, import wizard) em DevTools nas viewports 375 × 667, 768 × 1024, 1280 × 800. Corrigir overflow horizontal, dialogs cortados, gráficos ilegíveis, touch targets < 44 px. Tech-stack §19.5 + mission §4.6.
 - [ ] **Checklist DoD responsivo** adicionado a `AGENTS.md` (ou `tech-stack.md` §19.5) como passo obrigatório no merge de qualquer phase futura que toque UI.
 
-**Saída**: (1) qualquer erro 4xx/5xx do backend chega ao frontend como `ProblemDetails` com `traceId` rastreável em logs Serilog **e** no Sentry; (2) logs de produção não contêm emails nem valores em texto claro; (3) todas as pages do MVP passam sanity check em 3 viewports sem regressões; (4) ADR-012 escrito e tech-stack atualizado a refletir Sentry como integração MVP.
+#### Bugs prioritários e UX crítica
+
+- [ ] **Bug de importação — inferir tipo pelo sinal do valor**: ao importar `tests/Sextante.IntegrationTests/Data/Import/example-activo-bank.csv` (Activo Bank, formato `Data Lanc.;Data Valor;Descrição;Valor;Saldo` com `;` e decimal `,`), todas as linhas são classificadas como despesa. Corrigir o parser/staging para inferir o tipo a partir do sinal de `Valor`: `> 0` → receita, `< 0` → despesa (guardar `Amount` em valor absoluto + `TransactionType`). Adicionar caso de teste de integração com este CSV cobrindo o mix receita/despesa.
+- [ ] **Ecrã dedicado de transações com filtros e edição inline**: a lista actual no dashboard só permite apagar (ícone caixote) — não há forma de editar data, conta, categoria, descrição ou valor de uma transação já existente. Criar página `/transactions` (rota dedicada) com: (1) tabela paginada com todas as transações do tenant; (2) filtros por intervalo de datas, conta, categoria, tipo (receita/despesa), texto livre na descrição, intervalo de valor; (3) ordenação por qualquer coluna; (4) edição via dialog (PrimeNG `Dialog`) ou inline (`p-table` editing mode) — todos os campos editáveis excepto `Id`/`TenantId`; (5) bulk actions (recategorizar várias transações de uma vez, útil pós-importação); (6) reusa o mesmo `data-table-shell` do design system. Sanity check responsivo 375/768/1280 px.
+- [ ] **Lembrar utilizador no login**: persistir email no `localStorage` (preencher automaticamente no próximo acesso) e checkbox opcional "Manter-me ligado" que estende a duração do refresh token. Hoje o utilizador tem de digitar email + palavra-passe a cada sessão.
+- [ ] **Persistir sessão entre reloads (F5)**: hoje o refresh do browser perde o estado em memória e o `AuthGuard` redireciona para `/login`. Persistir tokens (access + refresh) em `localStorage`/`sessionStorage` com rehidratação no bootstrap do Angular e refresh silencioso se o access token estiver expirado mas o refresh ainda for válido. Sessão só termina em logout explícito ou expiração total do refresh token.
+- [ ] **Provisionamento de utilizador administrador via script/CLI**: hoje não existe forma de criar um utilizador com privilégios elevados sem manipular o Postgres directamente. Adicionar um comando CLI ao `Sextante.Host` (ex.: `dotnet run --project src/Bootstrap/Sextante.Host -- create-admin --email <e> --password <p>`) que: (1) cria `User` + `Tenant` + `Membership` com `Role = Admin`; (2) marca o email como já confirmado; (3) é idempotente (se já existir, faz reset da palavra-passe ou erro explícito). Documentar no README (secção "Provisionamento inicial") e usar este caminho para o primeiro acesso à VPS no Phase 6. Preparação para a UI de gestão de roles (Phase 18) — o role `Admin` já fica modelado.
+
+**Saída**: (1) qualquer erro 4xx/5xx do backend chega ao frontend como `ProblemDetails` com `traceId` rastreável em logs Serilog **e** no Sentry; (2) logs de produção não contêm emails nem valores em texto claro; (3) todas as pages do MVP passam sanity check em 3 viewports sem regressões; (4) ADR-012 escrito e tech-stack atualizado a refletir Sentry como integração MVP; (5) importação de extrato Activo Bank classifica receitas/despesas correctamente; (6) utilizador edita transações existentes através de ecrã dedicado com filtros; (7) sessão persiste entre reloads do browser e termina apenas em logout; (8) comando CLI cria utilizador admin sem acesso directo à base de dados.
 
 ### Phase 6 — Polish + Deploy + Dogfooding 🛡️
 
