@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DialogModule } from 'primeng/dialog';
 import { ButtonModule } from 'primeng/button';
@@ -14,7 +14,7 @@ import { FinancialApiService } from '../../../../core/api/financial-api.service'
   template: `
     <p-dialog
       header="Recategorizar transações"
-      [visible]="visible()"
+      [visible]="visible"
       [modal]="true"
       [draggable]="false"
       [breakpoints]="{ '960px': '75vw', '640px': '95vw' }"
@@ -22,14 +22,14 @@ import { FinancialApiService } from '../../../../core/api/financial-api.service'
       (onHide)="close.emit()">
       <form [formGroup]="form" (ngSubmit)="submit()" class="flex flex-col gap-4 mt-2">
         <p class="text-sm text-neutral-500">
-          {{ transactionIds().length }} transação(ões) selecionada(s).
+          {{ transactionIds.length }} transação(ões) selecionada(s).
         </p>
 
         <div class="flex flex-col gap-1">
           <label class="text-sm font-medium">Nova categoria</label>
           <p-select
             formControlName="categoryId"
-            [options]="categories()"
+            [options]="categories"
             optionLabel="name"
             optionValue="id"
             placeholder="Selecionar categoria"
@@ -49,11 +49,11 @@ export class RecategorizeDialogComponent {
   private readonly fb = inject(FormBuilder);
   private readonly messages = inject(MessageService);
 
-  readonly visible = input(false);
-  readonly transactionIds = input<string[]>([]);
-  readonly categories = input<{ id: string; name: string }[]>([]);
-  readonly close = output();
-  readonly saved = output();
+  @Input() visible = false;
+  @Input() transactionIds: string[] = [];
+  @Input() categories: { id: string; name: string }[] = [];
+  @Output() close = new EventEmitter<void>();
+  @Output() saved = new EventEmitter<void>();
 
   protected readonly submitting = signal(false);
 
@@ -65,13 +65,12 @@ export class RecategorizeDialogComponent {
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
 
-    const ids = this.transactionIds();
-    if (ids.length === 0) return;
+    if (this.transactionIds.length === 0) return;
 
     this.submitting.set(true);
     try {
       const fv = this.form.getRawValue();
-      const result = await this.api.recategorizeTransactions(ids, fv.categoryId);
+      const result = await this.api.recategorizeTransactions(this.transactionIds, fv.categoryId);
       this.messages.add({
         severity: 'success',
         summary: 'Recategorizadas',

@@ -1,39 +1,56 @@
+/*
+ * Sextante — design tokens
+ *
+ * Aesthetic: "Cartografia do capital" — instrumento de precisão.
+ * Papel creme quente / tinta navy Oxford / acento latão. Tipografia
+ * editorial (Fraunces serif variável + Geist sans + JetBrains Mono
+ * para numerais tabulares). Bordas hairline em vez de sombras pesadas.
+ *
+ * Os tokens dark mode estão sob o seletor `.dark` (Aura preset e
+ * Tailwind `darkMode: 'class'` ambos olham para isto — ver
+ * ThemeService).
+ */
+
 :root {
-  /* Primary palette */
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
+  /* Brass — escala do primary. Inspirada em latão polido / instrumento
+     de navegação. Substitui indigo. */
+  --color-primary-50:  #fbf6ec;
+  --color-primary-100: #f3e6c8;
+  --color-primary-200: #e7cf95;
+  --color-primary-300: #d8b466;
+  --color-primary-400: #c79b48;
+  --color-primary-500: #b8843e;
+  --color-primary-600: #9a6c33;
+  --color-primary-700: #7a5429;
+  --color-primary-800: #553a1d;
+  --color-primary-900: #392612;
+  --color-primary-950: #1f150a;
 
-  /* Semantic colors */
-  --color-success: #16a34a;
-  --color-success-light: #dcfce7;
-  --color-warning: #ca8a04;
-  --color-warning-light: #fef9c3;
-  --color-danger: #dc2626;
-  --color-danger-light: #fee2e2;
+  /* Semantic — forest / amber / oxblood, em vez de greens/yellows/reds
+     genéricos. Mantém-se o contraste suficiente para AA. */
+  --color-success: #2d5042;
+  --color-success-light: #e6efe9;
+  --color-warning: #b8763e;
+  --color-warning-light: #f6ead6;
+  --color-danger: #8b2942;
+  --color-danger-light: #f5dde2;
 
-  /* Neutrals */
-  --color-neutral-0: #ffffff;
-  --color-neutral-50: #f8fafc;
-  --color-neutral-100: #f1f5f9;
-  --color-neutral-200: #e2e8f0;
-  --color-neutral-300: #cbd5e1;
-  --color-neutral-400: #94a3b8;
-  --color-neutral-500: #64748b;
-  --color-neutral-600: #475569;
-  --color-neutral-700: #334155;
-  --color-neutral-800: #1e293b;
-  --color-neutral-900: #0f172a;
-  --color-neutral-950: #020617;
+  /* Neutrals — escala de papel/tinta. 0 = pergaminho mais claro, 950 =
+     tinta china. Usado tanto para superfícies como para texto. */
+  --color-neutral-0:   #fbf8f1;
+  --color-neutral-50:  #f4efe3;
+  --color-neutral-100: #ebe3d0;
+  --color-neutral-200: #ddd0b5;
+  --color-neutral-300: #c7b797;
+  --color-neutral-400: #998b6e;
+  --color-neutral-500: #73685a;
+  --color-neutral-600: #544d45;
+  --color-neutral-700: #3a3530;
+  --color-neutral-800: #241f1a;
+  --color-neutral-900: #171410;
+  --color-neutral-950: #0a0805;
 
-  /* Spacing scale (4px base) */
+  /* Spacing scale (4px base) — preservado do design system anterior */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -45,9 +62,12 @@
   --space-12: 3rem;
   --space-16: 4rem;
 
-  /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  /* Tipografia — pairing editorial: serif variável para display +
+     numerais tabulares, sans neutra para UI, mono para código/IDs. */
+  --font-display: 'Fraunces', 'Georgia', 'Times New Roman', serif;
+  --font-sans: 'Geist', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
@@ -55,20 +75,36 @@
   --font-size-xl: 1.25rem;
   --font-size-2xl: 1.5rem;
   --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
 
-  /* Border radius */
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.04em;
+  --letter-spacing-widest: 0.18em;
+
+  /* Border radius — moderado, nunca circular nas superfícies grandes. */
   --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  /* Shadows — quase sempre evitamos. Mantemos hairlines. As sombras
+     que existem são frias e baixas, mais perto de "lift" que de
+     "drop shadow". */
+  --shadow-sm: 0 1px 0 0 rgb(15 24 32 / 0.04);
+  --shadow-md: 0 1px 2px 0 rgb(15 24 32 / 0.06), 0 0 0 1px rgb(15 24 32 / 0.04);
+  --shadow-lg: 0 8px 24px -8px rgb(15 24 32 / 0.18), 0 0 0 1px rgb(15 24 32 / 0.04);
+  --shadow-inset: inset 0 0 0 1px rgb(15 24 32 / 0.06);
 
-  /* PrimeNG CSS variable overrides */
-  --p-primary-50: var(--color-primary-50);
+  /* Hairline border — usada como divisor universal */
+  --hairline: 1px solid var(--color-neutral-200);
+
+  /* PrimeNG CSS variable overrides — mapeia a nossa paleta para os
+     tokens internos do Aura. Mantém os componentes do PrimeNG (tabelas,
+     diálogos, dropdowns…) coerentes com o design system. */
+  --p-primary-50:  var(--color-primary-50);
   --p-primary-100: var(--color-primary-100);
   --p-primary-200: var(--color-primary-200);
   --p-primary-300: var(--color-primary-300);
@@ -79,8 +115,8 @@
   --p-primary-800: var(--color-primary-800);
   --p-primary-900: var(--color-primary-900);
 
-  --p-surface-0: var(--color-neutral-0);
-  --p-surface-50: var(--color-neutral-50);
+  --p-surface-0:   var(--color-neutral-0);
+  --p-surface-50:  var(--color-neutral-50);
   --p-surface-100: var(--color-neutral-100);
   --p-surface-200: var(--color-neutral-200);
   --p-surface-300: var(--color-neutral-300);
@@ -93,21 +129,46 @@
   --p-surface-950: var(--color-neutral-950);
 }
 
-[data-theme='dark'] {
-  --color-neutral-0: #0f172a;
-  --color-neutral-50: #1e293b;
-  --color-neutral-100: #334155;
-  --color-neutral-200: #475569;
-  --color-neutral-300: #64748b;
-  --color-neutral-400: #94a3b8;
-  --color-neutral-500: #cbd5e1;
-  --color-neutral-600: #e2e8f0;
-  --color-neutral-700: #f1f5f9;
-  --color-neutral-800: #f8fafc;
-  --color-neutral-900: #ffffff;
+/*
+ * Dark mode — invertemos a paleta de papel para tinta navy Oxford. As
+ * superfícies escuras são deliberadamente azul-frias (não negras) para
+ * lembrar uma carta marítima sob luz baixa.
+ */
+.dark {
+  --color-primary-50:  #1f150a;
+  --color-primary-100: #392612;
+  --color-primary-200: #553a1d;
+  --color-primary-300: #7a5429;
+  --color-primary-400: #9a6c33;
+  --color-primary-500: #c79b48;
+  --color-primary-600: #d8b466;
+  --color-primary-700: #e7cf95;
+  --color-primary-800: #f3e6c8;
+  --color-primary-900: #fbf6ec;
+
+  --color-success: #6cb393;
+  --color-success-light: #1a2c25;
+  --color-warning: #d9a464;
+  --color-warning-light: #2c2014;
+  --color-danger: #d97a8b;
+  --color-danger-light: #2a131a;
+
+  --color-neutral-0:   #0a121d;
+  --color-neutral-50:  #0e1622;
+  --color-neutral-100: #142031;
+  --color-neutral-200: #1f2c40;
+  --color-neutral-300: #2d3b53;
+  --color-neutral-400: #4d5b73;
+  --color-neutral-500: #7886a0;
+  --color-neutral-600: #a8b2c5;
+  --color-neutral-700: #cdd3df;
+  --color-neutral-800: #e3e6ec;
+  --color-neutral-900: #f0f1f4;
   --color-neutral-950: #ffffff;
 
-  --color-success-light: #052e16;
-  --color-warning-light: #422006;
-  --color-danger-light: #450a0a;
+  --hairline: 1px solid var(--color-neutral-200);
+
+  --shadow-sm: 0 1px 0 0 rgb(0 0 0 / 0.4);
+  --shadow-md: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-lg: 0 12px 32px -10px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.05);
 }

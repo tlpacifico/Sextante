@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, OnInit, Output, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DialogModule } from 'primeng/dialog';
 import { ButtonModule } from 'primeng/button';
@@ -26,7 +26,7 @@ import { TransactionDto } from '../../../../core/api/financial.types';
   template: `
     <p-dialog
       header="Editar transação"
-      [visible]="visible()"
+      [visible]="visible"
       [modal]="true"
       [draggable]="false"
       [breakpoints]="{ '960px': '75vw', '640px': '95vw' }"
@@ -78,15 +78,15 @@ import { TransactionDto } from '../../../../core/api/financial.types';
     </p-dialog>
   `,
 })
-export class TransactionEditDialogComponent {
+export class TransactionEditDialogComponent implements OnChanges, OnInit {
   private readonly api = inject(FinancialApiService);
   private readonly fb = inject(FormBuilder);
   private readonly messages = inject(MessageService);
 
-  readonly visible = input(false);
-  readonly transaction = input<TransactionDto | null>(null);
-  readonly close = output();
-  readonly saved = output();
+  @Input() visible = false;
+  @Input() transaction: TransactionDto | null = null;
+  @Output() close = new EventEmitter<void>();
+  @Output() saved = new EventEmitter<void>();
 
   protected readonly submitting = signal(false);
   protected readonly accounts = signal<{ id: string; name: string }[]>([]);
@@ -100,21 +100,14 @@ export class TransactionEditDialogComponent {
     description: [''],
   });
 
-  constructor() {
-    effect(() => {
-      const tx = this.transaction();
-      if (tx && this.visible()) {
-        this.form.patchValue({
-          occurredAt: new Date(tx.occurredAt),
-          accountId: tx.accountId,
-          categoryId: tx.categoryId,
-          amount: tx.amount.amount,
-          description: tx.description ?? '',
-        });
-      }
-    });
-
+  ngOnInit(): void {
     this.loadReferenceData();
+  }
+
+  ngOnChanges(): void {
+    if (this.visible && this.transaction) {
+      this.patchForm(this.transaction);
+    }
   }
 
   private async loadReferenceData(): Promise<void> {
@@ -128,17 +121,26 @@ export class TransactionEditDialogComponent {
     } catch { /* ignore */ }
   }
 
+  private patchForm(tx: TransactionDto): void {
+    this.form.patchValue({
+      occurredAt: new Date(tx.occurredAt),
+      accountId: tx.accountId,
+      categoryId: tx.categoryId,
+      amount: tx.amount.amount,
+      description: tx.description ?? '',
+    });
+  }
+
   async submit(): Promise<void> {
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
 
-    const tx = this.transaction();
-    if (!tx) return;
+    if (!this.transaction) return;
 
     this.submitting.set(true);
     try {
       const fv = this.form.getRawValue();
-      await this.api.updateTransaction(tx.id, {
+      await this.api.updateTransaction(this.transaction.id, {
         accountId: fv.accountId,
         categoryId: fv.categoryId,
         occurredAt: fv.occurredAt.toISOString(),

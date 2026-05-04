@@ -5,7 +5,23 @@
   <title>Sextante</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0e1622" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4efe3" media="(prefers-color-scheme: light)">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+  <!--
+    Tipografia editorial — pareamento Fraunces (variable serif, optical
+    sizing + tabular numerals) + Geist (sans neutra) + JetBrains Mono.
+    Preconnect reduz handshake da Google Fonts em ~100ms na primeira
+    visita.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,800&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+  >
+
   <script>
     // Apply dark mode before Angular boots to avoid FOUC. Mirrors
     // ThemeService.resolveInitialTheme(): localStorage > prefers-color-scheme.
