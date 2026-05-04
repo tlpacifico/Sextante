@@ -162,3 +162,250 @@ h1, h2, h3 {
   background-color: var(--color-neutral-400);
   background-clip: content-box;
 }
+
+/*
+ * Dark mode — PrimeNG table & input refinements.
+ *
+ * O problema: as superfícies 0-200 são tons navy muito próximos.
+ * Tabelas ficam sem separação visível entre linhas, inputs "afundam"
+ * no fundo. Estas regras injectam contraste extra apenas em dark mode.
+ */
+
+/* ── Inputs: fundo ligeiramente mais claro que a página, borda visível ── */
+.dark {
+  .p-inputtext,
+  .p-inputnumber input,
+  .p-select,
+  .p-multiselect,
+  .p-datepicker .p-inputtext,
+  .p-textarea,
+  .p-password input {
+    background-color: var(--p-surface-100);
+    border-color: var(--p-surface-300);
+    color: var(--p-surface-800);
+    &::placeholder {
+      color: var(--p-surface-500);
+    }
+    &:enabled:hover {
+      border-color: var(--p-surface-400);
+    }
+    &:enabled:focus {
+      border-color: var(--p-primary-500);
+      box-shadow: 0 0 0 1px var(--p-primary-500), 0 0 0 3px rgb(199 155 72 / 0.15);
+    }
+  }
+
+  /* Select / MultiSelect overlay panels — fundo distinto */
+  .p-select-overlay,
+  .p-multiselect-panel {
+    background: var(--p-surface-50);
+    border: 1px solid var(--p-surface-200);
+  }
+
+  .p-select-option,
+  .p-multiselect-item {
+    color: var(--p-surface-800);
+    &:not(.p-disabled):hover {
+      background: var(--p-surface-200);
+    }
+    &.p-focus {
+      background: var(--p-surface-200);
+      color: var(--p-surface-900);
+    }
+    &.p-highlight {
+      background: var(--p-primary-500);
+      color: var(--p-primary-950);
+    }
+  }
+
+  .p-multiselect-token {
+    background: var(--p-surface-200);
+    color: var(--p-surface-800);
+  }
+
+  .p-multiselect-token-label {
+    color: var(--p-surface-800);
+  }
+
+  /* SelectButton — segmentos com contraste */
+  .p-selectbutton .p-button {
+    background: var(--p-surface-50);
+    border-color: var(--p-surface-300);
+    color: var(--p-surface-600);
+    &.p-highlight {
+      background: var(--p-surface-200);
+      border-color: var(--p-surface-300);
+      color: var(--p-surface-900);
+    }
+  }
+
+  /* DatePicker — painel do calendário */
+  .p-datepicker {
+    background: var(--p-surface-50);
+    border-color: var(--p-surface-200);
+  }
+
+  .p-datepicker table td > span {
+    color: var(--p-surface-800);
+    &:hover {
+      background: var(--p-surface-200);
+    }
+    &.p-highlight {
+      background: var(--p-primary-500);
+      color: var(--p-primary-950);
+    }
+  }
+
+  .p-datepicker .p-datepicker-header {
+    color: var(--p-surface-800);
+  }
+
+  /* ── Tables: linhas, cabeçalho e bordas com separação clara ── */
+
+  .p-datatable {
+    .p-datatable-thead > tr > th {
+      background-color: var(--p-surface-100);
+      border-color: var(--p-surface-200);
+      color: var(--p-surface-700);
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 0.75rem 1rem;
+    }
+
+    .p-datatable-tbody > tr {
+      background-color: var(--p-surface-0);
+      color: var(--p-surface-800);
+      &:not(.p-highlight):hover {
+        background-color: var(--p-surface-50);
+      }
+
+      > td {
+        border-color: var(--p-surface-200);
+        padding: 0.75rem 1rem;
+      }
+
+      &.p-highlight {
+        background-color: var(--p-primary-900);
+        color: var(--p-primary-500);
+      }
+    }
+
+    .p-datatable-tfoot > tr > td {
+      background-color: var(--p-surface-100);
+      border-color: var(--p-surface-200);
+      color: var(--p-surface-700);
+    }
+
+    /* Alternating row — só visível se o Aura o ligar */
+    &.p-datatable-striped .p-datatable-tbody > tr:nth-child(even) {
+      background-color: var(--p-surface-50);
+    }
+
+    /* Paginator */
+    .p-paginator {
+      background: var(--p-surface-0);
+      border-color: var(--p-surface-200);
+      color: var(--p-surface-600);
+
+      .p-paginator-page {
+        color: var(--p-surface-600);
+        &.p-highlight {
+          background: var(--p-primary-500);
+          color: var(--p-primary-950);
+        }
+        &:not(.p-highlight):hover {
+          background: var(--p-surface-100);
+          color: var(--p-surface-800);
+        }
+      }
+    }
+
+    /* Sort icon */
+    .p-sortable-column-icon {
+      color: var(--p-surface-500);
+    }
+
+    .p-sortable-column.p-highlight {
+      background: var(--p-surface-100);
+      color: var(--p-surface-800);
+      &:hover {
+        background: var(--p-surface-200);
+      }
+    }
+  }
+
+  /* ── Dialogs: sobreposição com fundo bem escuro ── */
+  .p-dialog {
+    border-color: var(--p-surface-200);
+
+    .p-dialog-header {
+      background: var(--p-surface-50);
+      color: var(--p-surface-800);
+      border-bottom: 1px solid var(--p-surface-200);
+    }
+
+    .p-dialog-content {
+      background: var(--p-surface-0);
+      color: var(--p-surface-800);
+    }
+
+    .p-dialog-footer {
+      background: var(--p-surface-0);
+      border-top: 1px solid var(--p-surface-200);
+    }
+  }
+
+  /* ── Dropdowns / Overlays: fundo navy-profundo distinto ── */
+  .p-dropdown-panel,
+  .p-overlaypanel .p-overlaypanel-content {
+    background: var(--p-surface-50);
+    border-color: var(--p-surface-200);
+  }
+
+  /* ── Tooltip ── */
+  .p-tooltip .p-tooltip-text {
+    background: var(--p-surface-300);
+    color: var(--p-surface-900);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* ── Cards: fundo navy-profundo, corpo sem "branco" herdado do Aura ── */
+  .p-card {
+    --p-card-background: var(--p-surface-0);
+    --p-card-color: var(--p-surface-800);
+    background: var(--p-surface-0);
+    border: 1px solid var(--p-surface-200);
+    color: var(--p-surface-800);
+  }
+
+  .p-card-body {
+    background: var(--p-surface-0);
+    color: var(--p-surface-800);
+  }
+
+  .p-card-title {
+    color: var(--p-surface-900);
+  }
+
+  .p-card-subtitle {
+    color: var(--p-surface-500);
+  }
+
+  /* ProgressBar — barra de progresso com fundo visível */
+  .p-progressbar {
+    background: var(--p-surface-100);
+    border: 1px solid var(--p-surface-200);
+
+    .p-progressbar-value {
+      background: var(--p-primary-500);
+    }
+  }
+
+  /* ── Toasts ── */
+  .p-toast .p-toast-message {
+    background: var(--p-surface-50);
+    border-color: var(--p-surface-200);
+    color: var(--p-surface-800);
+  }
+}

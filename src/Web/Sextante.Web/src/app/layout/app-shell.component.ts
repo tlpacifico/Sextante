@@ -225,12 +225,16 @@ interface NavGroup {
       }
 
       .icon-btn {
+        appearance: none;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         width: 2.25rem;
         height: 2.25rem;
+        border: none;
+        background: none;
         border-radius: 0.375rem;
+        cursor: pointer;
         color: var(--color-neutral-700);
         transition: background-color 120ms ease, color 120ms ease;
       }
@@ -331,17 +335,18 @@ interface NavGroup {
       <!-- Coluna principal — offset pela sidebar em lg+ -->
       <div class="flex-1 flex flex-col min-w-0 lg:pl-[264px]">
         <header class="topbar flex items-center px-4 md:px-6 gap-3">
-          <button
-            type="button"
-            class="icon-btn lg:hidden"
-            aria-label="Abrir navegação"
-            (click)="sidebarVisible.set(true)"
-          >
-            <i class="pi pi-bars"></i>
-          </button>
+          <span class="lg:hidden">
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Abrir navegação"
+              (click)="sidebarVisible.set(true)"
+            >
+              <i class="pi pi-bars"></i>
+            </button>
+          </span>
 
           <div class="flex-1 min-w-0 flex items-baseline gap-3">
-            <span class="eyebrow hidden md:inline">Painel</span>
             <h2 class="section-title truncate">{{ sectionTitle() }}</h2>
           </div>
 
