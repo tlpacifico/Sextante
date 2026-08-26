@@ -166,6 +166,10 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 ### Phase 6 — Polish + Deploy + Dogfooding 🛡️
 
+> Branch: `phase-6-polish-deploy`. Spec em
+> `specs/2026-08-26-phase-6-polish-deploy/`. CD automático entrou no
+> scope em kickoff (reverte o "fora do MVP" do README — ADR-013).
+
 - [ ] Export CSV das transações.
 - [ ] Banner persistente para confirmar email (não bloqueante).
 - [ ] Decidir provider SMTP (VPS direto vs SendGrid/Mailgun) com base em testes reais de spam folder.
@@ -175,6 +179,7 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 - [ ] README de deploy atualizado (refletir provider, domínio e sizing efetivamente escolhidos).
 - [ ] Backups automatizados (`pg_dump` por schema, retenção 30 dias).
 - [ ] **1 restore de teste** documentado.
+- [ ] **CD automático** via GitHub Actions (build → push imagem → SSH `docker compose pull && up -d`) + **ADR-013**.
 - [ ] **Dogfooding 1 mês**: utilizador importa extrato bancário do último mês e categoriza tudo; recorrentes do mês configuradas; pelo menos 3 metas a mostrar progresso; nenhum reabrir de Excel ou outra app financeira durante 1 mês.
 
 **Saída**: critério de Done do MVP cumprido (`mission.md` §6).
