@@ -61,7 +61,14 @@ public sealed class RecurringRuleHandlerTests
         response.EndDate.Should().BeNull();
         response.IsActive.Should().BeTrue();
         response.Tags.Should().BeEquivalentTo(new[] { "fixa", "essencial" });
-        response.NextOccurrence.Should().Be(new DateOnly(2026, 6, 1));
+        // A regra é mensal com StartDate no dia 1: a próxima ocorrência é
+        // sempre um dia 1 no futuro (ou hoje). Fixar a data em absoluto
+        // fazia o teste falhar assim que StartDate passasse a ser passado.
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        response.NextOccurrence.Should().NotBeNull();
+        response.NextOccurrence!.Value.Day.Should().Be(1);
+        response.NextOccurrence.Value.Should().BeOnOrAfter(
+            new DateOnly(2026, 6, 1) > today ? new DateOnly(2026, 6, 1) : today);
 
         var stored = await repo.GetByIdAsync(response.Id, CancellationToken.None);
         stored.Should().NotBeNull();
