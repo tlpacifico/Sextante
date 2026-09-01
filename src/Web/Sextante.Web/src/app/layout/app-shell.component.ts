@@ -23,6 +23,7 @@ import { ToastModule } from 'primeng/toast';
 import { AuthService } from '../auth/auth.service';
 import { ThemeService } from '../core/theme.service';
 import { BudgetAlertsBannerComponent } from '../features/financial/pages/components/budget-alerts-banner.component';
+import { EmailConfirmationBannerComponent } from './email-confirmation-banner.component';
 
 interface NavItem {
   readonly label: string;
@@ -56,6 +57,7 @@ interface NavGroup {
     DrawerModule,
     ToastModule,
     BudgetAlertsBannerComponent,
+    EmailConfirmationBannerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [MessageService],
@@ -367,6 +369,7 @@ interface NavGroup {
           </div>
         </header>
 
+        <app-email-confirmation-banner></app-email-confirmation-banner>
         <app-budget-alerts-banner></app-budget-alerts-banner>
 
         <main class="relative flex-1 px-4 py-6 md:px-8 md:py-10">

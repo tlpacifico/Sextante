@@ -135,8 +135,8 @@ Ver requisitos funcionais e arquitetura para o contexto. A Constitution deve **d
 - **Snapshot diário** das taxas de câmbio (tabela `ExchangeRate` em `shared`) **ou** query on-demand? Recomendação Vault: snapshot diário.
 
 ### Operacional
-- **Confirmação de email obrigatória** no MVP? Recomendação Vault: não no MVP, banner persistente.
-- **SMTP**: direto da VPS ou serviço externo (SendGrid free tier, Mailgun)? Decidir antes do dogfooding.
+- ~~**Confirmação de email obrigatória** no MVP?~~ **Resolvido (Phase 6)**: não obrigatória (`RequireConfirmedEmail = false`); banner não bloqueante no app-shell, dispensável por sessão.
+- ~~**SMTP**: direto da VPS ou serviço externo?~~ **Resolvido (Phase 6)**: relay externo em free tier (Resend / Mailgun), atrás de `IEmailSender` + SMTP genérico; entrega em job Hangfire com degradação graciosa.
 - **Lifetime do access token**: 15 min sugerido; refresh 7d com rotation. Confirmar.
 - **Storage do refresh token no frontend**: httpOnly cookie (refresh) + Authorization header (access)?
 
@@ -275,7 +275,25 @@ cp .env.example .env
 #   POSTGRES_PASSWORD=<gerar com: openssl rand -base64 32>
 #   LETSENCRYPT__EMAIL=<email para a conta ACME>
 #   LETSENCRYPT__DOMAINNAME=<domínio público que aponta para esta VPS>
+#   SMTP__HOST / SMTP__USERNAME / SMTP__PASSWORD / SMTP__FROM (ver abaixo)
 ```
+
+### 3.1 Email transaccional (SMTP)
+
+Confirmação de email e recuperação de palavra-passe são entregues por um
+**relay SMTP externo** em free tier (Resend ou Mailgun) — decisão da Phase 6:
+não vale gerir reputação de IP, SPF/DKIM/DMARC e PTR para o email de um
+utilizador.
+
+- Criar conta no relay, **verificar o domínio** (registos SPF + DKIM no DNS) e
+  gerar credenciais SMTP.
+- Preencher `SMTP__HOST`, `SMTP__PORT` (587), `SMTP__USERNAME`,
+  `SMTP__PASSWORD` e `SMTP__FROM` (endereço no domínio verificado) no `.env`.
+- **`SMTP__HOST` vazio é um estado válido**: a app arranca e funciona, os
+  emails são descartados com log `Warning`. Nesse modo, o reset de palavra-passe
+  faz-se pelo CLI `create-admin` (idempotente, rotaciona a palavra-passe).
+- A entrega corre em job Hangfire com retry — um relay em baixo nunca faz
+  falhar um signup nem um pedido de reset.
 
 ### 4. Build e arranque
 

@@ -42,6 +42,12 @@ export class AuthService {
   readonly tenantName = computed(() => this.state()?.tenantName ?? null);
   readonly tenantRole = computed<TenantRole | null>(() => this.state()?.tenantRole ?? null);
   readonly userEmail = computed(() => this.state()?.email ?? null);
+  /**
+   * Phase 6 — false enquanto o utilizador não confirmar o email. Não
+   * bloqueia nada (RequireConfirmedEmail é false no backend): só decide se
+   * o banner do app-shell aparece.
+   */
+  readonly emailConfirmed = computed(() => this.state()?.emailConfirmed ?? true);
 
   /** Phase 5.5 — email da última sessão para pre-fill no login. */
   getLastLoginEmail(): string | null {
@@ -192,6 +198,22 @@ export class AuthService {
     );
   }
 
+  /**
+   * Phase 6 — reenvia o email de confirmação. O endpoint do MapIdentityApi
+   * responde sempre 2xx (não revela se o email existe); a entrega em si vai
+   * para um job Hangfire.
+   */
+  async resendConfirmationEmail(): Promise<void> {
+    const email = this.state()?.email;
+    if (!email) {
+      return;
+    }
+
+    await firstValueFrom(
+      this.http.post<void>('/api/auth/resendConfirmationEmail', { email }),
+    );
+  }
+
   private buildState(tokens: TokenResponse, profile: MeResponse): AuthState {
     const role: TenantRole = ALLOWED_ROLES.has(profile.tenantRole as TenantRole)
       ? (profile.tenantRole as TenantRole)
@@ -202,6 +224,7 @@ export class AuthService {
       accessTokenExpiresAt: Date.now() + tokens.expiresIn * 1000,
       userId: profile.userId,
       email: profile.email,
+      emailConfirmed: profile.emailConfirmed ?? false,
       tenantId: profile.tenantId,
       tenantName: profile.tenantName,
       tenantRole: role,

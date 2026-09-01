@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -138,27 +138,6 @@ public sealed class SignupTests : IClassFixture<IdentityIntegrationFixture>
         body.Should().NotContain("DuplicateUserName",
             "DuplicateUserName/DuplicateEmail revelam que email existe — leak de enumeração.");
         body.Should().NotContain("DuplicateEmail");
-    }
-
-    [Fact]
-    public async Task NotImplementedEmailSender_throws_with_phase_1a_message()
-    {
-        // O endpoint /forgotPassword do MapIdentityApi tem guard EmailConfirmed
-        // que devolve 200 silencioso para evitar enumeração — ou seja, nem chega
-        // a chamar o IEmailSender. A garantia de fail-loud da Phase 1a é
-        // verificada chamando o stub diretamente.
-        using var scope = _fixture.Factory.Services.CreateScope();
-        var sender = scope.ServiceProvider.GetRequiredService<
-            Microsoft.AspNetCore.Identity.IEmailSender<AppUser>>();
-
-        var act = async () => await sender.SendConfirmationLinkAsync(
-            new AppUser(),
-            "x@y.z",
-            "https://example.com/confirm");
-
-        await act.Should()
-            .ThrowAsync<NotImplementedException>()
-            .WithMessage("*Phase 1a*");
     }
 
     private static async Task<T> Scalar<T>(NpgsqlConnection conn, string sql, object? id = null)

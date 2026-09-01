@@ -70,9 +70,12 @@ public static class DependencyInjection
                 opts.Lockout.AllowedForNewUsers = true;
                 // Email único: bloqueia segundo signup com o mesmo email.
                 opts.User.RequireUniqueEmail = true;
-                // SignIn.RequireConfirmedEmail fica false até Phase 1b/Phase 6
-                // ligar IEmailSender real — caso contrário o utilizador nunca
-                // consegue logar (NotImplementedEmailSender lança).
+                // Phase 6: o email já é entregue a sério, mas
+                // RequireConfirmedEmail fica deliberadamente false — num
+                // sistema de um utilizador, exigir confirmação só cria risco
+                // de auto-lockout se o relay falhar. O banner não bloqueante
+                // no app-shell é o mecanismo escolhido; revisitar em
+                // Replanning se o sistema passar a ter mais utilizadores.
                 opts.SignIn.RequireConfirmedEmail = false;
             })
             .AddRoles<AppRole>()
@@ -85,7 +88,12 @@ public static class DependencyInjection
             IUserClaimsPrincipalFactory<AppUser>,
             TenantAwareClaimsPrincipalFactory>());
 
-        services.AddSingleton<IEmailSender<AppUser>, NotImplementedEmailSender>();
+        // Phase 6 — email real via relay SMTP. A entrega corre em job
+        // Hangfire (tech-stack §12); sem SMTP__HOST configurado o job
+        // desiste com Warning e a app continua a funcionar (mission §4.4).
+        services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
+        services.AddSingleton<IEmailSender<AppUser>, SmtpEmailSender>();
+        services.AddScoped<SendEmailJob>();
 
         services.AddHostedService<MigrationRunner>();
 

@@ -7,6 +7,8 @@ export interface AuthState {
   accessTokenExpiresAt: number;
   userId: string;
   email: string;
+  /** Phase 6 — alimenta o banner não bloqueante de confirmação de email. */
+  emailConfirmed: boolean;
   tenantId: string;
   /** Resolvido via GET /api/auth/me (Phase 1a Tenants tabela). */
   tenantName: string | null;
@@ -47,6 +49,7 @@ export interface TokenResponse {
 export interface MeResponse {
   userId: string;
   email: string;
+  emailConfirmed: boolean;
   tenantId: string;
   tenantName: string | null;
   tenantRole: TenantRole;

@@ -1,4 +1,4 @@
-name: sextante
+﻿name: sextante
 
 services:
   api:
@@ -19,6 +19,15 @@ services:
       ConnectionStrings__Migration: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_migrations;Password=${SEXTANTE_MIGRATIONS_PASSWORD:?SEXTANTE_MIGRATIONS_PASSWORD must be set}
       ConnectionStrings__App: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_app;Password=${SEXTANTE_APP_PASSWORD:?SEXTANTE_APP_PASSWORD must be set}
       JWT__SIGNING_KEY: ${JWT__SIGNING_KEY:?JWT__SIGNING_KEY must be set}
+      # SMTP: sem `:?` de proposito — ausencia de configuracao e um estado
+      # valido (app funciona, emails descartados com Warning).
+      SMTP__HOST: ${SMTP__HOST:-}
+      SMTP__PORT: ${SMTP__PORT:-587}
+      SMTP__USERNAME: ${SMTP__USERNAME:-}
+      SMTP__PASSWORD: ${SMTP__PASSWORD:-}
+      SMTP__FROM: ${SMTP__FROM:-}
+      SMTP__FROMNAME: ${SMTP__FROMNAME:-Sextante}
+      SMTP__USESTARTTLS: ${SMTP__USESTARTTLS:-true}
     ports:
       - "80:80"
       - "443:443"

@@ -49,6 +49,9 @@
     <!-- Resilience (Phase 3) -->
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="9.10.0" />
 
+    <!-- Email transaccional (Phase 6) -->
+    <PackageVersion Include="MailKit" Version="4.17.0" />
+
     <!-- CSV parsing (Phase 4) -->
     <PackageVersion Include="CsvHelper" Version="33.0.1" />
 

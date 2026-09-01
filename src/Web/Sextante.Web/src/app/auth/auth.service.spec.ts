@@ -79,6 +79,64 @@ describe('AuthService', () => {
     expect(service.getAccessToken()).toBe('access-1');
   });
 
+  // Phase 6 — banner de confirmação de email.
+  it('login exposes emailConfirmed from /me', async () => {
+    const promise = service.login({
+      email: 'naoconfirmado@example.com',
+      password: 'PasswordSegura1!extra',
+    });
+
+    httpMock.expectOne('/api/auth/login').flush({
+      tokenType: 'Bearer',
+      accessToken: 'access-2',
+      expiresIn: 900,
+      refreshToken: 'refresh-2',
+    });
+
+    await waitForMicrotasks();
+    httpMock.expectOne('/api/auth/me').flush({
+      userId: 'u2',
+      email: 'naoconfirmado@example.com',
+      emailConfirmed: false,
+      tenantId: 't2',
+      tenantName: 'Tenant Banner',
+      tenantRole: 'Owner',
+    });
+
+    await promise;
+    expect(service.emailConfirmed()).toBeFalse();
+  });
+
+  it('resendConfirmationEmail posts the current email', async () => {
+    const promise = service.login({
+      email: 'reenviar@example.com',
+      password: 'PasswordSegura1!extra',
+    });
+    httpMock.expectOne('/api/auth/login').flush({
+      tokenType: 'Bearer',
+      accessToken: 'access-3',
+      expiresIn: 900,
+      refreshToken: 'refresh-3',
+    });
+    await waitForMicrotasks();
+    httpMock.expectOne('/api/auth/me').flush({
+      userId: 'u3',
+      email: 'reenviar@example.com',
+      emailConfirmed: false,
+      tenantId: 't3',
+      tenantName: 'Tenant Reenviar',
+      tenantRole: 'Owner',
+    });
+    await promise;
+
+    const resend = service.resendConfirmationEmail();
+    const req = httpMock.expectOne('/api/auth/resendConfirmationEmail');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ email: 'reenviar@example.com' });
+    req.flush(null);
+    await resend;
+  });
+
   it('logout clears local state and posts to /api/auth/logout', async () => {
     await primeSession(service, httpMock);
     expect(service.isAuthenticated()).toBeTrue();

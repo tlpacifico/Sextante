@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -120,6 +120,9 @@ public static class IdentityApi
         return Results.Ok(new MeResponse(
             UserId: user.Id,
             Email: user.Email ?? string.Empty,
+            // Phase 6 — alimenta o banner não bloqueante de confirmação de
+            // email no app-shell.
+            EmailConfirmed: user.EmailConfirmed,
             TenantId: tenantId,
             TenantName: tenantName,
             TenantRole: tenantRoleClaim));
@@ -148,6 +151,7 @@ public static class IdentityApi
     public sealed record MeResponse(
         Guid UserId,
         string Email,
+        bool EmailConfirmed,
         Guid TenantId,
         string? TenantName,
         string TenantRole);

@@ -288,7 +288,8 @@ Sextante.sln
 
 - **Abstração**: `IEmailSender<AppUser>` (interface do Identity) implementada por `SmtpEmailSender` em `Identity.Infrastructure`.
 - **Entrega via Hangfire job** (não bloqueia request, retry automático).
-- **Provider concreto fica TBD** — abstrair atrás da interface no MVP, decidir entre **SMTP direto da VPS** vs **SendGrid free tier** vs **Mailgun** **antes do dogfooding**, com base em quão sério é o problema de spam folder em testes reais.
+- **Provider decidido na Phase 6**: **relay externo em free tier** (Resend ou Mailgun), não SMTP directo da VPS — o email serve apenas confirmação e recuperação de palavra-passe de um utilizador, e não compensa gerir reputação de IP, SPF/DKIM/DMARC e PTR. Continua abstraído atrás de `IEmailSender<AppUser>` + SMTP genérico: trocar de provider (incluindo para Postfix self-hosted) é mudar variáveis no `.env`.
+- **Degradação graciosa** (mission §4.4): `SMTP__HOST` vazio é estado válido — a app arranca, o job de entrega loga `Warning` e descarta. O reset de palavra-passe faz-se então pelo CLI `create-admin`.
 - Configuração via `.env` (`SMTP__Host`, `SMTP__Port`, `SMTP__Username`, `SMTP__Password`, `SMTP__From`).
 
 ---
