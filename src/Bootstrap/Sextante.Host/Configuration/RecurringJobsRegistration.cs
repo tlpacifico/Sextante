@@ -6,11 +6,22 @@ namespace Sextante.Host.Configuration;
 
 internal static class RecurringJobsRegistration
 {
-    public static void RegisterRecurringJobs()
+    /// <summary>
+    /// Registo via <see cref="IRecurringJobManager"/> resolvido do próprio
+    /// host — e não pela fachada estática <c>RecurringJob</c>, que escreve
+    /// contra o <c>JobStorage.Current</c> global ao processo. Com a fachada
+    /// estática, um segundo host no mesmo processo (cada
+    /// <c>WebApplicationFactory</c> dos integration tests é um) escrevia
+    /// contra a storage do host anterior — já eliminada — e falhava o
+    /// arranque com erro de conexão Npgsql.
+    /// </summary>
+    public static void RegisterRecurringJobs(IServiceProvider services)
     {
+        var manager = services.GetRequiredService<IRecurringJobManager>();
+
         // ECB snapshot às 00:30 UTC. Idempotente — re-runs com o mesmo
         // provider apenas atualizam timestamps.
-        RecurringJob.AddOrUpdate<EcbSnapshotJob>(
+        manager.AddOrUpdate<EcbSnapshotJob>(
             EcbSnapshotJob.RecurringJobId,
             job => job.RunAsync(CancellationToken.None),
             "30 0 * * *",
@@ -21,6 +32,6 @@ internal static class RecurringJobsRegistration
         // quando o utilizador abrir o sistema de manhã. Job global: faz scan
         // cross-tenant de regras activas e invoca TenantAwareJob<T> para cada
         // tenant (opção (a) do requirements.md).
-        RecurringMaterializerGlobalJob.Register();
+        RecurringMaterializerGlobalJob.Register(manager);
     }
 }

@@ -32,9 +32,14 @@ public sealed class RecurringMaterializerGlobalJob
         _logger = logger;
     }
 
-    public static void Register()
+    /// <summary>
+    /// Recebe o <see cref="IRecurringJobManager"/> do host em vez de usar a
+    /// fachada estática <c>RecurringJob</c> (que escreve contra o
+    /// <c>JobStorage.Current</c> global ao processo).
+    /// </summary>
+    public static void Register(IRecurringJobManager manager)
     {
-        RecurringJob.AddOrUpdate<RecurringMaterializerGlobalJob>(
+        manager.AddOrUpdate<RecurringMaterializerGlobalJob>(
             RecurringJobId,
             job => job.RunAsync(CancellationToken.None),
             "15 0 * * *",

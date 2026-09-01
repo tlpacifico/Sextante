@@ -201,7 +201,7 @@ try
         Authorization = [new HangfireSystemAdminFilter()],
     });
 
-    RecurringJobsRegistration.RegisterRecurringJobs();
+    RecurringJobsRegistration.RegisterRecurringJobs(app.Services);
 
     if (Directory.Exists(app.Environment.WebRootPath))
     {
