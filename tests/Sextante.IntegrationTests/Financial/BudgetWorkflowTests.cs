@@ -176,7 +176,9 @@ public sealed class BudgetWorkflowTests : IClassFixture<IdentityIntegrationFixtu
     {
         var response = await client.PostAsJsonAsync("/api/financial/budgets", new
         {
-            categoryId, year, month,
+            categoryId,
+            year,
+            month,
             limitAmount = limit,
             limitCurrency = "EUR",
             alertThresholdPercent = threshold,

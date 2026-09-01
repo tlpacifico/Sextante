@@ -113,17 +113,25 @@ public sealed class BudgetsCrudTests : IClassFixture<IdentityIntegrationFixture>
 
         var first = await client.PostAsJsonAsync("/api/financial/budgets", new
         {
-            categoryId, year, month,
-            limitAmount = 500m, limitCurrency = "EUR",
-            alertThresholdPercent = 80, notes = (string?)null,
+            categoryId,
+            year,
+            month,
+            limitAmount = 500m,
+            limitCurrency = "EUR",
+            alertThresholdPercent = 80,
+            notes = (string?)null,
         });
         first.EnsureSuccessStatusCode();
 
         var second = await client.PostAsJsonAsync("/api/financial/budgets", new
         {
-            categoryId, year, month,
-            limitAmount = 700m, limitCurrency = "EUR",
-            alertThresholdPercent = 80, notes = (string?)null,
+            categoryId,
+            year,
+            month,
+            limitAmount = 700m,
+            limitCurrency = "EUR",
+            alertThresholdPercent = 80,
+            notes = (string?)null,
         });
         second.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }

@@ -141,7 +141,9 @@ public sealed class FinancialMultiTenancyTests : IClassFixture<IdentityIntegrati
     {
         var response = await client.PostAsJsonAsync("/api/financial/budgets", new
         {
-            categoryId, year, month,
+            categoryId,
+            year,
+            month,
             limitAmount = 500m,
             limitCurrency = "EUR",
             alertThresholdPercent = 80,
