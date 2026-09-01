@@ -170,14 +170,14 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 > `specs/2026-08-26-phase-6-polish-deploy/`. CD automático entrou no
 > scope em kickoff (reverte o "fora do MVP" do README — ADR-013).
 
-- [ ] Export CSV das transações.
-- [ ] Banner persistente para confirmar email (não bloqueante).
-- [ ] Decidir provider SMTP (VPS direto vs SendGrid/Mailgun) com base em testes reais de spam folder.
+- [x] Export CSV das transações.
+- [x] Banner persistente para confirmar email (não bloqueante).
+- [x] Decidir provider SMTP: relay externo em free tier (Resend/Mailgun), atrás de SMTP genérico. Teste real de spam folder fica para a tarefa 2.1 (credenciais) — a decisão de arquitectura está fechada.
 - [ ] **Provisionar VPS** (provider, sizing, registo DNS A para o domínio público).
 - [ ] **Primeiro deploy production** via `docker compose` na VPS; LettuceEncrypt emite certificado Let's Encrypt na 1ª request HTTPS.
 - [ ] **Validação live**: `https://<dominio>/` renderiza a landing, `/api/health` retorna `200`, certificado emitido por Let's Encrypt.
 - [ ] README de deploy atualizado (refletir provider, domínio e sizing efetivamente escolhidos).
-- [ ] Backups automatizados (`pg_dump` por schema, retenção 30 dias).
+- [~] Backups automatizados (`pg_dump` por schema, retenção 30 dias): script `infra/backup/backup.sh` escrito e verificado localmente; falta agendar na VPS.
 - [ ] **1 restore de teste** documentado.
 - [ ] **CD automático** via GitHub Actions (build → push imagem → SSH `docker compose pull && up -d`) + **ADR-013**.
 - [ ] **Dogfooding 1 mês**: utilizador importa extrato bancário do último mês e categoriza tudo; recorrentes do mês configuradas; pelo menos 3 metas a mostrar progresso; nenhum reabrir de Excel ou outra app financeira durante 1 mês.
