@@ -21,6 +21,10 @@ public static class TransactionsEndpoints
             [FromQuery] Guid? recurringRuleId,
             [FromQuery] int? pageSize,
             [FromQuery] string? cursor,
+            [FromQuery] string? kind,
+            [FromQuery] string? descriptionContains,
+            [FromQuery] decimal? amountMin,
+            [FromQuery] decimal? amountMax,
             IMessageBus bus,
             CancellationToken ct) =>
         {
@@ -31,7 +35,11 @@ public static class TransactionsEndpoints
                 accountIds is { Length: > 0 } ? accountIds.ToList() : null,
                 recurringRuleId,
                 pageSize,
-                cursor);
+                cursor,
+                kind,
+                descriptionContains,
+                amountMin,
+                amountMax);
             var result = await bus.InvokeAsync<TransactionsPageResponse>(query, ct);
             return Results.Ok(result);
         });

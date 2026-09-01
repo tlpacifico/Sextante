@@ -276,30 +276,19 @@ export class TransactionsPage implements OnInit {
     try {
       const f = this.filterForm.getRawValue();
       const [d1, d2] = f.dateRange ?? [null, null];
+      // Phase 6 — todos os filtros são aplicados no servidor; filtrar em
+      // memória só funcionava dentro da página devolvida.
       const items = await this.api.listTransactionsSimple({
         dateFrom: d1 ? new Date(d1).toISOString() : undefined,
         dateTo: d2 ? new Date(d2).toISOString() : undefined,
         accountIds: f.accountIds?.length ? f.accountIds : undefined,
         categoryIds: f.categoryIds?.length ? f.categoryIds : undefined,
+        kind: f.kind ? (f.kind as 'Income' | 'Expense') : undefined,
+        descriptionContains: f.description || undefined,
+        amountMin: f.amountMin ?? undefined,
+        amountMax: f.amountMax ?? undefined,
       });
-      // Filter locally by kind and description for simplicity
-      let filtered = items;
-      if (f.kind) {
-        filtered = filtered.filter(t =>
-          f.kind === 'Income' ? this.isIncome(t) : !this.isIncome(t),
-        );
-      }
-      if (f.description) {
-        const q = f.description.toLowerCase();
-        filtered = filtered.filter(t => (t.description || '').toLowerCase().includes(q));
-      }
-      if (f.amountMin != null) {
-        filtered = filtered.filter(t => t.amount.amount >= f.amountMin!);
-      }
-      if (f.amountMax != null) {
-        filtered = filtered.filter(t => t.amount.amount <= f.amountMax!);
-      }
-      this.transactions.set(filtered);
+      this.transactions.set(items);
     } catch {
       this.messages.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao carregar transações.', life: 3000 });
     } finally {

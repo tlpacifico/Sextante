@@ -43,7 +43,12 @@ public sealed record TransactionFilter(
     IReadOnlyCollection<Guid>? AccountIds,
     Guid? RecurringRuleId,
     int PageSize,
-    TransactionCursor? Cursor);
+    TransactionCursor? Cursor,
+    // Phase 6 — filtros antes aplicados client-side no /transactions.
+    CategoryKindFilter? Kind = null,
+    string? DescriptionContains = null,
+    decimal? AmountMin = null,
+    decimal? AmountMax = null);
 
 public sealed record TransactionCursor(DateTimeOffset OccurredAt, Guid Id);
 

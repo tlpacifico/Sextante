@@ -137,18 +137,32 @@ export class FinancialApiService {
     );
   }
 
-  /** Phase 5.5 — list all transactions without cursor pagination. */
+  /**
+   * Phase 5.5 — list all transactions without cursor pagination.
+   * Phase 6 — kind/descrição/valor passaram a ser filtrados no servidor
+   * (antes eram filtrados em memória, logo só dentro desta página).
+   */
   async listTransactionsSimple(filter: {
     dateFrom?: string;
     dateTo?: string;
     accountIds?: string[];
     categoryIds?: string[];
+    kind?: 'Income' | 'Expense';
+    descriptionContains?: string;
+    amountMin?: number;
+    amountMax?: number;
   }): Promise<TransactionDto[]> {
     let params = new HttpParams();
     if (filter.dateFrom) params = params.set('dateFrom', filter.dateFrom);
     if (filter.dateTo) params = params.set('dateTo', filter.dateTo);
     if (filter.accountIds?.length) params = params.set('accountIds', filter.accountIds.join(','));
     if (filter.categoryIds?.length) params = params.set('categoryIds', filter.categoryIds.join(','));
+    if (filter.kind) params = params.set('kind', filter.kind);
+    if (filter.descriptionContains) {
+      params = params.set('descriptionContains', filter.descriptionContains);
+    }
+    if (filter.amountMin != null) params = params.set('amountMin', String(filter.amountMin));
+    if (filter.amountMax != null) params = params.set('amountMax', String(filter.amountMax));
     params = params.set('pageSize', '500'); // fetch all in one call for MVP
 
     const page = await firstValueFrom(

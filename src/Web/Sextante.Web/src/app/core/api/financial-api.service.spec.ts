@@ -59,6 +59,23 @@ describe('FinancialApiService', () => {
     await promise;
   });
 
+  // Phase 6 — filtros de kind/descrição/valor passaram a ser server-side.
+  it('listTransactionsSimple sends kind, description and amount params', async () => {
+    const promise = service.listTransactionsSimple({
+      kind: 'Income',
+      descriptionContains: 'supermercado',
+      amountMin: 10,
+      amountMax: 100,
+    });
+    const req = httpMock.expectOne((r) => r.url === '/api/financial/transactions');
+    expect(req.request.params.get('kind')).toBe('Income');
+    expect(req.request.params.get('descriptionContains')).toBe('supermercado');
+    expect(req.request.params.get('amountMin')).toBe('10');
+    expect(req.request.params.get('amountMax')).toBe('100');
+    req.flush({ items: [], nextCursor: null });
+    await promise;
+  });
+
   it('archiveCategory issues DELETE', async () => {
     const promise = service.archiveCategory('cid');
     const req = httpMock.expectOne('/api/financial/categories/cid');

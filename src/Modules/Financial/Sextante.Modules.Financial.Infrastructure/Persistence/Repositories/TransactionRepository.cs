@@ -161,7 +161,9 @@ public sealed class TransactionRepository : ITransactionRepository
             .ToList();
     }
 
-    private static IQueryable<Transaction> ApplyFilter(
+    // Instance (não static) porque o filtro de Kind precisa de
+    // _db.Categories — o kind vive na categoria, não na transação.
+    private IQueryable<Transaction> ApplyFilter(
         IQueryable<Transaction> query,
         TransactionFilter filter)
     {
@@ -188,6 +190,41 @@ public sealed class TransactionRepository : ITransactionRepository
         if (filter.RecurringRuleId is { } recurringRuleId)
         {
             query = query.Where(t => t.RecurringRuleId == recurringRuleId);
+        }
+
+        if (filter.Kind is { } kindFilter)
+        {
+            var kind = kindFilter == CategoryKindFilter.Income
+                ? CategoryKind.Income
+                : CategoryKind.Expense;
+
+            query = query.Where(t =>
+                _db.Categories.Any(c => c.Id == t.CategoryId && c.Kind == kind));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.DescriptionContains))
+        {
+            // Escapar wildcards do LIKE para que o texto do utilizador
+            // seja tratado como literal.
+            var term = filter.DescriptionContains
+                .Trim()
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("%", "\\%", StringComparison.Ordinal)
+                .Replace("_", "\\_", StringComparison.Ordinal);
+
+            query = query.Where(t =>
+                t.Description != null
+                && EF.Functions.ILike(t.Description, $"%{term}%", "\\"));
+        }
+
+        if (filter.AmountMin is { } amountMin)
+        {
+            query = query.Where(t => t.Amount.Amount >= amountMin);
+        }
+
+        if (filter.AmountMax is { } amountMax)
+        {
+            query = query.Where(t => t.Amount.Amount <= amountMax);
         }
 
         return query;

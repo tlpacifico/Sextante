@@ -53,7 +53,13 @@ public sealed record ListTransactionsQuery(
     IReadOnlyList<Guid>? AccountIds,
     Guid? RecurringRuleId,
     int? PageSize,
-    string? Cursor);
+    string? Cursor,
+    // Phase 6 — antes filtrados client-side no /transactions, logo só
+    // dentro da página corrente.
+    string? Kind = null,
+    string? DescriptionContains = null,
+    decimal? AmountMin = null,
+    decimal? AmountMax = null);
 
 public sealed record TransactionsPageResponse(
     IReadOnlyList<TransactionResponse> Items,

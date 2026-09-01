@@ -200,7 +200,11 @@ public static class TransactionHandlers
             query.AccountIds,
             query.RecurringRuleId,
             pageSize,
-            Cursor.Decode(query.Cursor));
+            Cursor.Decode(query.Cursor),
+            ParseKind(query.Kind),
+            query.DescriptionContains,
+            query.AmountMin,
+            query.AmountMax);
 
         var page = await repository.ListAsync(filter, cancellationToken);
         var nextCursor = page.NextCursor is null ? null : Cursor.Encode(page.NextCursor);
@@ -294,6 +298,17 @@ public static class TransactionHandlers
                 r.Total))
             .ToList();
     }
+
+    private static CategoryKindFilter? ParseKind(string? kind)
+        => kind switch
+        {
+            null or "" => null,
+            _ when string.Equals(kind, "Income", StringComparison.OrdinalIgnoreCase)
+                => CategoryKindFilter.Income,
+            _ when string.Equals(kind, "Expense", StringComparison.OrdinalIgnoreCase)
+                => CategoryKindFilter.Expense,
+            _ => null,
+        };
 
     private static string NormalizeViewMode(string? mode)
         => string.Equals(mode, ViewModeOriginal, StringComparison.OrdinalIgnoreCase)
