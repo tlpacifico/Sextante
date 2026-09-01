@@ -332,7 +332,7 @@ Sextante.sln
 - **TLS automático**: LettuceEncrypt pede certificado a Let's Encrypt na 1ª request e renova sozinho.
 - **Backups**: cron + `pg_dump` por schema → diretório com retenção 30 dias. **1 restore de teste obrigatório antes do dogfooding.**
 - **Migrations correm no startup do Host** com lock distribuído.
-- **CI/CD**: GitHub Actions → build → push de imagem → SSH + `docker compose pull && up -d`.
+- **CI/CD**: GitHub Actions → build → push de imagem (registry) → SSH + `docker compose pull && up -d`, com smoke check `GET /api/health` a falhar o job se a app não responder 200. Entrou no MVP na Phase 6 (ADR-013), revertendo o "CD fica fora do MVP" do README. Gatilho só em `main`; rollback é manual (apontar a tag `sha-<short>` anterior).
 
 > Dockerfile multi-stage: `Vault: 02.1 - Arquitetura - Visão Geral.md` secção 8.
 
@@ -387,6 +387,7 @@ Sextante.sln
 - ADR-010 CQRS via Wolverine
 - ADR-011 Frontend UI stack (PrimeNG + Tailwind + Signals)
 - ADR-012 Sentry como error tracker externo
+- ADR-013 CD automático via GitHub Actions
 
 ### Pendentes
 - **ADR-007 Versionamento da API**: adiado. Escrever quando se introduzir versionamento.

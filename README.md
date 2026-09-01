@@ -245,7 +245,9 @@ Após execução, o utilizador pode fazer login em `/login` e aceder ao sistema.
 
 ## Deploy (manual, primeira vez)
 
-> Este bloco é runbook. O **primeiro deploy à VPS é executado em Phase 6** (pré-dogfooding), não em Phase 0 — Phase 0 entrega o stack `docker compose` validado localmente. CD automático fica fora do MVP; o GitHub Actions corre apenas `build`, `test`, `format`.
+> Este bloco é runbook do **primeiro** deploy (manual). O primeiro deploy à VPS é executado na Phase 6 (pré-dogfooding), não na Phase 0 — a Phase 0 entrega o stack `docker compose` validado localmente.
+>
+> Deploys **seguintes** são automáticos: push em `main` verde → build da imagem → push para registry → SSH + `docker compose pull && up -d` + smoke check a `/api/health` (ADR-013). O caminho manual abaixo continua a ser o de recuperação quando o CD não está disponível.
 
 ### 1. Provisionar VPS
 
