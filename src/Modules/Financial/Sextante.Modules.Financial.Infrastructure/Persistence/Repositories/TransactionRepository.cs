@@ -119,6 +119,47 @@ public sealed class TransactionRepository : ITransactionRepository
             .ToList();
     }
 
+    public async Task<IReadOnlyList<TransactionExportDataRow>> ListForExportAsync(
+        TransactionFilter filter,
+        CancellationToken cancellationToken)
+    {
+        var query = ApplyFilter(_db.Transactions.AsQueryable(), filter);
+
+        // Join a Accounts e Categories para o CSV levar nomes em vez de
+        // GUIDs. Global Query Filter + RLS continuam a aplicar-se aos três.
+        // A ordenação tem de vir antes da projecção para o record: o EF não
+        // traduz OrderBy sobre uma propriedade de um objecto construído.
+        var rows = await query
+            .Join(
+                _db.Accounts,
+                t => t.AccountId,
+                a => a.Id,
+                (t, a) => new { Transaction = t, AccountName = a.Name })
+            .Join(
+                _db.Categories,
+                x => x.Transaction.CategoryId,
+                c => c.Id,
+                (x, c) => new { x.Transaction, x.AccountName, Category = c })
+            .OrderByDescending(x => x.Transaction.OccurredAt)
+            .ThenByDescending(x => x.Transaction.Id)
+            .Select(x => new TransactionExportDataRow(
+                x.Transaction.OccurredAt,
+                x.AccountName,
+                x.Category.Name,
+                x.Category.Kind == CategoryKind.Income
+                    ? CategoryKindFilter.Income
+                    : CategoryKindFilter.Expense,
+                x.Transaction.Description,
+                x.Transaction.Amount.Amount,
+                x.Transaction.Amount.Currency,
+                x.Transaction.ExchangeRateToPrimary,
+                x.Transaction.CategorizationRuleId,
+                x.Transaction.RecurringRuleId))
+            .ToListAsync(cancellationToken);
+
+        return rows;
+    }
+
     public async Task<IReadOnlyList<TransactionByCategoryRow>> GetByCategoryAsync(
         TransactionFilter filter,
         CategoryKindFilter kindFilter,

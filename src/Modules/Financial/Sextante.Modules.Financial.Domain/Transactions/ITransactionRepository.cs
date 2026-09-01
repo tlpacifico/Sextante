@@ -29,6 +29,15 @@ public interface ITransactionRepository
         TransactionFilter filter,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Phase 6 — linhas desnormalizadas (conta e categoria resolvidas) para
+    /// o export CSV. Sem paginação: aplica o filtro e devolve tudo o que
+    /// passa, ordenado da mais recente para a mais antiga.
+    /// </summary>
+    Task<IReadOnlyList<TransactionExportDataRow>> ListForExportAsync(
+        TransactionFilter filter,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<TransactionByCategoryRow>> GetByCategoryAsync(
         TransactionFilter filter,
         CategoryKindFilter kindFilter,
@@ -60,6 +69,18 @@ public sealed record TransactionTotalsByCurrencyRow(
     string Currency,
     decimal Income,
     decimal Expense);
+
+public sealed record TransactionExportDataRow(
+    DateTimeOffset OccurredAt,
+    string AccountName,
+    string CategoryName,
+    CategoryKindFilter CategoryKind,
+    string? Description,
+    decimal Amount,
+    string Currency,
+    decimal? ExchangeRateToPrimary,
+    Guid? CategorizationRuleId,
+    Guid? RecurringRuleId);
 
 public sealed record TransactionByCategoryRow(
     Guid CategoryId,

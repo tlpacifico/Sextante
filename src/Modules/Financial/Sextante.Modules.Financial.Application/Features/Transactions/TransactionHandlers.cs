@@ -213,6 +213,60 @@ public static class TransactionHandlers
             nextCursor);
     }
 
+    // Phase 6 — export CSV. Sem paginação: o filtro é o mesmo do list,
+    // mas o ficheiro leva tudo o que passa.
+    public static async Task<ExportTransactionsResponse> Handle(
+        ExportTransactionsQuery query,
+        ITransactionRepository repository,
+        ITenantCurrencyResolver currency,
+        CancellationToken cancellationToken)
+    {
+        var primaryCurrency = await currency.GetPrimaryCurrencyAsync(cancellationToken);
+
+        var filter = new TransactionFilter(
+            query.DateFrom,
+            query.DateTo,
+            query.CategoryIds,
+            query.AccountIds,
+            query.RecurringRuleId,
+            DefaultPageSize,
+            null,
+            ParseKind(query.Kind),
+            query.DescriptionContains,
+            query.AmountMin,
+            query.AmountMax);
+
+        var rows = await repository.ListForExportAsync(filter, cancellationToken);
+
+        var csv = TransactionCsvWriter.Write(rows.Select(r => new TransactionExportRow(
+            r.OccurredAt,
+            r.AccountName,
+            r.CategoryName,
+            r.CategoryKind == CategoryKindFilter.Income ? "Receita" : "Despesa",
+            r.Description,
+            r.Amount,
+            r.Currency,
+            r.ExchangeRateToPrimary,
+            primaryCurrency,
+            DescribeOrigin(r))));
+
+        var fileName = $"transacoes-{DateTimeOffset.UtcNow:yyyyMMdd}.csv";
+        return new ExportTransactionsResponse(fileName, csv);
+    }
+
+    /// <summary>
+    /// A transação não guarda ligação ao lote de importação (não existe
+    /// <c>ImportBatchId</c>), logo "Importação" não é distinguível de
+    /// "Manual" — só recorrente e regra deixam rasto.
+    /// </summary>
+    private static string DescribeOrigin(TransactionExportDataRow row)
+        => row switch
+        {
+            { RecurringRuleId: not null } => "Recorrente",
+            { CategorizationRuleId: not null } => "Regra",
+            _ => "Manual",
+        };
+
     public static async Task<TransactionSummaryResponse> Handle(
         TransactionSummaryQuery query,
         ITransactionRepository repository,

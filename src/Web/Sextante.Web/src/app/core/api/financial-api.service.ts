@@ -171,6 +171,41 @@ export class FinancialApiService {
     return page.items;
   }
 
+  /**
+   * Phase 6 — export CSV com os filtros activos. Vem como blob porque o
+   * access token vive em memória: um `<a href>` directo não leva o header
+   * Authorization.
+   */
+  exportTransactions(filter: {
+    dateFrom?: string;
+    dateTo?: string;
+    accountIds?: string[];
+    categoryIds?: string[];
+    kind?: 'Income' | 'Expense';
+    descriptionContains?: string;
+    amountMin?: number;
+    amountMax?: number;
+  }): Promise<Blob> {
+    let params = new HttpParams();
+    if (filter.dateFrom) params = params.set('dateFrom', filter.dateFrom);
+    if (filter.dateTo) params = params.set('dateTo', filter.dateTo);
+    if (filter.accountIds?.length) params = params.set('accountIds', filter.accountIds.join(','));
+    if (filter.categoryIds?.length) params = params.set('categoryIds', filter.categoryIds.join(','));
+    if (filter.kind) params = params.set('kind', filter.kind);
+    if (filter.descriptionContains) {
+      params = params.set('descriptionContains', filter.descriptionContains);
+    }
+    if (filter.amountMin != null) params = params.set('amountMin', String(filter.amountMin));
+    if (filter.amountMax != null) params = params.set('amountMax', String(filter.amountMax));
+
+    return firstValueFrom(
+      this.http.get('/api/financial/transactions/export', {
+        params,
+        responseType: 'blob',
+      }),
+    );
+  }
+
   /** Phase 5.5 — bulk recategorize transactions. */
   recategorizeTransactions(ids: string[], categoryId: string): Promise<{ updatedCount: number }> {
     return firstValueFrom(

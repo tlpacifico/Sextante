@@ -108,6 +108,21 @@ import { RecategorizeDialogComponent } from './recategorize.dialog';
       </div>
     </form>
 
+    <!-- Actions -->
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <span class="text-sm text-neutral-500">
+        {{ transactions().length }} transação(ões)
+      </span>
+      <p-button
+        label="Exportar CSV"
+        icon="pi pi-download"
+        severity="secondary"
+        [outlined]="true"
+        [loading]="exporting()"
+        [disabled]="transactions().length === 0"
+        (click)="exportCsv()" />
+    </div>
+
     <!-- Bulk actions -->
     @if (selectedIds().length > 0) {
       <div class="mb-4 flex items-center gap-3 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
@@ -225,6 +240,7 @@ export class TransactionsPage implements OnInit {
   protected readonly selectedTransaction = signal<TransactionDto | null>(null);
   protected readonly editDialogVisible = signal(false);
   protected readonly recategorizeDialogVisible = signal(false);
+  protected readonly exporting = signal(false);
 
   protected readonly kindOptions = [
     { label: 'Todos', value: null },
@@ -271,23 +287,52 @@ export class TransactionsPage implements OnInit {
     }
   }
 
+  /**
+   * Phase 6 — todos os filtros são aplicados no servidor; filtrar em
+   * memória só funcionava dentro da página devolvida. Partilhado entre a
+   * listagem e o export para que o CSV corresponda ao que está no ecrã.
+   */
+  private currentFilter() {
+    const f = this.filterForm.getRawValue();
+    const [d1, d2] = f.dateRange ?? [null, null];
+    return {
+      dateFrom: d1 ? new Date(d1).toISOString() : undefined,
+      dateTo: d2 ? new Date(d2).toISOString() : undefined,
+      accountIds: f.accountIds?.length ? f.accountIds : undefined,
+      categoryIds: f.categoryIds?.length ? f.categoryIds : undefined,
+      kind: f.kind ? (f.kind as 'Income' | 'Expense') : undefined,
+      descriptionContains: f.description || undefined,
+      amountMin: f.amountMin ?? undefined,
+      amountMax: f.amountMax ?? undefined,
+    };
+  }
+
+  protected async exportCsv(): Promise<void> {
+    this.exporting.set(true);
+    try {
+      const blob = await this.api.exportTransactions(this.currentFilter());
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `transacoes-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      this.messages.add({
+        severity: 'error',
+        summary: 'Erro',
+        detail: 'Falha ao exportar transações.',
+        life: 3000,
+      });
+    } finally {
+      this.exporting.set(false);
+    }
+  }
+
   private async loadTransactions(): Promise<void> {
     this.loading.set(true);
     try {
-      const f = this.filterForm.getRawValue();
-      const [d1, d2] = f.dateRange ?? [null, null];
-      // Phase 6 — todos os filtros são aplicados no servidor; filtrar em
-      // memória só funcionava dentro da página devolvida.
-      const items = await this.api.listTransactionsSimple({
-        dateFrom: d1 ? new Date(d1).toISOString() : undefined,
-        dateTo: d2 ? new Date(d2).toISOString() : undefined,
-        accountIds: f.accountIds?.length ? f.accountIds : undefined,
-        categoryIds: f.categoryIds?.length ? f.categoryIds : undefined,
-        kind: f.kind ? (f.kind as 'Income' | 'Expense') : undefined,
-        descriptionContains: f.description || undefined,
-        amountMin: f.amountMin ?? undefined,
-        amountMax: f.amountMax ?? undefined,
-      });
+      const items = await this.api.listTransactionsSimple(this.currentFilter());
       this.transactions.set(items);
     } catch {
       this.messages.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao carregar transações.', life: 3000 });

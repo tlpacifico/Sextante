@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Application.Features.Transactions;
 using Sextante.Modules.Financial.Application.Tests.TestSupport;
@@ -326,6 +326,10 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
                 new Money(0m, primaryCurrency)));
         public Task<IReadOnlyList<TransactionTotalsByCurrencyRow>> GetTotalsByCurrencyAsync(TransactionFilter filter, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<TransactionTotalsByCurrencyRow>>(Array.Empty<TransactionTotalsByCurrencyRow>());
+        // Phase 6 — export CSV: os stubs não exercitam este caminho.
+        public Task<IReadOnlyList<TransactionExportDataRow>> ListForExportAsync(TransactionFilter filter, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<TransactionExportDataRow>>(Array.Empty<TransactionExportDataRow>());
+
         public Task<IReadOnlyList<TransactionByCategoryRow>> GetByCategoryAsync(TransactionFilter filter, CategoryKindFilter kindFilter, string primaryCurrency, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<TransactionByCategoryRow>>(Array.Empty<TransactionByCategoryRow>());
     }

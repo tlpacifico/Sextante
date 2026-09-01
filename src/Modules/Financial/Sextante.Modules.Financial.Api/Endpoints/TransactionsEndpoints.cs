@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -42,6 +43,41 @@ public static class TransactionsEndpoints
                 amountMax);
             var result = await bus.InvokeAsync<TransactionsPageResponse>(query, ct);
             return Results.Ok(result);
+        });
+
+        // Phase 6 — export CSV com os mesmos filtros do list.
+        group.MapGet("export", async (
+            [FromQuery] DateTimeOffset? dateFrom,
+            [FromQuery] DateTimeOffset? dateTo,
+            [FromQuery] Guid[]? categoryIds,
+            [FromQuery] Guid[]? accountIds,
+            [FromQuery] Guid? recurringRuleId,
+            [FromQuery] string? kind,
+            [FromQuery] string? descriptionContains,
+            [FromQuery] decimal? amountMin,
+            [FromQuery] decimal? amountMax,
+            IMessageBus bus,
+            CancellationToken ct) =>
+        {
+            var query = new ExportTransactionsQuery(
+                dateFrom,
+                dateTo,
+                categoryIds is { Length: > 0 } ? categoryIds.ToList() : null,
+                accountIds is { Length: > 0 } ? accountIds.ToList() : null,
+                recurringRuleId,
+                kind,
+                descriptionContains,
+                amountMin,
+                amountMax);
+
+            var export = await bus.InvokeAsync<ExportTransactionsResponse>(query, ct);
+
+            // BOM explícito: sem ele o Excel PT-PT estraga os acentos.
+            var bytes = Encoding.UTF8.GetPreamble()
+                .Concat(Encoding.UTF8.GetBytes(export.Csv))
+                .ToArray();
+
+            return Results.File(bytes, "text/csv; charset=utf-8", export.FileName);
         });
 
         group.MapGet("summary", async (

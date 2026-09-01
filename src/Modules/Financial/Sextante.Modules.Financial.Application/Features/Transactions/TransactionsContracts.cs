@@ -65,6 +65,41 @@ public sealed record TransactionsPageResponse(
     IReadOnlyList<TransactionResponse> Items,
     string? NextCursor);
 
+/// <summary>
+/// Phase 6 — export CSV. Mesmos filtros do <see cref="ListTransactionsQuery"/>,
+/// sem paginação.
+/// </summary>
+public sealed record ExportTransactionsQuery(
+    DateTimeOffset? DateFrom,
+    DateTimeOffset? DateTo,
+    IReadOnlyList<Guid>? CategoryIds,
+    IReadOnlyList<Guid>? AccountIds,
+    Guid? RecurringRuleId,
+    string? Kind = null,
+    string? DescriptionContains = null,
+    decimal? AmountMin = null,
+    decimal? AmountMax = null);
+
+/// <summary>
+/// Linha já desnormalizada (nomes de conta e categoria resolvidos) pronta
+/// a escrever no CSV.
+/// </summary>
+public sealed record TransactionExportRow(
+    DateTimeOffset OccurredAt,
+    string AccountName,
+    string CategoryName,
+    string Kind,
+    string? Description,
+    decimal Amount,
+    string Currency,
+    decimal? ExchangeRateToPrimary,
+    string PrimaryCurrency,
+    string Origin);
+
+public sealed record ExportTransactionsResponse(
+    string FileName,
+    string Csv);
+
 public sealed record TransactionSummaryQuery(
     DateTimeOffset? DateFrom,
     DateTimeOffset? DateTo,

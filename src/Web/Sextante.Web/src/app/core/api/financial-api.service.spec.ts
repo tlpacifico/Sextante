@@ -76,6 +76,21 @@ describe('FinancialApiService', () => {
     await promise;
   });
 
+  it('exportTransactions requests a blob from /export with the active filters', async () => {
+    const promise = service.exportTransactions({
+      descriptionContains: 'supermercado',
+      kind: 'Expense',
+    });
+    const req = httpMock.expectOne((r) => r.url === '/api/financial/transactions/export');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.responseType).toBe('blob');
+    expect(req.request.params.get('descriptionContains')).toBe('supermercado');
+    expect(req.request.params.get('kind')).toBe('Expense');
+    req.flush(new Blob(['Data;Conta'], { type: 'text/csv' }));
+    const blob = await promise;
+    expect(blob.size).toBeGreaterThan(0);
+  });
+
   it('archiveCategory issues DELETE', async () => {
     const promise = service.archiveCategory('cid');
     const req = httpMock.expectOne('/api/financial/categories/cid');
