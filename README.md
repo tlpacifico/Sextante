@@ -314,6 +314,25 @@ openssl s_client -connect <dominio>:443 -servername <dominio> </dev/null 2>/dev/
   | openssl x509 -noout -issuer            # → issuer Let's Encrypt
 ```
 
+### 6. Backups
+
+O `infra/backup/backup.sh` faz `pg_dump` por schema (`shared`, `financial`,
+`hangfire`, `messaging`) para `/var/backups/sextante`, com retenção de 30
+dias. Falha ruidosamente (exit code 1) se algum dump falhar ou vier
+suspeitosamente pequeno — um backup silenciosamente vazio é pior que
+nenhum.
+
+```bash
+# Correr uma vez, a validar
+./infra/backup/backup.sh
+
+# Agendar (systemd timer diário às 03:00 UTC) — ver runbook
+```
+
+Agendamento, restore completo, restore selectivo e o procedimento de
+**restore de teste**: `docs/runbooks/restore.md`. `tech-stack.md` §15 exige
+pelo menos um restore de teste executado antes do dogfooding.
+
 ### Operações comuns
 
 ```bash
