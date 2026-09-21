@@ -173,13 +173,13 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 - [x] Export CSV das transações.
 - [x] Banner persistente para confirmar email (não bloqueante).
 - [x] Decidir provider SMTP: relay externo em free tier (Resend/Mailgun), atrás de SMTP genérico. Teste real de spam folder fica para a tarefa 2.1 (credenciais) — a decisão de arquitectura está fechada.
-- [ ] **Provisionar VPS** (provider, sizing, registo DNS A para o domínio público).
-- [ ] **Primeiro deploy production** via `docker compose` na VPS; LettuceEncrypt emite certificado Let's Encrypt na 1ª request HTTPS.
-- [ ] **Validação live**: `https://<dominio>/` renderiza a landing, `/api/health` retorna `200`, certificado emitido por Let's Encrypt.
-- [ ] README de deploy atualizado (refletir provider, domínio e sizing efetivamente escolhidos).
-- [~] Backups automatizados (`pg_dump` por schema, retenção 30 dias): script `infra/backup/backup.sh` escrito e verificado localmente; falta agendar na VPS.
-- [ ] **1 restore de teste** documentado.
-- [ ] **CD automático** via GitHub Actions (build → push imagem → SSH `docker compose pull && up -d`) + **ADR-013**.
+- [~] **Provisionar VPS**: resolvido por reutilização — a VPS já existe e corre o `oui-system` e o `binance-bot`; o Sextante entra na porta `8090` (loopback) com Postgres em container próprio. Falta **registar o domínio** e criar o registo DNS A para `161.97.180.201`.
+- [ ] **Primeiro deploy production** via `docker compose` na VPS. O TLS é do **Caddy** (systemd, partilhado), não do LettuceEncrypt — vhost em `deploy/Caddyfile.sextante`, a aplicar quando o domínio existir.
+- [ ] **Validação live**: `https://<dominio>/` renderiza a landing, `/api/health` retorna `200`, certificado emitido por Let's Encrypt. (Antes do domínio: `curl http://127.0.0.1:8090/api/health` na VPS.)
+- [x] README de deploy atualizado (VPS partilhada, Caddy, tabela de GitHub Secrets, rollback, recuperação manual).
+- [~] Backups automatizados (`pg_dump` por schema, retenção 30 dias): script `infra/backup/backup.sh` escrito e verificado localmente; unidades `sextante-backup.{service,timer}` (03:00 UTC) escritas; falta instalá-las na VPS.
+- [ ] **1 restore de teste** documentado (com dumps reais da VPS; o ensaio local de 2026-09-01 está registado no runbook mas não substitui este).
+- [~] **CD automático** via GitHub Actions (build → push GHCR → SSH `docker compose pull && up -d` + smoke check) + **ADR-013**: workflow `.github/workflows/deploy.yml` escrito; falta criar os Secrets, pôr o `deployuser` no grupo `docker` e correr o primeiro deploy.
 - [ ] **Dogfooding 1 mês**: utilizador importa extrato bancário do último mês e categoriza tudo; recorrentes do mês configuradas; pelo menos 3 metas a mostrar progresso; nenhum reabrir de Excel ou outra app financeira durante 1 mês.
 
 **Saída**: critério de Done do MVP cumprido (`mission.md` §6).

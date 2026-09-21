@@ -243,80 +243,133 @@ Após execução, o utilizador pode fazer login em `/login` e aceder ao sistema.
 
 ---
 
-## Deploy (manual, primeira vez)
+## Deploy (produção)
 
-> Este bloco é runbook do **primeiro** deploy (manual). O primeiro deploy à VPS é executado na Phase 6 (pré-dogfooding), não na Phase 0 — a Phase 0 entrega o stack `docker compose` validado localmente.
+> Deploys são **automáticos**: push em `main` verde → imagem para o GHCR →
+> SSH para a VPS → `docker compose pull && up -d` → smoke check a
+> `/api/health`. Workflow em `.github/workflows/deploy.yml`, decisão em
+> `docs/adr/ADR-013-cd-github-actions.md`. Também corre à mão em
+> **Actions → Deploy Sextante → Run workflow** (com opção de saltar testes
+> para hotfixes).
 >
-> Deploys **seguintes** são automáticos: push em `main` verde → build da imagem → push para registry → SSH + `docker compose pull && up -d` + smoke check a `/api/health` (ADR-013). O caminho manual abaixo continua a ser o de recuperação quando o CD não está disponível.
+> Esta secção documenta a **VPS partilhada** e o setup que se faz uma vez.
 
-### 1. Provisionar VPS
+### 1. A VPS
 
-- Qualquer VPS Linux com pelo menos 2 vCPU, 2 GB RAM, 20 GB disco.
-- DNS: criar registo `A` para o domínio (ex.: `financas.exemplo.pt`) a apontar para o IP público da VPS.
-- Firewall: abrir portas `80/tcp` e `443/tcp` (LettuceEncrypt precisa de HTTP-01 challenge na 80; tráfego normal vai pela 443).
+O Sextante não tem VPS própria: partilha a que já corre outras duas apps.
 
-### 2. Instalar Docker e Compose plugin
+| App | Porta | TLS |
+|---|---|---|
+| `oui-system` | `8080` | Caddy (systemd), bloco `:80` catch-all |
+| `binance-bot` | `3000` | nenhum (acesso directo) |
+| **`sextante`** | **`8090`, só em `127.0.0.1`** | **Caddy, vhost nomeado** |
+
+Cada app vive em `/opt/<app>` com `docker-compose.yml` + `.env`. O
+PostgreSQL nativo da VPS (`:5432`) serve as outras duas — **o Sextante não
+lhe toca**: usa container próprio, sem publicar porta. É deliberado: o
+`infra/postgres/01-bootstrap-roles.sh` cria os roles `sextante_migrations`
+(BYPASSRLS) e `sextante_app` (**sem** BYPASSRLS), e essa separação é o
+invariante de multi-tenancy do `AGENTS.md` §3.1 — não é coisa para se fazer
+à mão num cluster partilhado.
+
+### 2. TLS via Caddy (não LettuceEncrypt)
+
+O `LettuceEncrypt` **não é usado em produção**: quem detém as portas 80/443
+é o Caddy do systemd. As variáveis `LETSENCRYPT__*` ficam vazias e o
+`KestrelTlsSetup` larga o bind HTTPS sozinho, deixando a API a escutar só
+HTTP na `8080` interna. O `UseForwardedHeaders` (`Program.cs`) lê o
+`X-Forwarded-Proto` do Caddy, o que mantém `Secure=true` nos cookies do
+refresh token.
+
+O bloco a acrescentar a `/etc/caddy/Caddyfile` está em
+`deploy/Caddyfile.sextante`, com o raciocínio e as precauções. A edição é
+aditiva — o `:80` catch-all do oui-system fica intacto, porque o Caddy
+resolve por especificidade.
+
+### 3. Setup inicial da VPS (uma vez)
 
 ```bash
-# Ubuntu / Debian
-sudo apt update && sudo apt install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list
-sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo usermod -aG docker "$USER"   # logout/login depois disto
+# 3.1 — o utilizador de deploy precisa de Docker sem sudo
+sudo usermod -aG docker deployuser     # relogin depois disto
+
+# 3.2 — directório da app (o resto é copiado pelo workflow)
+sudo mkdir -p /opt/sextante && sudo chown deployuser:deployuser /opt/sextante
+
+# 3.3 — timer de backup, depois do primeiro deploy ter copiado o infra/
+sudo cp /opt/sextante/infra/backup/sextante-backup.* /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now sextante-backup.timer
 ```
 
-### 3. Clonar o repo e configurar `.env`
+Não é preciso `docker login` manual: o job de deploy autentica-se no GHCR
+com o `GITHUB_TOKEN` efémero do próprio workflow e faz `logout` no fim — a
+imagem fica privada e nenhum PAT de longa duração assenta na VPS.
 
-```bash
-git clone https://github.com/<owner>/<repo>.git sextante
-cd sextante
-cp .env.example .env
-# Editar .env e preencher:
-#   POSTGRES_PASSWORD=<gerar com: openssl rand -base64 32>
-#   LETSENCRYPT__EMAIL=<email para a conta ACME>
-#   LETSENCRYPT__DOMAINNAME=<domínio público que aponta para esta VPS>
-#   SMTP__HOST / SMTP__USERNAME / SMTP__PASSWORD / SMTP__FROM (ver abaixo)
-```
+### 4. GitHub Secrets
 
-### 3.1 Email transaccional (SMTP)
+Toda a configuração de produção vem dos **Secrets do repositório**
+(Settings → Secrets and variables → Actions). O `.env` em
+`/opt/sextante/.env` é **reescrito a cada deploy** a partir deles — editá-lo
+à mão na VPS não sobrevive ao push seguinte.
+
+| Secret | Uso | Como gerar |
+|---|---|---|
+| `VPS_HOST` / `VPS_USER` / `VPS_SSH_KEY` | Acesso SSH | `VPS_USER=deployuser`; chave dedicada ao deploy, sem passphrase |
+| `POSTGRES_PASSWORD` | Superuser do container Postgres | `openssl rand -base64 32` |
+| `SEXTANTE_MIGRATIONS_PASSWORD` | Role BYPASSRLS (migrations) | `openssl rand -base64 32` |
+| `SEXTANTE_APP_PASSWORD` | Role sem BYPASSRLS (runtime) | `openssl rand -base64 32` |
+| `JWT__SIGNING_KEY` | Assinatura dos tokens | `openssl rand -base64 64` |
+| `SENTRY__DSN` | Error tracking (vazio desliga) | Sentry → `sextante-api` → Client Keys |
+| `SMTP__HOST` / `__PORT` / `__USERNAME` / `__PASSWORD` / `__FROM` | Email transaccional (vazio desliga) | Relay (Resend/Mailgun) |
+
+> ⚠️ As passwords dos roles Postgres são consumidas em **dois** sítios: pelo
+> `01-bootstrap-roles.sh` na primeira boot do volume, e pelas connection
+> strings da API. Rodá-las depois do volume existir exige `ALTER ROLE`
+> manual — ver `docs/runbooks/restore.md`.
+
+### 4.1 Email transaccional (SMTP)
 
 Confirmação de email e recuperação de palavra-passe são entregues por um
 **relay SMTP externo** em free tier (Resend ou Mailgun) — decisão da Phase 6:
 não vale gerir reputação de IP, SPF/DKIM/DMARC e PTR para o email de um
 utilizador.
 
-- Criar conta no relay, **verificar o domínio** (registos SPF + DKIM no DNS) e
-  gerar credenciais SMTP.
-- Preencher `SMTP__HOST`, `SMTP__PORT` (587), `SMTP__USERNAME`,
-  `SMTP__PASSWORD` e `SMTP__FROM` (endereço no domínio verificado) no `.env`.
+- Criar conta no relay, **verificar o domínio** (registos SPF + DKIM no DNS)
+  e gerar credenciais SMTP. É o **mesmo domínio** do vhost do Caddy.
 - **`SMTP__HOST` vazio é um estado válido**: a app arranca e funciona, os
   emails são descartados com log `Warning`. Nesse modo, o reset de palavra-passe
   faz-se pelo CLI `create-admin` (idempotente, rotaciona a palavra-passe).
 - A entrega corre em job Hangfire com retry — um relay em baixo nunca faz
   falhar um signup nem um pedido de reset.
 
-### 4. Build e arranque
+### 5. Primeiro utilizador
 
 ```bash
-docker compose build
-docker compose up -d
-docker compose logs -f api
+cd /opt/sextante
+docker compose exec api dotnet Sextante.Host.dll create-admin \
+  --email <email> --password <password> --tenant-name <nome>
 ```
 
-Na primeira request HTTPS (browser ou `curl -I https://<dominio>/`) o LettuceEncrypt obtém o certificado de Let's Encrypt e persiste-o no volume `letsencrypt-certs`. Renovação é automática.
+Idempotente. Confirma depois que as categorias seed foram criadas (o
+subscriber de `UserRegisteredIntegrationEvent`).
 
-### 5. Verificação live
+### 6. Verificação live
 
 ```bash
-# Browser: https://<dominio>/  → mostra a landing PT-PT do Angular.
-curl -I https://<dominio>/api/health     # → HTTP/2 200
+# Na VPS — a API só escuta em loopback, por isso é daqui que se testa
+curl -fsS http://127.0.0.1:8090/api/health       # {"status":"ok",...}
+cd /opt/sextante && docker compose ps
+
+# Depois de existir o vhost do Caddy + registo DNS A
+curl -I https://<dominio>/api/health             # → 200
 openssl s_client -connect <dominio>:443 -servername <dominio> </dev/null 2>/dev/null \
-  | openssl x509 -noout -issuer            # → issuer Let's Encrypt
+  | openssl x509 -noout -issuer                  # → issuer Let's Encrypt
 ```
 
-### 6. Backups
+O dashboard do Hangfire está em `/api/admin/hangfire` atrás do
+`HangfireSystemAdminFilter` — acessível só a `SystemAdmin`, nunca a
+anónimos.
+
+### 7. Backups
 
 O `infra/backup/backup.sh` faz `pg_dump` por schema (`shared`, `financial`,
 `hangfire`, `messaging`) para `/var/backups/sextante`, com retenção de 30
@@ -324,27 +377,43 @@ dias. Falha ruidosamente (exit code 1) se algum dump falhar ou vier
 suspeitosamente pequeno — um backup silenciosamente vazio é pior que
 nenhum.
 
-```bash
-# Correr uma vez, a validar
-./infra/backup/backup.sh
+Corre por **systemd timer às 03:00 UTC** (`infra/backup/sextante-backup.timer`).
+UTC explícito, e não cron: a VPS está em `Europe/Berlin` e o DST faria a
+hora oscilar duas vezes por ano.
 
-# Agendar (systemd timer diário às 03:00 UTC) — ver runbook
+```bash
+sudo systemctl start sextante-backup.service   # correr já, uma vez
+journalctl -u sextante-backup.service -n 30
+systemctl list-timers sextante-backup.timer
 ```
 
 Agendamento, restore completo, restore selectivo e o procedimento de
 **restore de teste**: `docs/runbooks/restore.md`. `tech-stack.md` §15 exige
 pelo menos um restore de teste executado antes do dogfooding.
 
-### Operações comuns
+### 8. Operações comuns
 
 ```bash
-docker compose pull                      # depois de o CI publicar imagens
-docker compose up -d --no-deps api       # reiniciar só a API
+cd /opt/sextante
+docker compose ps                        # estado
 docker compose logs -f api               # tail live
-docker compose exec postgres psql -U app sextante
+docker compose up -d --no-deps api       # reiniciar só a API
+docker compose exec postgres psql -U postgres -d sextante
 ```
 
-> CD via GitHub Actions e backups automatizados (`pg_dump` por schema com retenção 30 dias + 1 restore de teste) ficam fora da Phase 0 — Phase 6 (dogfooding).
+**Rollback**: cada deploy fixa a imagem pela tag do SHA curto no `.env`
+(`SEXTANTE_IMAGE`). Para voltar atrás, editar essa linha para o SHA anterior
+e `docker compose up -d api` — ou re-correr o workflow a partir do commit
+bom, que é o caminho preferido (deixa rasto no Actions).
+
+### 9. Recuperação manual (quando o CD não está disponível)
+
+```bash
+cd /opt/sextante
+echo "<GHCR_PAT>" | docker login ghcr.io -u <user> --password-stdin
+docker compose pull && docker compose up -d
+docker logout ghcr.io
+```
 
 ---
 

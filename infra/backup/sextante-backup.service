@@ -1,0 +1,28 @@
+# Unidade de backup do Sextante — invocada por sextante-backup.timer.
+#
+# Instalação na VPS (ver docs/runbooks/restore.md §Agendamento):
+#   sudo cp /opt/sextante/infra/backup/sextante-backup.* /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now sextante-backup.timer
+#
+# Corre como root: precisa do socket do Docker e de escrever em
+# /var/backups/sextante.
+
+[Unit]
+Description=Backup do Sextante (pg_dump por schema)
+# Sem Docker não há nada a fazer; falhar cedo e ruidosamente.
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/sextante
+# Explícito, apesar de o default do script (dois níveis acima de si
+# próprio) já dar /opt/sextante — evita surpresas se o caminho mudar.
+Environment=SEXTANTE_COMPOSE_DIR=/opt/sextante
+Environment=SEXTANTE_BACKUP_DIR=/var/backups/sextante
+Environment=SEXTANTE_BACKUP_RETENTION_DAYS=30
+ExecStart=/opt/sextante/infra/backup/backup.sh
+# O script já loga com timestamps UTC; o journal apanha stdout/stderr.
+StandardOutput=journal
+StandardError=journal

@@ -1,0 +1,69 @@
+# ----------------------------------------------------------------------
+# Bloco a acrescentar ao Caddyfile da VPS quando o domínio existir.
+#
+# NÃO é um ficheiro que o deploy copie: o Caddy da VPS é partilhado com o
+# oui-system e a sua configuração vive fora deste repo. Isto é o snippet
+# canónico, versionado aqui para não se perder.
+#
+# Destino: /etc/caddy/Caddyfile  (o Caddy do **systemd**, que está active).
+#
+# ⚠️  Nota sobre o outro Caddy: o compose do oui-system declara um serviço
+#     `caddy` com network_mode: host que está em crash-loop há semanas —
+#     colide com o do systemd na porta 2019 (admin endpoint) e nunca
+#     chegou a arrancar. Os dois Caddyfiles têm conteúdo igual, por isso
+#     ninguém deu por isso. O do systemd é que serve o tráfego. Antes de
+#     editar, convém parar o zombie:
+#
+#       docker compose -f /opt/oui-system/docker-compose.yml rm -sf caddy
+#
+#     (A correcção definitiva — remover o serviço do compose do oui-system
+#     — pertence a esse repo, não a este.)
+# ----------------------------------------------------------------------
+#
+# A edição é ADITIVA. O bloco `:80` existente fica intacto.
+#
+# Porquê isto é seguro: em Caddy, quando um pedido casa com mais que um
+# site block, ganha o **mais específico**. `sextante.<dominio>` captura só
+# esse Host; todos os outros continuam a cair no `:80` catch-all que serve
+# o oui-system. Acrescentar um vhost nomeado não rouba tráfego a ninguém.
+#
+# Efeito secundário desejado: hoje nada escuta em 443. Assim que existir um
+# site com nome, o Caddy pede o certificado a Let's Encrypt (HTTP-01 pela
+# porta 80, já aberta na ufw) e passa a servir HTTPS, com redirect
+# automático de HTTP para HTTPS nesse host.
+#
+# Depois de editar:
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#   sudo journalctl -u caddy -f        # acompanhar a emissão do certificado
+#
+# Resultado esperado do ficheiro final:
+
+sextante.EXEMPLO.com {
+    # A API do Sextante escuta em loopback; ver deploy/docker-compose.yml.
+    reverse_proxy localhost:8090
+}
+
+# ---- bloco pré-existente do oui-system: NÃO MEXER ----
+# :80 {
+#     reverse_proxy localhost:8080
+# }
+
+# ----------------------------------------------------------------------
+# Dependências desta mudança
+# ----------------------------------------------------------------------
+#
+# 1. Registo DNS `A` de sextante.EXEMPLO.com → 161.97.180.201
+#    (a VPS é dual-stack; se quiseres IPv6, acrescenta também um `AAAA`
+#    para 2a02:c207:2307:7728::1).
+#
+# 2. O certificado só é emitido depois de o DNS propagar. Até lá o Caddy
+#    tenta e falha em loop — é inofensivo, mas polui o journal.
+#
+# 3. O mesmo domínio tem de ser verificado no relay SMTP (SPF + DKIM) para
+#    o SMTP__FROM não cair em spam. Ver README §Deploy.
+#
+# 4. Não é preciso mexer no Sextante: sem LETSENCRYPT__* configurado, o
+#    KestrelTlsSetup larga o bind https sozinho, e o UseForwardedHeaders
+#    (Program.cs) lê o X-Forwarded-Proto do Caddy — o que mantém
+#    Secure=true nos cookies do refresh token.

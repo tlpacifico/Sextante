@@ -321,18 +321,36 @@ Sextante.sln
 ## 15. Deployment
 
 > **Timing**: o stack está pronto a deployar a partir da Phase 0
-> (Dockerfile + compose + LettuceEncrypt configurados, runbook no
-> README), mas o **primeiro deploy à VPS** é executado em **Phase 6**
-> (pré-dogfooding), não em Phase 0. Phase 0 valida o stack apenas
-> localmente.
+> (Dockerfile + compose + runbook no README), mas o **primeiro deploy à
+> VPS** é executado em **Phase 6** (pré-dogfooding), não em Phase 0.
+> Phase 0 valida o stack apenas localmente.
 
-- **Docker Compose** (1 VPS).
-- **Containers**: `api` (ASP.NET + Hangfire workers + Angular static via wwwroot) + `postgres`.
-- **Volumes**: `pgdata`, `letsencrypt-certs` (LettuceEncrypt), `logs`.
-- **TLS automático**: LettuceEncrypt pede certificado a Let's Encrypt na 1ª request e renova sozinho.
-- **Backups**: cron + `pg_dump` por schema → diretório com retenção 30 dias. **1 restore de teste obrigatório antes do dogfooding.**
+- **Docker Compose**, numa **VPS partilhada** com outras duas apps
+  (`oui-system` na `:8080`, `binance-bot` na `:3000`). Cada app em
+  `/opt/<app>`. Decidido na Phase 6 — reutilizar host e pipeline já
+  existentes em vez de provisionar infra nova.
+- **Dois ficheiros compose**: o da raiz faz `build: .` para dev local; o
+  `deploy/docker-compose.yml` usa a imagem do GHCR e é o que vai para a VPS.
+- **Containers**: `api` (ASP.NET + Hangfire workers + Angular static via wwwroot) + `postgres` próprio.
+- **Postgres em container dedicado, sem publicar porta.** A VPS tem um
+  PostgreSQL nativo que serve as outras apps; o Sextante não o usa, porque
+  os roles RLS (`sextante_app` sem `BYPASSRLS`) são invariante de §4 e o
+  bootstrap automático por volume é mais seguro que criá-los à mão num
+  cluster partilhado.
+- **Volumes**: `pgdata`, `logs`.
+- **TLS terminado pelo Caddy** (systemd, partilhado com o `oui-system`), com
+  vhost nomeado por app e Let's Encrypt automático. A API escuta HTTP em
+  `127.0.0.1:8090` — só o proxy lhe chega. `UseForwardedHeaders` preserva o
+  esquema para os cookies `Secure`.
+- **LettuceEncrypt fica como caminho alternativo**, não usado em produção:
+  o `KestrelTlsSetup` activa-o apenas quando `LETSENCRYPT__*` está
+  preenchido, o que serve um deploy standalone sem proxy à frente.
+- **Backups**: **systemd timer** (não cron) + `pg_dump` por schema →
+  diretório com retenção 30 dias. `OnCalendar=... UTC` explícito porque a
+  VPS corre em `Europe/Berlin` e o DST deslocaria a hora. **1 restore de
+  teste obrigatório antes do dogfooding.**
 - **Migrations correm no startup do Host** com lock distribuído.
-- **CI/CD**: GitHub Actions → build → push de imagem (registry) → SSH + `docker compose pull && up -d`, com smoke check `GET /api/health` a falhar o job se a app não responder 200. Entrou no MVP na Phase 6 (ADR-013), revertendo o "CD fica fora do MVP" do README. Gatilho só em `main`; rollback é manual (apontar a tag `sha-<short>` anterior).
+- **CI/CD**: GitHub Actions → build → push de imagem (GHCR, privada) → SSH + `docker compose pull && up -d`, com smoke check `GET /api/health` a falhar o job se a app não responder 200. Entrou no MVP na Phase 6 (ADR-013), revertendo o "CD fica fora do MVP" do README. Gatilho em `main` e `workflow_dispatch`, com `concurrency` a serializar deploys. O `.env` da VPS é reescrito a cada deploy a partir dos GitHub Secrets. Autenticação no registry com o `GITHUB_TOKEN` efémero do workflow — sem PAT persistido na VPS. Rollback: cada deploy fixa a tag `sha-<short>` no `.env`; voltar atrás é re-correr o workflow do commit anterior.
 
 > Dockerfile multi-stage: `Vault: 02.1 - Arquitetura - Visão Geral.md` secção 8.
 

@@ -1,0 +1,97 @@
+name: sextante
+
+# ----------------------------------------------------------------------
+# Compose de PRODUÇÃO (VPS). Não confundir com o docker-compose.yml da
+# raiz, que faz `build: .` e serve para desenvolvimento local.
+#
+# Diferenças face ao da raiz, todas deliberadas:
+#
+#   1. `image:` do GHCR em vez de `build:` — a imagem é construída pelo
+#      GitHub Actions, a VPS só faz `pull`.
+#   2. A API escuta HTTP em 8080 dentro do container, publicado em
+#      127.0.0.1:8090 — **loopback apenas**. O TLS é terminado pelo Caddy
+#      do systemd que já serve o oui-system (ver deploy/Caddyfile.sextante).
+#   3. Sem LettuceEncrypt: as variáveis LETSENCRYPT__* ficam ausentes e o
+#      KestrelTlsSetup larga o bind https sozinho (Configuration/KestrelTlsSetup.cs).
+#   4. O Postgres é container próprio e **não publica porta nenhuma** — a
+#      VPS já tem um PostgreSQL nativo na 5432 que serve outras apps, e o
+#      isolamento dos roles RLS (sextante_app sem BYPASSRLS) é invariante
+#      do AGENTS.md §3.1.
+#
+# Este ficheiro é copiado para /opt/sextante/docker-compose.yml pelo job
+# de deploy. O .env ao lado dele é reescrito a cada deploy a partir dos
+# GitHub Secrets — editá-lo à mão na VPS não serve de nada.
+# ----------------------------------------------------------------------
+
+services:
+  api:
+    image: ${SEXTANTE_IMAGE:-ghcr.io/tlpacifico/sextante:latest}
+    container_name: sextante-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Só HTTP: quem faz TLS é o Caddy. O `+` aceita qualquer host header
+      # (o Caddy encaminha o original em X-Forwarded-Host).
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Migration: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_migrations;Password=${SEXTANTE_MIGRATIONS_PASSWORD:?SEXTANTE_MIGRATIONS_PASSWORD must be set}
+      ConnectionStrings__App: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_app;Password=${SEXTANTE_APP_PASSWORD:?SEXTANTE_APP_PASSWORD must be set}
+      JWT__SIGNING_KEY: ${JWT__SIGNING_KEY:?JWT__SIGNING_KEY must be set}
+      # SMTP e Sentry sem `:?` de propósito — ausência de configuração é um
+      # estado válido (a app arranca, emails descartados com Warning,
+      # Sentry desligado). mission.md §4.4.
+      SMTP__HOST: ${SMTP__HOST:-}
+      SMTP__PORT: ${SMTP__PORT:-587}
+      SMTP__USERNAME: ${SMTP__USERNAME:-}
+      SMTP__PASSWORD: ${SMTP__PASSWORD:-}
+      SMTP__FROM: ${SMTP__FROM:-}
+      SMTP__FROMNAME: ${SMTP__FROMNAME:-Sextante}
+      SMTP__USESTARTTLS: ${SMTP__USESTARTTLS:-true}
+      SENTRY__DSN: ${SENTRY__DSN:-}
+      SENTRY__TRACES_SAMPLE_RATE: ${SENTRY__TRACES_SAMPLE_RATE:-0.1}
+    ports:
+      # 127.0.0.1 é essencial: a ufw não tem regra para a 8090 e não deve
+      # ter. Só o Caddy, que corre no host, chega aqui.
+      - "127.0.0.1:8090:8080"
+    volumes:
+      - logs:/app/logs
+    networks:
+      - internal
+    # Sem healthcheck de container: a imagem dotnet/aspnet:10.0 não traz
+    # curl nem wget. O health é verificado a partir do host pelo job de
+    # deploy (curl http://127.0.0.1:8090/api/health), onde curl existe.
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: sextante-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sextante}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      # Consumidos por infra/postgres/01-bootstrap-roles.sh na primeira boot
+      # do volume — definem as passwords dos roles sextante_migrations e
+      # sextante_app, que têm de bater certo com as connection strings acima.
+      SEXTANTE_MIGRATIONS_PASSWORD: ${SEXTANTE_MIGRATIONS_PASSWORD:?SEXTANTE_MIGRATIONS_PASSWORD must be set}
+      SEXTANTE_APP_PASSWORD: ${SEXTANTE_APP_PASSWORD:?SEXTANTE_APP_PASSWORD must be set}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Copiado para a VPS pelo job de deploy junto com este ficheiro.
+      - ./infra/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sextante}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+volumes:
+  pgdata:
+  logs:
+
+networks:
+  internal:
+    driver: bridge

@@ -5,6 +5,27 @@
 > menos 1 restore de teste executado** antes do dogfooding — a última
 > secção deste ficheiro registra-o.
 
+## Onde isto corre
+
+Na VPS, o Sextante vive em `/opt/sextante` — e **o repo não está lá
+clonado**. O que existe é o que o job de deploy copia (ver
+`.github/workflows/deploy.yml`):
+
+```
+/opt/sextante/
+├── docker-compose.yml          # copiado de deploy/docker-compose.yml
+├── .env                        # reescrito a cada deploy a partir dos GitHub Secrets
+└── infra/
+    ├── postgres/01-bootstrap-roles.sh
+    └── backup/backup.sh + sextante-backup.{service,timer}
+```
+
+Todos os comandos abaixo assumem `cd /opt/sextante`.
+
+> ⚠️ O `.env` é **regenerado a cada deploy**. Se um restore exigir
+> passwords diferentes das que estão nos Secrets, actualiza os Secrets no
+> GitHub — mudar o ficheiro na VPS dura até ao próximo push.
+
 ## Variáveis usadas nos comandos
 
 O superuser do Postgres **não é necessariamente `postgres`** — vem do
@@ -39,7 +60,17 @@ existem falha na atribuição de owner e nas policies.
 
 ## Restore completo (perda total)
 
-1. **Provisionar o stack do zero** no destino:
+1. **Provisionar o stack do zero** no destino.
+
+   Na VPS, basta correr o workflow **Deploy Sextante** (`workflow_dispatch`):
+   ele recria `/opt/sextante` com o compose, o `infra/` e o `.env` a partir
+   dos Secrets. Depois:
+
+   ```bash
+   cd /opt/sextante && docker compose up -d postgres
+   ```
+
+   Fora da VPS (ex.: máquina local, para um ensaio), a partir do repo:
 
    ```bash
    git clone <repo> sextante && cd sextante
@@ -49,6 +80,8 @@ existem falha na atribuição de owner e nas policies.
 
    As passwords têm de coincidir com as do `.env` original — os dumps
    referem os roles por nome, e as connection strings da API por password.
+   Numa VPS reprovisionada isso significa **não rodar** os Secrets
+   `SEXTANTE_APP_PASSWORD` / `SEXTANTE_MIGRATIONS_PASSWORD` antes do restore.
 
 2. **Confirmar que os roles existem** (o init script correu na primeira boot):
 
@@ -78,11 +111,48 @@ existem falha na atribuição de owner e nas policies.
 5. **Verificar** — é isto que distingue "restaurei" de "tenho os dados":
 
    ```bash
+   # Na VPS, antes de haver domínio (a API só escuta em loopback):
+   curl -fsS http://127.0.0.1:8090/api/health    # {"status":"ok",...}
+
+   # Depois do vhost do Caddy (deploy/Caddyfile.sextante):
    curl -I https://<dominio>/api/health          # 200
    ```
 
    E no browser: login com um utilizador existente, `/transactions` mostra
    o histórico, `/budgets` mostra progresso, o dashboard soma valores.
+
+## Agendamento do backup na VPS
+
+O `backup.sh` corre por **systemd timer**, não por cron. A razão é
+concreta: a VPS está em `Europe/Berlin` e o cron interpreta horas na
+timezone local, portanto "03:00" andaria entre 01:00 e 02:00 UTC conforme
+o DST, e um dos dois saltos anuais chega a repetir ou saltar a execução.
+O `OnCalendar=*-*-* 03:00:00 UTC` do timer é imune a isso.
+
+```bash
+sudo cp /opt/sextante/infra/backup/sextante-backup.service \
+        /opt/sextante/infra/backup/sextante-backup.timer \
+        /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now sextante-backup.timer
+```
+
+Verificar:
+
+```bash
+systemctl list-timers sextante-backup.timer   # confirmar o NEXT em UTC
+sudo systemctl start sextante-backup.service  # correr já, uma vez
+journalctl -u sextante-backup.service -n 30   # ver o log do script
+ls -la /var/backups/sextante/
+```
+
+A hora foi escolhida para não colidir com os jobs Hangfire (materializador
+de recorrentes às 00:15 UTC, câmbios do BCE às 00:30 UTC).
+
+> O `infra/` em `/opt/sextante` é reescrito a cada deploy, portanto o
+> `backup.sh` mantém-se em sincronia com o repo sozinho. As unidades
+> systemd, essas, são copiadas **uma vez** para `/etc/systemd/system/` —
+> se as mudares no repo, repete o `cp` + `daemon-reload`.
 
 ## Restore selectivo (só uma tabela)
 

@@ -1,0 +1,23 @@
+# Timer diário do backup do Sextante.
+#
+# 03:00 **UTC**, explicitamente. A VPS está em Europe/Berlin (CEST no
+# Verão, CET no Inverno): sem o sufixo UTC, o cron/timer andaria uma hora
+# para trás e para a frente duas vezes por ano, e um dos saltos de DST
+# chega a saltar ou repetir a execução. O sufixo torna isto imune.
+#
+# Escolhido para não colidir com os jobs Hangfire: materializador de
+# recorrentes às 00:15 UTC e snapshot de câmbios do BCE às 00:30 UTC.
+
+[Unit]
+Description=Backup diário do Sextante (03:00 UTC)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+# Se a VPS estiver desligada à hora marcada, corre no arranque seguinte.
+Persistent=true
+# Espalha o arranque até 5 min para não competir com outros timers.
+RandomizedDelaySec=300
+Unit=sextante-backup.service
+
+[Install]
+WantedBy=timers.target

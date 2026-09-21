@@ -1,0 +1,270 @@
+name: Deploy Sextante
+
+# ----------------------------------------------------------------------
+# CD automático — ADR-013.
+#
+# Fluxo: push em `main` verde → imagem para o GHCR → SSH para a VPS →
+# `docker compose pull && up -d` → smoke check a /api/health.
+#
+# A VPS é partilhada com o oui-system (Caddy + :8080) e o binance-bot
+# (:3000). O Sextante escuta em 127.0.0.1:8090 e o TLS é terminado pelo
+# Caddy do systemd. Ver deploy/Caddyfile.sextante e README §Deploy.
+# ----------------------------------------------------------------------
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Saltar testes? (só para hotfixes urgentes)'
+        type: boolean
+        default: false
+
+# Deploys nunca correm em paralelo: dois `compose up -d` simultâneos no
+# mesmo directório deixam o estado indefinido. Sem cancel-in-progress —
+# abortar um deploy a meio é pior que esperar por ele.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+  DEPLOY_DIR: /opt/sextante
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────
+  # Job 1 — Testes (mesma receita do ci.yml)
+  # ───────────────────────────────────────────────────────────────────
+  test:
+    name: Testes
+    if: ${{ inputs.skip_tests != true }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: src/Web/Sextante.Web/package-lock.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore .NET solution
+        run: dotnet restore Sextante.slnx
+
+      - name: Build Release (sem Angular — os testes não precisam)
+        run: dotnet build Sextante.slnx -c Release --no-restore -p:SkipAngularBuild=true
+
+      # Os testes de integração levantam PostgreSQL via Testcontainers; o
+      # runner ubuntu-latest tem Docker disponível.
+      - name: Test (xUnit)
+        run: dotnet test Sextante.slnx -c Release --no-build
+
+      - name: Install Angular dependencies
+        working-directory: src/Web/Sextante.Web
+        run: npm ci --no-audit --no-fund
+
+      - name: Karma unit tests (ChromeHeadless)
+        working-directory: src/Web/Sextante.Web
+        run: npm test -- --watch=false --browsers=ChromeHeadless
+
+  # ───────────────────────────────────────────────────────────────────
+  # Job 2 — Build e push da imagem
+  # ───────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push (GHCR)
+    needs: test
+    # `always()` + verificação explícita: permite o caminho skip_tests sem
+    # deixar um `test` falhado passar despercebido.
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Calcular nome da imagem e tag
+        id: meta
+        run: |
+          # O GHCR exige o repositório em minúsculas; nomes de repo no
+          # GitHub podem ter maiúsculas.
+          repo_lc="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          short_sha="${GITHUB_SHA::8}"
+          {
+            echo "image=${REGISTRY}/${repo_lc}"
+            echo "short_sha=${short_sha}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # Duas tags: `latest` por conveniência, e a do SHA que é a que o
+          # deploy fixa — deploys determinísticos e rollback trivial.
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.short_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ───────────────────────────────────────────────────────────────────
+  # Job 3 — Deploy na VPS
+  # ───────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy VPS
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copiar docker-compose.yml
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "deploy/docker-compose.yml"
+          target: ${{ env.DEPLOY_DIR }}
+          strip_components: 1
+
+      # infra/postgres/01-bootstrap-roles.sh é montado pelo compose em
+      # /docker-entrypoint-initdb.d e cria os roles RLS na primeira boot
+      # do volume. infra/backup/backup.sh é usado pelo systemd timer.
+      # A VPS não tem o repo clonado — só o que este job lá põe.
+      - name: Copiar infra/ (bootstrap de roles + script de backup)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "infra/"
+          target: ${{ env.DEPLOY_DIR }}
+
+      - name: Escrever .env, pull e arrancar
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: DEPLOY_DIR,SEXTANTE_IMAGE,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SEXTANTE_MIGRATIONS_PASSWORD,SEXTANTE_APP_PASSWORD,JWT__SIGNING_KEY,SENTRY__DSN,SMTP__HOST,SMTP__PORT,SMTP__USERNAME,SMTP__PASSWORD,SMTP__FROM
+          script: |
+            set -euo pipefail
+            cd "${DEPLOY_DIR}"
+
+            chmod +x infra/backup/*.sh infra/postgres/*.sh
+
+            # Guarda contra falha silenciosa: o compose monta
+            # ./infra/postgres em /docker-entrypoint-initdb.d e o Docker
+            # **cria a pasta vazia** se ela não existir. Numa primeira boot
+            # isso significaria um Postgres sem os roles sextante_app /
+            # sextante_migrations — a API não ligaria e a causa não seria
+            # óbvia. Preferimos falhar aqui, alto e claro.
+            test -f infra/postgres/01-bootstrap-roles.sh \
+              || { echo "ERRO: infra/postgres/01-bootstrap-roles.sh não chegou à VPS — abortado antes de arrancar o Postgres."; exit 1; }
+
+            # O .env é reescrito a cada deploy a partir dos GitHub Secrets.
+            # Editá-lo à mão na VPS não sobrevive ao próximo push.
+            umask 077
+            printf '%s\n' \
+              "SEXTANTE_IMAGE=${SEXTANTE_IMAGE}" \
+              "POSTGRES_DB=sextante" \
+              "POSTGRES_USER=postgres" \
+              "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" \
+              "SEXTANTE_MIGRATIONS_PASSWORD=${SEXTANTE_MIGRATIONS_PASSWORD}" \
+              "SEXTANTE_APP_PASSWORD=${SEXTANTE_APP_PASSWORD}" \
+              "JWT__SIGNING_KEY=${JWT__SIGNING_KEY}" \
+              "SENTRY__DSN=${SENTRY__DSN}" \
+              "SMTP__HOST=${SMTP__HOST}" \
+              "SMTP__PORT=${SMTP__PORT}" \
+              "SMTP__USERNAME=${SMTP__USERNAME}" \
+              "SMTP__PASSWORD=${SMTP__PASSWORD}" \
+              "SMTP__FROM=${SMTP__FROM}" \
+              > .env
+
+            # A imagem é privada (é uma app financeira). O GITHUB_TOKEN do
+            # job tem read:packages e expira no fim do workflow — não fica
+            # nenhum PAT de longa duração na VPS.
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+            docker logout ghcr.io || true
+            docker image prune -f
+        env:
+          DEPLOY_DIR: ${{ env.DEPLOY_DIR }}
+          SEXTANTE_IMAGE: ${{ needs.build-and-push.outputs.image }}:${{ needs.build-and-push.outputs.short_sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SEXTANTE_MIGRATIONS_PASSWORD: ${{ secrets.SEXTANTE_MIGRATIONS_PASSWORD }}
+          SEXTANTE_APP_PASSWORD: ${{ secrets.SEXTANTE_APP_PASSWORD }}
+          JWT__SIGNING_KEY: ${{ secrets.JWT__SIGNING_KEY }}
+          SENTRY__DSN: ${{ secrets.SENTRY__DSN }}
+          SMTP__HOST: ${{ secrets.SMTP__HOST }}
+          SMTP__PORT: ${{ secrets.SMTP__PORT }}
+          SMTP__USERNAME: ${{ secrets.SMTP__USERNAME }}
+          SMTP__PASSWORD: ${{ secrets.SMTP__PASSWORD }}
+          SMTP__FROM: ${{ secrets.SMTP__FROM }}
+
+      # Gate real do deploy: se a app não responder, o job falha (e o
+      # `docker compose up -d` anterior já deixou o container anterior
+      # substituído — por isso o passo imprime logs para diagnóstico).
+      - name: Smoke check (/api/health)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: DEPLOY_DIR
+          script: |
+            cd "${DEPLOY_DIR}"
+            # As migrations correm no startup com lock distribuído; 90s dá
+            # folga para uma migration grande sem mascarar um arranque morto.
+            for i in $(seq 1 45); do
+              if curl -fsS http://127.0.0.1:8090/api/health >/dev/null 2>&1; then
+                echo "Health OK ao fim de $((i * 2))s"
+                docker compose ps
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "ERRO: /api/health não respondeu em 90s — deploy não saudável"
+            docker compose ps || true
+            docker compose logs --tail 80 api || true
+            exit 1
