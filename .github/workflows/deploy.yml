@@ -13,7 +13,11 @@ name: Deploy Sextante
 
 on:
   push:
-    branches: [main]
+    # TEMPORÁRIO — `phase-6-polish-deploy` está aqui só para o primeiro
+    # deploy correr antes do merge (o live check é gate de merge no
+    # validation.md, e o workflow_dispatch só existe na branch default).
+    # REMOVER antes do merge para `main`.
+    branches: [main, phase-6-polish-deploy]
   workflow_dispatch:
     inputs:
       skip_tests:
