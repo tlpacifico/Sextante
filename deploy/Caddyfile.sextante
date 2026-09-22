@@ -53,9 +53,9 @@ sextante.EXEMPLO.com {
 # Dependências desta mudança
 # ----------------------------------------------------------------------
 #
-# 1. Registo DNS `A` de sextante.EXEMPLO.com → 161.97.180.201
+# 1. Registo DNS `A` de sextante.EXEMPLO.com → IP público da VPS (o mesmo do Secret VPS_HOST)
 #    (a VPS é dual-stack; se quiseres IPv6, acrescenta também um `AAAA`
-#    para 2a02:c207:2307:7728::1).
+#    para o endereço IPv6 da VPS).
 #
 # 2. O certificado só é emitido depois de o DNS propagar. Até lá o Caddy
 #    tenta e falha em loop — é inofensivo, mas polui o journal.

@@ -173,7 +173,7 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 - [x] Export CSV das transações.
 - [x] Banner persistente para confirmar email (não bloqueante).
 - [x] Decidir provider SMTP: relay externo em free tier (Resend/Mailgun), atrás de SMTP genérico. Teste real de spam folder fica para a tarefa 2.1 (credenciais) — a decisão de arquitectura está fechada.
-- [~] **Provisionar VPS**: resolvido por reutilização — a VPS já existe e corre o `oui-system` e o `binance-bot`; o Sextante entra na porta `8090` (loopback) com Postgres em container próprio. Falta **registar o domínio** e criar o registo DNS A para `161.97.180.201`.
+- [~] **Provisionar VPS**: resolvido por reutilização — a VPS já existe e corre o `oui-system` e o `binance-bot`; o Sextante entra na porta `8090` (loopback) com Postgres em container próprio. Falta **registar o domínio** e criar o registo DNS A para o IP da VPS.
 - [ ] **Primeiro deploy production** via `docker compose` na VPS. O TLS é do **Caddy** (systemd, partilhado), não do LettuceEncrypt — vhost em `deploy/Caddyfile.sextante`, a aplicar quando o domínio existir.
 - [ ] **Validação live**: `https://<dominio>/` renderiza a landing, `/api/health` retorna `200`, certificado emitido por Let's Encrypt. (Antes do domínio: `curl http://127.0.0.1:8090/api/health` na VPS.)
 - [x] README de deploy atualizado (VPS partilhada, Caddy, tabela de GitHub Secrets, rollback, recuperação manual).
