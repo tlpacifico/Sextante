@@ -37,6 +37,16 @@ public sealed class CategoryRepository : ICategoryRepository
     public Task<Category?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
         => _db.Categories.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
+    // IgnoreQueryFilters tira o soft-delete e também o filtro de tenant —
+    // por isso o tenant é filtrado explicitamente (a RLS é a 2.ª barreira).
+    public Task<Category?> GetByIdIncludingArchivedAsync(
+        Guid id,
+        Sextante.SharedKernel.TenantId tenantId,
+        CancellationToken cancellationToken)
+        => _db.Categories
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId, cancellationToken);
+
     public async Task<IReadOnlyList<Category>> ListAsync(CancellationToken cancellationToken)
         => await _db.Categories
             .OrderBy(c => c.Kind)

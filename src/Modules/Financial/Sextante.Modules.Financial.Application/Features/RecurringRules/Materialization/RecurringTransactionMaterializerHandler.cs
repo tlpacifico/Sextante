@@ -64,6 +64,12 @@ public sealed class RecurringTransactionMaterializerHandler
 
         foreach (var rule in rules)
         {
+            // Resolvida uma vez por regra; inclui arquivadas para que uma
+            // receita não passe a despesa quando a categoria é arquivada.
+            var category = rule.CategoryId is { } ruleCategoryId
+                ? await _categoryRepo.GetByIdIncludingArchivedAsync(ruleCategoryId, tenant.TenantId, ct)
+                : null;
+
             while (rule.NextOccurrence is not null && rule.NextOccurrence.Value <= runDate)
             {
                 var occurrenceDate = rule.NextOccurrence.Value;
@@ -111,10 +117,6 @@ public sealed class RecurringTransactionMaterializerHandler
                             occurrenceDate.Year, occurrenceDate.Month, occurrenceDate.Day,
                             0, 0, 0, TimeSpan.Zero);
 
-                        var category = rule.CategoryId is { } categoryId
-                            ? await _categoryRepo.GetByIdAsync(categoryId, ct)
-                            : null;
-
                         Transaction transaction;
                         if (category is not null)
                         {
@@ -132,12 +134,12 @@ public sealed class RecurringTransactionMaterializerHandler
                         }
                         else
                         {
-                            // Regra sem categoria (ou categoria arquivada): a
+                            // Regra sem categoria (ou categoria inexistente): a
                             // transação fica sem categoria e, como a regra não
                             // tem sentido próprio, conta como saída. Regras de
                             // categorização podem classificá-la depois.
                             _logger.LogDebug(
-                                "Regra {RuleId} sem categoria ativa — transação sem categoria, saída",
+                                "Regra {RuleId} sem categoria — transação sem categoria, saída",
                                 rule.Id);
                             transaction = Transaction.CreateUncategorized(
                                 rule.AccountId,

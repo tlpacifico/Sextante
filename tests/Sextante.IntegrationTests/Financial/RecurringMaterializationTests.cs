@@ -52,6 +52,57 @@ public sealed class RecurringMaterializationTests : IClassFixture<IdentityIntegr
     }
 
     [Fact]
+    public async Task Rule_on_archived_income_category_still_materializes_as_income()
+    {
+        // Revisão do grupo 1 (Important 1): arquivar a categoria de uma
+        // recorrente não pode transformar uma receita numa despesa.
+        var (client, tenantId, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mat-arch");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var accountId = await CreateAccountAsync(client);
+        var categoryResponse = await client.PostAsJsonAsync("/api/financial/categories", new
+        {
+            name = "Salário",
+            kind = 1,
+            iconName = "pi-tag",
+            colorHex = "#64748B",
+        });
+        categoryResponse.EnsureSuccessStatusCode();
+        var incomeCategory = (await categoryResponse.Content.ReadFromJsonAsync<RuleIdentity>())!.Id;
+
+        var ruleResponse = await client.PostAsJsonAsync("/api/financial/recurring-rules", new
+        {
+            description = "Vencimento",
+            amount = 1000m,
+            currency = "EUR",
+            accountId,
+            categoryId = incomeCategory,
+            frequency = "Daily",
+            interval = 1,
+            startDate = today,
+            endDate = (DateOnly?)null,
+            tags = (string[]?)null,
+        });
+        ruleResponse.EnsureSuccessStatusCode();
+
+        await using (var super = _fixture.OpenSuperuserConnection())
+        await using (var archive = new Npgsql.NpgsqlCommand(
+            "UPDATE financial.categories SET deleted_at = now() WHERE id = @id", super))
+        {
+            archive.Parameters.AddWithValue("id", incomeCategory);
+            await archive.ExecuteNonQueryAsync();
+        }
+
+        await InvokeMaterializerAsync(tenantId, today);
+
+        var range = "dateFrom=" + Uri.EscapeDataString(today.AddDays(-1).ToDateTime(TimeOnly.MinValue).ToString("O"))
+            + "&dateTo=" + Uri.EscapeDataString(DateTime.UtcNow.AddMinutes(1).ToString("O"));
+        var summary = await client.GetFromJsonAsync<System.Text.Json.JsonElement>(
+            $"/api/financial/transactions/summary?{range}");
+        summary.GetProperty("income").GetProperty("amount").GetDecimal().Should().Be(1000m);
+        summary.GetProperty("expense").GetProperty("amount").GetDecimal().Should().Be(0m);
+    }
+
+    [Fact]
     public async Task Materializer_is_idempotent_skips_already_materialized_occurrence()
     {
         var (client, tenantId, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "idem");

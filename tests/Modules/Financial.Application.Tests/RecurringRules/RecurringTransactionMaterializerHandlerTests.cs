@@ -450,6 +450,9 @@ public sealed class RecurringTransactionMaterializerHandlerTests
         public Task<Category?> GetByIdAsync(Guid id, CancellationToken ct)
             => Task.FromResult<Category?>(null);
 
+        public Task<Category?> GetByIdIncludingArchivedAsync(Guid id, TenantId tenantId, CancellationToken ct)
+            => GetByIdAsync(id, ct);
+
         public Task<IReadOnlyList<Category>> ListAsync(CancellationToken ct)
             => Task.FromResult<IReadOnlyList<Category>>(Array.Empty<Category>());
 

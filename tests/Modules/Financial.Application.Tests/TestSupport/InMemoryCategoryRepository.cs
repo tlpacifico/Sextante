@@ -41,6 +41,9 @@ public sealed class InMemoryCategoryRepository : ICategoryRepository
         return Task.FromResult<Category?>(category);
     }
 
+    public Task<Category?> GetByIdIncludingArchivedAsync(Guid id, TenantId tenantId, CancellationToken cancellationToken)
+        => GetByIdAsync(id, cancellationToken);
+
     public Task<IReadOnlyList<Category>> ListAsync(CancellationToken cancellationToken)
         => Task.FromResult<IReadOnlyList<Category>>(_known.Values.ToList());
 

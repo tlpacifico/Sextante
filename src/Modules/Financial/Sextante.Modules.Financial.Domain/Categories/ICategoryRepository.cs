@@ -3,6 +3,13 @@ namespace Sextante.Modules.Financial.Domain.Categories;
 public interface ICategoryRepository
 {
     Task<Category?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Como <see cref="GetByIdAsync"/>, mas também devolve categorias
+    /// arquivadas do tenant indicado (ex.: recorrente cuja categoria foi
+    /// arquivada continua a precisar do tipo para saber o sentido).
+    /// </summary>
+    Task<Category?> GetByIdIncludingArchivedAsync(Guid id, SharedKernel.TenantId tenantId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Category>> ListAsync(CancellationToken cancellationToken);
     Task AddAsync(Category category, CancellationToken cancellationToken);
     void Update(Category category);

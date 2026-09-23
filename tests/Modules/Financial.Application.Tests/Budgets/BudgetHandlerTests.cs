@@ -378,7 +378,10 @@ internal sealed class StubCategoryRepository : ICategoryRepository
     public Task<Category?> GetByIdAsync(Guid id, CancellationToken ct)
         => Task.FromResult(Store.TryGetValue(id, out var c) ? c : null);
 
-    public Task<IReadOnlyList<Category>> ListAsync(CancellationToken ct)
+    public Task<Category?> GetByIdIncludingArchivedAsync(Guid id, TenantId tenantId, CancellationToken ct)
+            => GetByIdAsync(id, ct);
+
+        public Task<IReadOnlyList<Category>> ListAsync(CancellationToken ct)
         => Task.FromResult<IReadOnlyList<Category>>(Store.Values.ToList());
 
     public Task AddAsync(Category category, CancellationToken ct)
