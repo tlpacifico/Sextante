@@ -329,7 +329,10 @@ public sealed class FinancialDbContext : DbContext
             cfg.Property(r => r.Name).HasColumnName("name").HasMaxLength(128).IsRequired();
             cfg.Property(r => r.Pattern).HasColumnName("pattern").HasMaxLength(512).IsRequired();
             cfg.Property(r => r.MatchType).HasColumnName("match_type").HasConversion<string>().IsRequired();
-            cfg.Property(r => r.CategoryId).HasColumnName("category_id").HasColumnType("uuid").IsRequired();
+            cfg.Property(r => r.Action).HasColumnName("action").HasConversion<short>().HasDefaultValue(RuleAction.SetCategory).IsRequired();
+            cfg.Property(r => r.CategoryId).HasColumnName("category_id").HasColumnType("uuid").IsRequired(false);
+            // Soft reference (padrão do grupo 5): validada no handler, sem FK.
+            cfg.Property(r => r.TargetAccountId).HasColumnName("target_account_id").HasColumnType("uuid").IsRequired(false);
             cfg.Property(r => r.Priority).HasColumnName("priority").IsRequired();
             cfg.Property(r => r.IsActive).HasColumnName("is_active").IsRequired();
             cfg.Property(r => r.Version).HasColumnName("version").IsConcurrencyToken();
@@ -529,6 +532,7 @@ public sealed class FinancialDbContext : DbContext
                 .HasColumnName("tenant_id")
                 .HasColumnType("uuid");
             cfg.Property(b => b.ImportProfileId).HasColumnName("import_profile_id").HasColumnType("uuid").IsRequired(false);
+            cfg.Property(b => b.AccountId).HasColumnName("account_id").HasColumnType("uuid").IsRequired(false);
             cfg.Property(b => b.FileName).HasColumnName("file_name").HasMaxLength(256).IsRequired();
             cfg.Property(b => b.Status).HasColumnName("status").HasConversion<string>().IsRequired();
             cfg.Property(b => b.TotalRows).HasColumnName("total_rows").IsRequired();

@@ -17,8 +17,10 @@ using Sextante.Modules.Financial.Application.Features.Budgets;
 using Sextante.Modules.Financial.Application.Features.Budgets.Alerts;
 using Sextante.Modules.Financial.Application.Features.RecurringRules;
 using Sextante.Modules.Financial.Application.Features.RecurringRules.Materialization;
+using Sextante.Modules.Financial.Application.Features.Transfers;
 using Sextante.Modules.Financial.Infrastructure.Accounts;
 using Sextante.Modules.Financial.Infrastructure.Budgets;
+using Sextante.Modules.Financial.Infrastructure.Transfers;
 using Sextante.Modules.Financial.Domain.CategorizationRules;
 using Sextante.Modules.Financial.Domain.ImportProfiles;
 using Sextante.Modules.Financial.Domain.ImportBatches;
@@ -68,6 +70,7 @@ public static class DependencyInjection
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<IAccountBalanceQuery, AccountBalanceQuery>();
         services.AddScoped<ICreditCardActivityQuery, CreditCardActivityQuery>();
+        services.AddScoped<ITransferCounterpartQuery, TransferCounterpartQuery>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<ITransactionRepository, TransactionRepository>();
         services.AddScoped<IRecurringRuleRepository, RecurringRuleRepository>();

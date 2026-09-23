@@ -24,6 +24,22 @@ public sealed class ImportBatchTests
     }
 
     [Fact]
+    public void StartParsing_keeps_account_id()
+    {
+        var accountId = Guid.NewGuid();
+
+        var batch = ImportBatch.StartParsing("extrato.csv", Tenant, importProfileId: null, accountId: accountId);
+
+        batch.AccountId.Should().Be(accountId);
+    }
+
+    [Fact]
+    public void StartParsing_without_account_leaves_it_null()
+    {
+        ImportBatch.StartParsing("extrato.csv", Tenant).AccountId.Should().BeNull();
+    }
+
+    [Fact]
     public void StartParsing_strips_directory_path_from_filename()
     {
         var batch = ImportBatch.StartParsing("/tmp/uploads/extrato.csv", Tenant);

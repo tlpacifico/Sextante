@@ -18,6 +18,12 @@ public sealed class ImportBatch : ITenantOwned, IAuditable, IFinancialAggregate
     public Guid Id { get; private set; }
     public TenantId TenantId { get; private set; }
     public Guid? ImportProfileId { get; private set; }
+
+    /// <summary>
+    /// Phase 6.5 grupo 7 — conta de destino escolhida no wizard. <c>null</c>
+    /// só em lotes criados antes desta coluna existir.
+    /// </summary>
+    public Guid? AccountId { get; private set; }
     public string FileName { get; private set; }
     public ImportBatchStatus Status { get; private set; }
     public int TotalRows { get; private set; }
@@ -38,7 +44,8 @@ public sealed class ImportBatch : ITenantOwned, IAuditable, IFinancialAggregate
     public static ImportBatch StartParsing(
         string fileName,
         TenantId tenantId,
-        Guid? importProfileId = null)
+        Guid? importProfileId = null,
+        Guid? accountId = null)
     {
         if (string.IsNullOrWhiteSpace(fileName))
             throw new ImportBatchFileNameRequiredException();
@@ -50,6 +57,7 @@ public sealed class ImportBatch : ITenantOwned, IAuditable, IFinancialAggregate
             Id = GuidV7.NewId(),
             TenantId = tenantId,
             ImportProfileId = importProfileId,
+            AccountId = accountId,
             FileName = Path.GetFileName(fileName),
             Status = ImportBatchStatus.Parsing,
         };
