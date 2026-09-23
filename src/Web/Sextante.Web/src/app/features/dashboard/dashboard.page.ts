@@ -301,6 +301,13 @@ import { BudgetProgressCardComponent } from '../financial/pages/components/budge
                     </span>
                     <span>{{ cat.name }}</span>
                   </span>
+                } @else {
+                  <span class="inline-flex items-center gap-2 text-[var(--p-text-muted-color)]">
+                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-surface-100 dark:bg-surface-800">
+                      <i class="pi pi-tag"></i>
+                    </span>
+                    <span>Sem categoria</span>
+                  </span>
                 }
               </td>
               <td>{{ transaction.description ?? '—' }}</td>
