@@ -52,13 +52,23 @@ public sealed class CategorizationRuleTransferTests : IClassFixture<IdentityInte
 
         var withoutTarget = await client.PostAsJsonAsync("/api/financial/categorization-rules", new
         {
-            name = "x", pattern = "x", matchType = "Contains", categoryId = (Guid?)null, priority = 60,
-            action = "MarkAsTransfer", targetAccountId = (Guid?)null,
+            name = "x",
+            pattern = "x",
+            matchType = "Contains",
+            categoryId = (Guid?)null,
+            priority = 60,
+            action = "MarkAsTransfer",
+            targetAccountId = (Guid?)null,
         });
         var withCategory = await client.PostAsJsonAsync("/api/financial/categorization-rules", new
         {
-            name = "x", pattern = "x", matchType = "Contains", categoryId = category, priority = 61,
-            action = "MarkAsTransfer", targetAccountId = card,
+            name = "x",
+            pattern = "x",
+            matchType = "Contains",
+            categoryId = category,
+            priority = 61,
+            action = "MarkAsTransfer",
+            targetAccountId = card,
         });
 
         withoutTarget.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -72,8 +82,13 @@ public sealed class CategorizationRuleTransferTests : IClassFixture<IdentityInte
 
         var response = await client.PostAsJsonAsync("/api/financial/categorization-rules", new
         {
-            name = "x", pattern = "x", matchType = "Contains", categoryId = (Guid?)null, priority = 70,
-            action = "MarkAsTransfer", targetAccountId = Guid.NewGuid(),
+            name = "x",
+            pattern = "x",
+            matchType = "Contains",
+            categoryId = (Guid?)null,
+            priority = 70,
+            action = "MarkAsTransfer",
+            targetAccountId = Guid.NewGuid(),
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -87,13 +102,23 @@ public sealed class CategorizationRuleTransferTests : IClassFixture<IdentityInte
         var category = await CreateCategoryAsync(client, "Diversos", kind: 0);
         var ruleId = await CreateAsync(client, "/api/financial/categorization-rules", new
         {
-            name = "Regra", pattern = "X", matchType = "Contains", categoryId = category, priority = 80,
+            name = "Regra",
+            pattern = "X",
+            matchType = "Contains",
+            categoryId = category,
+            priority = 80,
         });
 
         var toTransfer = await client.PutAsJsonAsync($"/api/financial/categorization-rules/{ruleId}", new
         {
-            name = "Regra", pattern = "X", matchType = "Contains", categoryId = (Guid?)null, priority = 80,
-            isActive = true, action = "MarkAsTransfer", targetAccountId = card,
+            name = "Regra",
+            pattern = "X",
+            matchType = "Contains",
+            categoryId = (Guid?)null,
+            priority = 80,
+            isActive = true,
+            action = "MarkAsTransfer",
+            targetAccountId = card,
         });
         toTransfer.EnsureSuccessStatusCode();
         var asTransfer = await toTransfer.Content.ReadFromJsonAsync<RuleRow>();
@@ -102,8 +127,14 @@ public sealed class CategorizationRuleTransferTests : IClassFixture<IdentityInte
 
         var back = await client.PutAsJsonAsync($"/api/financial/categorization-rules/{ruleId}", new
         {
-            name = "Regra", pattern = "X", matchType = "Contains", categoryId = category, priority = 80,
-            isActive = true, action = "SetCategory", targetAccountId = (Guid?)null,
+            name = "Regra",
+            pattern = "X",
+            matchType = "Contains",
+            categoryId = category,
+            priority = 80,
+            isActive = true,
+            action = "SetCategory",
+            targetAccountId = (Guid?)null,
         });
         back.EnsureSuccessStatusCode();
         var asCategory = await back.Content.ReadFromJsonAsync<RuleRow>();
