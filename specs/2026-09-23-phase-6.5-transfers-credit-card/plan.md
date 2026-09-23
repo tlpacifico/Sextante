@@ -68,11 +68,11 @@ ativas (`CountActiveTransactionsAsync`) → ValidationProblem 400 PT-PT
 - `TransactionKind { Regular = 0, Transfer = 1, Adjustment = 2 }`.
 - `Transaction`: `Direction`, `Kind`, `Guid? TransferId`,
   `Guid? CategoryId` (era `Guid`).
-- Factories separadas: `CreateRegular(...)` (categoria obrigatória,
-  direção recebida e validada contra o `Kind` da categoria pelo
-  handler), `CreateTransferLeg(...)` (sem categoria, com `TransferId`),
-  `CreateAdjustment(...)` (sem categoria). `Create` atual passa a
-  `CreateRegular`.
+- Factories: `CreateRegular(accountId, categoryId, categoryKind, ...)`
+  (direção derivada do tipo da categoria) e `CreateUncategorized(accountId,
+  direction, ...)` (transação regular sem categoria). `CreateTransferLeg`
+  e `CreateAdjustment` entram nos grupos 3 e 4, com os respetivos testes.
+  `Create` atual passa a `CreateRegular`.
 - `Update` só para `Regular`; `SetCategory` recusa `Transfer`/
   `Adjustment`. Exceções novas em `FIN.Domain/Common/DomainException.cs`.
 - Método `SignedAmount` (`+` Inflow, `−` Outflow) para o cálculo de saldo.
@@ -85,8 +85,9 @@ ativas (`CountActiveTransactionsAsync`) → ValidationProblem 400 PT-PT
   `category_id = '00000000-…'` → `category_id = NULL`, `direction = 1`
   e registo em log da migration (caso legado do materializer).
 - `category_id` passa a nullable.
-- CHECKs: `(kind = 0) = (category_id IS NOT NULL)`;
-  `(kind = 1) = (transfer_id IS NOT NULL)`.
+- CHECKs: `kind = 0 OR category_id IS NULL` (só `Regular` tem
+  categoria, e pode não ter); `(kind = 1) = (transfer_id IS NOT NULL)`;
+  `direction IN (0, 1)`; `kind IN (0, 1, 2)`.
 - Índice parcial `(tenant_id, transfer_id) WHERE transfer_id IS NOT NULL`.
 - `FinancialDbContext.cs:131-192` atualizado.
 
