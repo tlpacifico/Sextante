@@ -7,16 +7,12 @@ using Npgsql;
 namespace Sextante.IntegrationTests.Financial;
 
 /// <summary>
-/// Phase 6.5 grupo 3 — comandos de transferência (Task 2, camada de
-/// Aplicação). Estes testes exercitam os endpoints HTTP
-/// <c>/api/financial/transfers</c> e
-/// <c>/api/financial/transactions/{id}/convert-to-transfer</c>, que só
-/// são mapeados na Task 3 deste grupo (ver
-/// <c>.superpowers/sdd/2026-09-23-phase-6.5-group-3-transfers/</c>).
-/// Até lá, os testes aqui ficam RED por 404 de rota — a Task 2 prova os
-/// handlers/repositório/exceções via este ficheiro, mas só fecham GREEN
-/// depois da Task 3 mapear os endpoints (e ligar o try/catch de
-/// FinancialDomainException em TransactionsEndpoints.MapDelete).
+/// Phase 6.5 grupo 3 — comandos de transferência (criar/atualizar/apagar) e
+/// as regras de forma/multi-tenancy. Os testes de "converter uma transação
+/// existente" vivem em <see cref="TransferConversionTests"/> — separados
+/// para que cada classe (fixture própria, portanto rate limiter de auth
+/// próprio) fique bem abaixo do limite de 30 signups/minuto por IP
+/// (achado da revisão final: esta classe sozinha excedia o limite).
 /// </summary>
 public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
 {
@@ -220,73 +216,6 @@ public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
 
         var deleteResponse = await client.DeleteAsync($"/api/financial/transactions/{outLegId}");
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Convert_existing_regular_transaction_to_transfer_linking_an_existing_counterpart()
-    {
-        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-convert-link");
-        var accountA = await CreateAccountAsync(client);
-        var accountB = await CreateAccountAsync(client);
-        var expenseCategory = await CreateCategoryAsync(client, "Diversos", kind: 0);
-        var incomeCategory = await CreateCategoryAsync(client, "Diversos In", kind: 1);
-
-        var expenseId = await CreateTransactionAsync(client, accountA, expenseCategory, 100m, "saída A");
-        var incomeId = await CreateTransactionAsync(client, accountB, incomeCategory, 100m, "entrada B");
-
-        var convertResponse = await client.PostAsJsonAsync(
-            $"/api/financial/transactions/{expenseId}/convert-to-transfer",
-            new { counterpartAccountId = accountB, counterpartTransactionId = incomeId });
-
-        convertResponse.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created);
-        var transfer = await convertResponse.Content.ReadFromJsonAsync<TransferRow>();
-        transfer!.OutLeg.Id.Should().Be(expenseId);
-        transfer.InLeg.Id.Should().Be(incomeId);
-        transfer.OutLeg.Kind.Should().Be("Transfer");
-        transfer.InLeg.Kind.Should().Be("Transfer");
-        transfer.OutLeg.CategoryId.Should().BeNull();
-        transfer.InLeg.CategoryId.Should().BeNull();
-        transfer.OutLeg.CounterpartAccountId.Should().Be(accountB);
-        transfer.InLeg.CounterpartAccountId.Should().Be(accountA);
-    }
-
-    [Fact]
-    public async Task Convert_existing_regular_transaction_to_transfer_creates_the_counterpart_when_none_given()
-    {
-        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-convert-new");
-        var accountA = await CreateAccountAsync(client);
-        var accountB = await CreateAccountAsync(client);
-        var expenseCategory = await CreateCategoryAsync(client, "Diversos", kind: 0);
-        var expenseId = await CreateTransactionAsync(client, accountA, expenseCategory, 100m, "saída A");
-
-        var convertResponse = await client.PostAsJsonAsync(
-            $"/api/financial/transactions/{expenseId}/convert-to-transfer",
-            new { counterpartAccountId = accountB, counterpartTransactionId = (Guid?)null });
-
-        convertResponse.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created);
-        var transfer = await convertResponse.Content.ReadFromJsonAsync<TransferRow>();
-        transfer!.OutLeg.Id.Should().Be(expenseId);
-        transfer.InLeg.AccountId.Should().Be(accountB);
-        transfer.InLeg.Amount.Amount.Should().Be(100m);
-        transfer.OutLeg.CounterpartAccountId.Should().Be(accountB);
-        transfer.InLeg.CounterpartAccountId.Should().Be(accountA);
-        transfer.InLeg.Direction.Should().Be("Inflow");
-    }
-
-    [Fact]
-    public async Task Convert_cross_currency_without_counterpart_transaction_returns_400()
-    {
-        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-convert-fx");
-        var accountA = await CreateAccountAsync(client, "EUR");
-        var accountB = await CreateAccountAsync(client, "USD");
-        var expenseCategory = await CreateCategoryAsync(client, "Diversos", kind: 0);
-        var expenseId = await CreateTransactionAsync(client, accountA, expenseCategory, 100m, "saída EUR");
-
-        var convertResponse = await client.PostAsJsonAsync(
-            $"/api/financial/transactions/{expenseId}/convert-to-transfer",
-            new { counterpartAccountId = accountB, counterpartTransactionId = (Guid?)null });
-
-        convertResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]

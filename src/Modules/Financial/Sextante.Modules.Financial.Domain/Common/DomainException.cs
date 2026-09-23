@@ -289,3 +289,11 @@ public sealed class TransferCounterpartSameDirectionException : FinancialDomainE
     {
     }
 }
+
+public sealed class TransferCounterpartWrongAccountException : FinancialDomainException
+{
+    public TransferCounterpartWrongAccountException()
+        : base("A transação selecionada não pertence à conta indicada.")
+    {
+    }
+}

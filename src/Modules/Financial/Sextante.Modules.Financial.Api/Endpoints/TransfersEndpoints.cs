@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Sextante.Infrastructure.ErrorHandling;
 using Sextante.Modules.Financial.Application.Features.Transfers;
 using Sextante.Modules.Financial.Domain.Common;
 using Wolverine;
@@ -14,6 +13,12 @@ public static class TransfersEndpoints
     {
         var group = routes.MapGroup("/api/financial/transfers").RequireAuthorization();
 
+        group.MapGet("{transferId:guid}", async (Guid transferId, IMessageBus bus, CancellationToken ct) =>
+        {
+            var transfer = await bus.InvokeAsync<TransferResponse?>(new GetTransferByIdQuery(transferId), ct);
+            return transfer is null ? Results.NotFound() : Results.Ok(transfer);
+        });
+
         group.MapPost("", async (CreateTransferCommand command, IMessageBus bus, CancellationToken ct) =>
         {
             try
@@ -25,7 +30,7 @@ public static class TransfersEndpoints
             {
                 return BadRequest(ex);
             }
-            catch (EntityNotFoundException ex)
+            catch (KeyNotFoundException ex)
             {
                 return NotFound(ex);
             }
@@ -55,7 +60,7 @@ public static class TransfersEndpoints
             {
                 return BadRequest(ex);
             }
-            catch (EntityNotFoundException ex)
+            catch (KeyNotFoundException ex)
             {
                 return NotFound(ex);
             }
@@ -72,7 +77,7 @@ public static class TransfersEndpoints
                 await bus.InvokeAsync<bool>(new DeleteTransferCommand(transferId), ct);
                 return Results.NoContent();
             }
-            catch (EntityNotFoundException ex)
+            catch (KeyNotFoundException ex)
             {
                 return NotFound(ex);
             }
@@ -110,11 +115,14 @@ public static class TransfersEndpoints
                 .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray()),
             title: "Erros de validação");
 
-    // Grupo 3 — EntityNotFoundException é mapeada globalmente pelo
+    // Grupo 3 — KeyNotFoundException é mapeada globalmente pelo
     // GlobalExceptionHandler em produção, mas em Development/testes o
     // pipeline usa UseDeveloperExceptionPage() em vez de UseExceptionHandler()
     // (Program.cs), pelo que o handler global nunca corre aí. Apanhar aqui
-    // também torna o 404 correto independente do ambiente.
-    private static IResult NotFound(EntityNotFoundException ex)
+    // também torna o 404 correto independente do ambiente. (Revisão final do
+    // grupo 3: era EntityNotFoundException, que forçava Financial.Application
+    // a referenciar Sextante.Infrastructure, violando o isolamento de módulos
+    // do AGENTS.md §3.2 — KeyNotFoundException é BCL, sem essa dependência.)
+    private static IResult NotFound(KeyNotFoundException ex)
         => Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
 }

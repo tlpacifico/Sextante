@@ -1,4 +1,3 @@
-using Sextante.Infrastructure.ErrorHandling;
 using Sextante.Modules.Financial.Application.Common;
 using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Application.Features.Transactions;
@@ -79,13 +78,15 @@ public static class TransferHandlers
         ITransactionRepository repository,
         IAccountRepository accountRepository,
         ITenantContext tenant,
+        ITenantCurrencyResolver currency,
+        IExchangeRateService exchangeRates,
         IIntegrationEventPublisher events,
         CancellationToken cancellationToken)
     {
         var legs = await repository.GetByTransferIdAsync(command.TransferId, cancellationToken);
         if (legs.Count != 2)
         {
-            throw new EntityNotFoundException("Transferência", command.TransferId);
+            throw new KeyNotFoundException($"Transferência com ID '{command.TransferId}' não encontrada.");
         }
 
         var (fromAccount, toAccount, amountIn) = await ValidateAccountsAndAmountInAsync(
@@ -100,17 +101,28 @@ public static class TransferHandlers
         var outLeg = legs.Single(l => l.Direction == TransactionDirection.Outflow);
         var inLeg = legs.Single(l => l.Direction == TransactionDirection.Inflow);
 
+        // Achado da revisão final do grupo 3: mudar a conta de uma perna pode
+        // mudar a moeda — recalcular sempre o câmbio (como Create já faz),
+        // nunca deixar ExchangeRateToPrimary congelado na moeda antiga.
+        var primaryCurrency = await currency.GetPrimaryCurrencyAsync(cancellationToken);
+        var outSnapshot = await exchangeRates.ResolveAsync(
+            fromAccount.Currency, primaryCurrency, command.OccurredAt, cancellationToken);
+        var inSnapshot = await exchangeRates.ResolveAsync(
+            toAccount.Currency, primaryCurrency, command.OccurredAt, cancellationToken);
+
         outLeg.UpdateTransferLeg(
             fromAccount.Id,
             command.OccurredAt,
             new Money(command.AmountOut, fromAccount.Currency),
-            command.Description);
+            command.Description,
+            outSnapshot);
 
         inLeg.UpdateTransferLeg(
             toAccount.Id,
             command.OccurredAt,
             new Money(amountIn, toAccount.Currency),
-            command.Description);
+            command.Description,
+            inSnapshot);
 
         repository.Update(outLeg);
         repository.Update(inLeg);
@@ -135,7 +147,7 @@ public static class TransferHandlers
         var legs = await repository.GetByTransferIdAsync(command.TransferId, cancellationToken);
         if (legs.Count != 2)
         {
-            throw new EntityNotFoundException("Transferência", command.TransferId);
+            throw new KeyNotFoundException($"Transferência com ID '{command.TransferId}' não encontrada.");
         }
 
         foreach (var leg in legs)
@@ -161,6 +173,31 @@ public static class TransferHandlers
         return true;
     }
 
+    // Achado da revisão final do grupo 3: POST /transfers devolvia um
+    // Location apontando para este GET, que ainda não existia; e o frontend
+    // precisava de uma forma de carregar as duas pernas reais (não um
+    // palpite a partir de uma só linha da tabela) para editar em segurança
+    // uma transferência entre moedas diferentes.
+    public static async Task<TransferResponse?> Handle(
+        GetTransferByIdQuery query,
+        ITransactionRepository repository,
+        CancellationToken cancellationToken)
+    {
+        var legs = await repository.GetByTransferIdAsync(query.TransferId, cancellationToken);
+        if (legs.Count != 2)
+        {
+            return null;
+        }
+
+        var outLeg = legs.Single(l => l.Direction == TransactionDirection.Outflow);
+        var inLeg = legs.Single(l => l.Direction == TransactionDirection.Inflow);
+
+        return new TransferResponse(
+            query.TransferId,
+            TransactionHandlers.ToResponse(outLeg, inLeg.AccountId),
+            TransactionHandlers.ToResponse(inLeg, outLeg.AccountId));
+    }
+
     public static async Task<TransferResponse> Handle(
         ConvertToTransferCommand command,
         ITransactionRepository repository,
@@ -172,14 +209,14 @@ public static class TransferHandlers
         CancellationToken cancellationToken)
     {
         var transaction = await repository.GetByIdAsync(command.TransactionId, cancellationToken)
-            ?? throw new EntityNotFoundException("Transação", command.TransactionId);
+            ?? throw new KeyNotFoundException($"Transação com ID '{command.TransactionId}' não encontrada.");
         if (transaction.Kind != TransactionKind.Regular)
         {
             throw new TransactionNotRegularException();
         }
 
         var counterpartAccount = await accountRepository.GetByIdAsync(command.CounterpartAccountId, cancellationToken)
-            ?? throw new EntityNotFoundException("Conta", command.CounterpartAccountId);
+            ?? throw new KeyNotFoundException($"Conta com ID '{command.CounterpartAccountId}' não encontrada.");
         if (counterpartAccount.Id == transaction.AccountId)
         {
             throw new TransferAccountsMustDifferException();
@@ -210,14 +247,14 @@ public static class TransferHandlers
         CancellationToken cancellationToken)
     {
         var counterpart = await repository.GetByIdAsync(counterpartTransactionId, cancellationToken)
-            ?? throw new EntityNotFoundException("Transação", counterpartTransactionId);
+            ?? throw new KeyNotFoundException($"Transação com ID '{counterpartTransactionId}' não encontrada.");
 
-        // Erro de chamada (não de domínio) — o frontend nunca deve deixar
-        // escolher uma transação de outra conta que não a contraparte pedida.
+        // Achado da revisão final do grupo 3: isto já era tratado como um
+        // "erro de chamada", mas um ArgumentException não apanhado dá 500 —
+        // um pedido malformado continua a merecer um 400 limpo.
         if (counterpart.AccountId != counterpartAccount.Id)
         {
-            throw new ArgumentException(
-                "A transação selecionada não pertence à conta indicada.", nameof(counterpartTransactionId));
+            throw new TransferCounterpartWrongAccountException();
         }
 
         if (counterpart.Kind != TransactionKind.Regular)
@@ -329,9 +366,9 @@ public static class TransferHandlers
         }
 
         var fromAccount = await accountRepository.GetByIdAsync(fromAccountId, cancellationToken)
-            ?? throw new EntityNotFoundException("Conta", fromAccountId);
+            ?? throw new KeyNotFoundException($"Conta com ID '{fromAccountId}' não encontrada.");
         var toAccount = await accountRepository.GetByIdAsync(toAccountId, cancellationToken)
-            ?? throw new EntityNotFoundException("Conta", toAccountId);
+            ?? throw new KeyNotFoundException($"Conta com ID '{toAccountId}' não encontrada.");
 
         var crossCurrency = fromAccount.Currency != toAccount.Currency;
         if (crossCurrency && amountIn is null)

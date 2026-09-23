@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Sextante.Infrastructure.ErrorHandling;
 using Sextante.Modules.Financial.Application.Features.Transactions;
 using Sextante.Modules.Financial.Application.Features.Transfers;
 using Sextante.Modules.Financial.Domain.Common;
@@ -189,7 +188,7 @@ public static class TransactionsEndpoints
             {
                 return BadRequest(ex);
             }
-            catch (EntityNotFoundException ex)
+            catch (KeyNotFoundException ex)
             {
                 // Grupo 3 — mesma nota de TransfersEndpoints.NotFound: o
                 // GlobalExceptionHandler não corre em Development/testes.

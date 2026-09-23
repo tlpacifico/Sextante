@@ -143,12 +143,28 @@ export class MarkAsTransferDialogComponent implements OnChanges {
     try {
       // A API só filtra `kind` por Income/Expense/Transfer/Adjustment (não
       // "Regular" diretamente) — o filtro decisivo por Regular + sentido
-      // oposto faz-se aqui, sobre o resultado já restringido por conta+valor.
-      const results = await this.api.listTransactionsSimple({
-        accountIds: [counterpartAccountId],
-        amountMin: this.transaction.amount.amount,
-        amountMax: this.transaction.amount.amount,
-      });
+      // oposto faz-se aqui, sobre o resultado já restringido no servidor.
+      //
+      // Achado da revisão final do grupo 3: filtrar sempre por valor exato
+      // (amountMin = amountMax) tornava este caminho inalcançável entre
+      // moedas diferentes — o valor da perna oposta quase nunca é igual em
+      // moeda diferente. Moeda igual continua a filtrar por valor (D9);
+      // moeda diferente usa antes uma janela de datas (±7 dias, espírito
+      // de D9) e deixa o valor por conferir visualmente pela descrição.
+      const occurredAt = new Date(this.transaction.occurredAt);
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      const filter = this.sameCurrency()
+        ? {
+            accountIds: [counterpartAccountId],
+            amountMin: this.transaction.amount.amount,
+            amountMax: this.transaction.amount.amount,
+          }
+        : {
+            accountIds: [counterpartAccountId],
+            dateFrom: new Date(occurredAt.getTime() - sevenDaysMs).toISOString(),
+            dateTo: new Date(occurredAt.getTime() + sevenDaysMs).toISOString(),
+          };
+      const results = await this.api.listTransactionsSimple(filter);
       this.candidates.set(results.filter(t => t.kind === 'Regular' && t.direction !== this.transaction!.direction));
     } catch {
       this.candidates.set([]);

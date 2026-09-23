@@ -742,6 +742,21 @@ export class DashboardPage implements OnInit {
   }
 
   protected confirmArchive(transaction: TransactionDto): void {
+    // Achado da revisão final do grupo 3: uma perna de transferência nunca
+    // arquiva pelo caminho normal (Archive() recusa-a) — o botão apagava
+    // sempre com erro; agora apaga o par pelo endpoint de transferências.
+    if (transaction.kind === 'Transfer' && transaction.transferId) {
+      this.confirm.confirm({
+        message: 'Apagar esta transferência? As duas pernas são removidas.',
+        header: 'Apagar transferência',
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: 'Apagar',
+        rejectLabel: 'Cancelar',
+        accept: () => void this.deleteTransfer(transaction.transferId!),
+      });
+      return;
+    }
+
     this.confirm.confirm({
       message: 'Arquivar esta transação?',
       header: 'Arquivar transação',
@@ -750,6 +765,20 @@ export class DashboardPage implements OnInit {
       rejectLabel: 'Cancelar',
       accept: () => void this.archive(transaction.id),
     });
+  }
+
+  private async deleteTransfer(transferId: string): Promise<void> {
+    try {
+      await this.api.deleteTransfer(transferId);
+      this.toast.add({ severity: 'success', summary: 'Transferência apagada' });
+      await this.store.refreshDashboard();
+    } catch {
+      this.toast.add({
+        severity: 'error',
+        summary: 'Erro',
+        detail: 'Não foi possível apagar a transferência.',
+      });
+    }
   }
 
   protected async loadMore(): Promise<void> {

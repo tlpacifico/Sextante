@@ -232,6 +232,7 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
         DateTimeOffset occurredAt,
         Money amount,
         string? description,
+        ExchangeRateSnapshot? exchangeRate = null,
         DateTimeOffset? now = null)
     {
         EnsureTransfer();
@@ -251,6 +252,16 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
         OccurredAt = occurredAt;
         Amount = amount;
         Description = NormalizeDescription(description);
+
+        // Grupo 3 — findings da revisão final: mudar a conta de uma perna
+        // pode mudar a moeda; sem recalcular o câmbio, ExchangeRateToPrimary
+        // ficava congelado na moeda antiga (ao contrário de Update(), que
+        // nunca deixa a moeda mudar — ver TransactionHandlers.Handle(UpdateTransactionCommand)).
+        if (exchangeRate is not null)
+        {
+            ExchangeRateToPrimary = exchangeRate.Rate;
+            ExchangeRateAt = exchangeRate.At;
+        }
     }
 
     public void Archive()

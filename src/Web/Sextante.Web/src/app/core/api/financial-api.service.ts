@@ -255,6 +255,16 @@ export class FinancialApiService {
     );
   }
 
+  /**
+   * Achado da revisão final do grupo 3: uma linha da tabela só tem uma
+   * perna carregada, por isso um prefill de edição a partir dela só
+   * "adivinha" o valor da perna oposta (certo em moedas iguais, errado
+   * em moedas diferentes). Isto carrega as duas pernas reais.
+   */
+  getTransfer(transferId: string): Promise<TransferResponseDto> {
+    return firstValueFrom(this.http.get<TransferResponseDto>(`/api/financial/transfers/${transferId}`));
+  }
+
   // Categorization Rules (Phase 4) -------------------------------------------
   listCategorizationRules(): Promise<CategorizationRuleDto[]> {
     return firstValueFrom(this.http.get<CategorizationRuleDto[]>('/api/financial/categorization-rules'));

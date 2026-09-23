@@ -21,6 +21,8 @@ public sealed record UpdateTransferCommand(
 
 public sealed record DeleteTransferCommand(Guid TransferId);
 
+public sealed record GetTransferByIdQuery(Guid TransferId);
+
 public sealed record ConvertToTransferCommand(
     Guid TransactionId,
     Guid CounterpartAccountId,

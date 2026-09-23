@@ -44,6 +44,16 @@ public sealed class FinancialDependencyTests
     public void Application_DoesNotReferenceInfrastructure()
         => AssertNoDependency(ProjectAssemblies.Financial_Application, "Sextante.Modules.Financial.Infrastructure");
 
+    /// <summary>
+    /// Achado da revisão final do grupo 3 (transferências): TransferHandlers
+    /// tinha passado a referenciar o BuildingBlock partilhado
+    /// Sextante.Infrastructure (por EntityNotFoundException), o que as regras
+    /// acima não apanham — só cobrem o *.Infrastructure do próprio módulo.
+    /// </summary>
+    [Fact]
+    public void Application_DoesNotReferenceSharedInfrastructureBuildingBlock()
+        => AssertNoDependency(ProjectAssemblies.Financial_Application, "Sextante.Infrastructure");
+
     [Fact]
     public void Application_DoesNotReferenceApi()
         => AssertNoDependency(ProjectAssemblies.Financial_Application, "Sextante.Modules.Financial.Api");

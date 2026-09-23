@@ -13,7 +13,6 @@
     <ProjectReference Include="..\Sextante.Modules.Financial.Domain\Sextante.Modules.Financial.Domain.csproj" />
     <ProjectReference Include="..\Sextante.Modules.Financial.PublicApi\Sextante.Modules.Financial.PublicApi.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\SharedKernel\Sextante.SharedKernel.csproj" />
-    <ProjectReference Include="..\..\..\BuildingBlocks\Sextante.Infrastructure\Sextante.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Identity\Sextante.Modules.Identity.PublicApi\Sextante.Modules.Identity.PublicApi.csproj" />
   </ItemGroup>
 

@@ -481,18 +481,26 @@ export class TransactionsPage implements OnInit {
     this.transferDialogVisible.set(true);
   }
 
-  protected openEditTransfer(tx: TransactionDto): void {
-    const isOut = tx.direction === 'Outflow';
-    this.editingTransfer.set({
-      transferId: tx.transferId!,
-      fromAccountId: isOut ? tx.accountId : (tx.counterpartAccountId ?? ''),
-      toAccountId: isOut ? (tx.counterpartAccountId ?? '') : tx.accountId,
-      occurredAt: tx.occurredAt,
-      amountOut: tx.amount.amount,
-      amountIn: tx.amount.amount,
-      description: tx.description,
-    });
-    this.transferDialogVisible.set(true);
+  protected async openEditTransfer(tx: TransactionDto): Promise<void> {
+    if (!tx.transferId) return;
+    // Achado da revisão final do grupo 3: uma linha só tem uma perna — para
+    // não "adivinhar" o valor da perna oposta (errado em moedas diferentes),
+    // carrega-se a transferência completa antes de abrir o diálogo.
+    try {
+      const transfer = await this.api.getTransfer(tx.transferId);
+      this.editingTransfer.set({
+        transferId: transfer.transferId,
+        fromAccountId: transfer.outLeg.accountId,
+        toAccountId: transfer.inLeg.accountId,
+        occurredAt: transfer.outLeg.occurredAt,
+        amountOut: transfer.outLeg.amount.amount,
+        amountIn: transfer.inLeg.amount.amount,
+        description: transfer.outLeg.description,
+      });
+      this.transferDialogVisible.set(true);
+    } catch {
+      this.messages.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao carregar a transferência.', life: 3000 });
+    }
   }
 
   protected confirmDeleteTransfer(tx: TransactionDto): void {
