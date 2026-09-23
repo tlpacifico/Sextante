@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Sextante.Modules.Financial.Application.Features.Transactions;
+using Sextante.Modules.Financial.Domain.Common;
 using Wolverine;
 
 namespace Sextante.Modules.Financial.Api.Endpoints;
@@ -134,17 +135,24 @@ public static class TransactionsEndpoints
 
         group.MapPut("{id:guid}", async (Guid id, UpdateTransactionBody body, IMessageBus bus, CancellationToken ct) =>
         {
-            var updated = await bus.InvokeAsync<TransactionResponse>(
-                new UpdateTransactionCommand(
-                    id,
-                    body.AccountId,
-                    body.CategoryId,
-                    body.OccurredAt,
-                    body.Amount,
-                    body.Description,
-                    body.Tags),
-                ct);
-            return Results.Ok(updated);
+            try
+            {
+                var updated = await bus.InvokeAsync<TransactionResponse>(
+                    new UpdateTransactionCommand(
+                        id,
+                        body.AccountId,
+                        body.CategoryId,
+                        body.OccurredAt,
+                        body.Amount,
+                        body.Description,
+                        body.Tags),
+                    ct);
+                return Results.Ok(updated);
+            }
+            catch (FinancialDomainException ex)
+            {
+                return BadRequest(ex);
+            }
         });
 
         group.MapDelete("{id:guid}", async (Guid id, IMessageBus bus, CancellationToken ct) =>
@@ -155,8 +163,15 @@ public static class TransactionsEndpoints
 
         group.MapPatch("recategorize", async (RecategorizeTransactionsCommand command, IMessageBus bus, CancellationToken ct) =>
         {
-            var result = await bus.InvokeAsync<RecategorizeTransactionsResponse>(command, ct);
-            return Results.Ok(result);
+            try
+            {
+                var result = await bus.InvokeAsync<RecategorizeTransactionsResponse>(command, ct);
+                return Results.Ok(result);
+            }
+            catch (FinancialDomainException ex)
+            {
+                return BadRequest(ex);
+            }
         }).RequireAuthorization();
 
         return routes;
@@ -169,4 +184,14 @@ public static class TransactionsEndpoints
         decimal Amount,
         string? Description,
         IReadOnlyList<string>? Tags);
+
+    private static IResult BadRequest(FinancialDomainException ex)
+        => Results.ValidationProblem(
+            new Dictionary<string, string[]>
+            {
+                ["transaction"] = [ex.Message],
+            },
+            detail: ex.Message,
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Erros de validação");
 }

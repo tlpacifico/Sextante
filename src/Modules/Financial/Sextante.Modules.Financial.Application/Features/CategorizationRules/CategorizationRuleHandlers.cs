@@ -177,8 +177,11 @@ public static class CategorizationRuleHandlers
             allTransactions = allTransactions.Where(t => t.CategorizationRuleId is null).ToList();
         }
 
+        // Transferências e acertos não têm categoria e não podem ser
+        // recategorizados (Transaction.SetCategory lança
+        // TransactionNotRegularException) — nunca entram no motor de regras.
         var toProcess = allTransactions
-            .Where(t => !string.IsNullOrWhiteSpace(t.Description))
+            .Where(t => t.Kind == TransactionKind.Regular && !string.IsNullOrWhiteSpace(t.Description))
             .Select(t => new TransactionToCategorize(t.Id, t.Description!))
             .ToList();
 

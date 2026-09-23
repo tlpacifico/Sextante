@@ -127,6 +127,59 @@ public sealed class TransactionDirectionAggregationTests : IClassFixture<Identit
     }
 
     [Fact]
+    public async Task Reapply_never_touches_transfer_legs_and_direct_edits_return_400()
+    {
+        var (client, tenantId, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "agg-nonreg");
+        var accountA = await CreateAccountAsync(client);
+        var accountB = await CreateAccountAsync(client);
+        var transferId = Guid.NewGuid();
+        var legAId = await InsertAsync(tenantId, accountA, null, 100m, Outflow, Transfer, transferId);
+        await InsertAsync(tenantId, accountB, null, 100m, Inflow, Transfer, transferId);
+
+        var reapply = await client.PostAsync(
+            $"/api/financial/categorization-rules/reapply?{Range()}",
+            content: null);
+        reapply.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+
+        var (categoryId, kind) = await ReadTransferRowAsync(legAId);
+        categoryId.Should().BeNull();
+        kind.Should().Be(Transfer);
+
+        var expenseCategory = await CreateCategoryAsync(client, "Diversos", kind: 0);
+
+        var putResponse = await client.PutAsJsonAsync(
+            $"/api/financial/transactions/{legAId}",
+            new
+            {
+                accountId = accountA,
+                categoryId = expenseCategory,
+                occurredAt = DateTimeOffset.UtcNow.AddHours(-1),
+                amount = 100m,
+                description = "tentativa de editar perna de transferência",
+                tags = (string[]?)null,
+            });
+        putResponse.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+
+        var patchResponse = await client.PatchAsJsonAsync(
+            "/api/financial/transactions/recategorize",
+            new { ids = new[] { legAId }, categoryId = expenseCategory });
+        patchResponse.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+    }
+
+    private async Task<(Guid? CategoryId, short Kind)> ReadTransferRowAsync(Guid id)
+    {
+        await using var conn = _fixture.OpenSuperuserConnection();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT category_id, kind FROM financial.transactions WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("id", id);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        await reader.ReadAsync();
+        var categoryId = reader.IsDBNull(0) ? (Guid?)null : reader.GetGuid(0);
+        var kind = reader.GetInt16(1);
+        return (categoryId, kind);
+    }
+
+    [Fact]
     public async Task Budget_progress_ignores_non_regular_rows()
     {
         var (client, tenantId, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "agg-budget");
@@ -154,17 +207,18 @@ public sealed class TransactionDirectionAggregationTests : IClassFixture<Identit
             .Which.GetProperty("progress").GetProperty("spentAmount").GetDecimal().Should().Be(40m);
     }
 
-    private async Task InsertAsync(
+    private async Task<Guid> InsertAsync(
         Guid tenantId, Guid accountId, Guid? categoryId, decimal amount,
         short direction, short kind, Guid? transferId = null)
     {
+        var id = Guid.NewGuid();
         await using var conn = _fixture.OpenSuperuserConnection();
         await using var cmd = new NpgsqlCommand(
             "INSERT INTO financial.transactions " +
             "(id, tenant_id, account_id, category_id, occurred_at, amount, currency, tags, created_at, updated_at, version, direction, kind, transfer_id) " +
             "VALUES (@id, @t, @a, @c, now() - interval '1 hour', @amt, 'EUR', '[]'::jsonb, now(), now(), 1, @d, @k, @tr)",
             conn);
-        cmd.Parameters.AddWithValue("id", Guid.NewGuid());
+        cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("t", tenantId);
         cmd.Parameters.AddWithValue("a", accountId);
         cmd.Parameters.AddWithValue("c", (object?)categoryId ?? DBNull.Value);
@@ -173,6 +227,7 @@ public sealed class TransactionDirectionAggregationTests : IClassFixture<Identit
         cmd.Parameters.AddWithValue("k", kind);
         cmd.Parameters.AddWithValue("tr", (object?)transferId ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync();
+        return id;
     }
 
     private static Task<Guid> CreateAccountAsync(HttpClient client)
