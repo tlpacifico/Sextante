@@ -561,7 +561,7 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamptz")
                         .HasColumnName("categorized_at");
 
-                    b.Property<Guid>("CategoryId")
+                    b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid")
                         .HasColumnName("category_id");
 
@@ -578,6 +578,10 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("description");
 
+                    b.Property<short>("Direction")
+                        .HasColumnType("smallint")
+                        .HasColumnName("direction");
+
                     b.Property<DateTimeOffset?>("ExchangeRateAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("exchange_rate_at");
@@ -586,6 +590,10 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                         .HasPrecision(20, 8)
                         .HasColumnType("numeric(20,8)")
                         .HasColumnName("exchange_rate_to_primary");
+
+                    b.Property<short>("Kind")
+                        .HasColumnType("smallint")
+                        .HasColumnName("kind");
 
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone")
@@ -598,6 +606,10 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
+
+                    b.Property<Guid?>("TransferId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transfer_id");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -622,6 +634,10 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "OccurredAt");
+
+                    b.HasIndex("TenantId", "TransferId")
+                        .HasDatabaseName("ix_transactions_tenant_transfer")
+                        .HasFilter("transfer_id IS NOT NULL");
 
                     b.HasIndex("TenantId", "AccountId", "DeletedAt");
 

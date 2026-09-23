@@ -138,7 +138,12 @@ public sealed class FinancialDbContext : DbContext
                 .HasColumnName("tenant_id")
                 .IsRequired();
             b.Property(t => t.AccountId).HasColumnName("account_id").IsRequired();
-            b.Property(t => t.CategoryId).HasColumnName("category_id").IsRequired();
+            // Phase 6.5 — nullable: transferências, acertos e transações
+            // regulares ainda sem categoria (ADR-014).
+            b.Property(t => t.CategoryId).HasColumnName("category_id");
+            b.Property(t => t.Direction).HasColumnName("direction").HasConversion<short>().IsRequired();
+            b.Property(t => t.Kind).HasColumnName("kind").HasConversion<short>().IsRequired();
+            b.Property(t => t.TransferId).HasColumnName("transfer_id");
             b.Property(t => t.OccurredAt).HasColumnName("occurred_at").IsRequired();
             b.OwnsOne(t => t.Amount, money =>
             {
@@ -185,6 +190,9 @@ public sealed class FinancialDbContext : DbContext
             b.HasIndex(t => new { t.TenantId, t.OccurredAt });
             b.HasIndex(t => new { t.TenantId, t.CategoryId, t.DeletedAt });
             b.HasIndex(t => new { t.TenantId, t.AccountId, t.DeletedAt });
+            b.HasIndex(t => new { t.TenantId, t.TransferId })
+                .HasFilter("transfer_id IS NOT NULL")
+                .HasDatabaseName("ix_transactions_tenant_transfer");
 
             b.HasQueryFilter(t =>
                 t.DeletedAt == null
