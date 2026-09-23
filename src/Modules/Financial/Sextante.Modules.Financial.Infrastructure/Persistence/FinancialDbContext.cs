@@ -4,6 +4,7 @@ using Sextante.Modules.Financial.Domain.Budgets;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.CategorizationRules;
 using Sextante.Modules.Financial.Domain.ImportProfiles;
+using Sextante.Modules.Financial.Domain.InstallmentPlans;
 using Sextante.Modules.Financial.Domain.ImportBatches;
 using Sextante.Modules.Financial.Domain.RecurringRules;
 using Sextante.Modules.Financial.Domain.Transactions;
@@ -37,6 +38,7 @@ public sealed class FinancialDbContext : DbContext
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
     public DbSet<RecurringRule> RecurringRules => Set<RecurringRule>();
     public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<InstallmentPlan> InstallmentPlans => Set<InstallmentPlan>();
     public DbSet<BudgetAlert> BudgetAlerts => Set<BudgetAlert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -424,6 +426,53 @@ public sealed class FinancialDbContext : DbContext
 
             cfg.HasQueryFilter(b => b.DeletedAt == null
                 && (_tenantContext == null || b.TenantId == _tenantContext.TenantId));
+        });
+
+        // InstallmentPlan — Phase 6.5 grupo 6. Conta e compra são soft
+        // references (sem FK), validadas na Application.
+        modelBuilder.Entity<InstallmentPlan>(cfg =>
+        {
+            cfg.ToTable("installment_plans");
+            cfg.HasKey(p => p.Id);
+            cfg.Property(p => p.Id).HasColumnName("id");
+            cfg.Property(p => p.TenantId)
+                .HasConversion(v => v.Value, v => new TenantId(v))
+                .HasColumnName("tenant_id")
+                .HasColumnType("uuid")
+                .IsRequired();
+            cfg.Property(p => p.AccountId).HasColumnName("account_id").HasColumnType("uuid").IsRequired();
+            cfg.Property(p => p.PurchaseTransactionId).HasColumnName("purchase_transaction_id").HasColumnType("uuid");
+            cfg.Property(p => p.Description)
+                .HasColumnName("description")
+                .HasMaxLength(InstallmentPlan.DescriptionMaxLength)
+                .IsRequired();
+            cfg.OwnsOne(p => p.TotalAmount, money =>
+            {
+                money.Property(m => m.Amount)
+                    .HasColumnName("total_amount")
+                    .HasPrecision(20, 8)
+                    .IsRequired();
+                money.Property(m => m.Currency)
+                    .HasColumnName("total_currency")
+                    .HasMaxLength(3)
+                    .IsRequired();
+            });
+            cfg.Navigation(p => p.TotalAmount).IsRequired();
+            cfg.Property(p => p.InstallmentCount).HasColumnName("installment_count").IsRequired();
+            cfg.Property(p => p.InstallmentsAlreadyPaid).HasColumnName("installments_already_paid").IsRequired();
+            cfg.Property(p => p.FirstInstallmentDate).HasColumnName("first_installment_date").IsRequired();
+            cfg.Property(p => p.AnnualRate).HasColumnName("annual_rate").HasPrecision(7, 4);
+
+            cfg.Property(p => p.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").IsRequired();
+            cfg.Property(p => p.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz").IsRequired();
+            cfg.Property(p => p.DeletedAt).HasColumnName("deleted_at").HasColumnType("timestamptz");
+            cfg.Property(p => p.Version).HasColumnName("version").IsConcurrencyToken();
+
+            cfg.HasIndex(p => p.TenantId);
+            cfg.HasIndex(p => new { p.TenantId, p.AccountId });
+
+            cfg.HasQueryFilter(p => p.DeletedAt == null
+                && (_tenantContext == null || p.TenantId == _tenantContext.TenantId));
         });
 
         // BudgetAlert — Phase 5b

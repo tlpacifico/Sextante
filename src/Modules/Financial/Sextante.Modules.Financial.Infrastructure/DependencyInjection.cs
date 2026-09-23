@@ -6,6 +6,7 @@ using Sextante.Modules.Financial.Application.Features.Accounts;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Budgets;
 using Sextante.Modules.Financial.Domain.Categories;
+using Sextante.Modules.Financial.Domain.InstallmentPlans;
 using Sextante.Modules.Financial.Domain.Transactions;
 using Sextante.Modules.Financial.Domain.RecurringRules;
 using Sextante.Modules.Financial.Application.Common;
@@ -71,6 +72,7 @@ public static class DependencyInjection
         services.AddScoped<ITransactionRepository, TransactionRepository>();
         services.AddScoped<IRecurringRuleRepository, RecurringRuleRepository>();
         services.AddScoped<IBudgetRepository, BudgetRepository>();
+        services.AddScoped<IInstallmentPlanRepository, InstallmentPlanRepository>();
         services.AddScoped<IBudgetAlertRepository, BudgetAlertRepository>();
         services.AddScoped<IBudgetProgressService, BudgetProgressService>();
         services.AddScoped<BudgetAlertDispatchHandlers>();
