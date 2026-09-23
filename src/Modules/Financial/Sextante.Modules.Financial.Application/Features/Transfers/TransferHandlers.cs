@@ -68,7 +68,10 @@ public static class TransferHandlers
         await PublishCreatedAsync(outLeg, tenant, events, cancellationToken);
         await PublishCreatedAsync(inLeg, tenant, events, cancellationToken);
 
-        return new TransferResponse(transferId, TransactionHandlers.ToResponse(outLeg), TransactionHandlers.ToResponse(inLeg));
+        return new TransferResponse(
+            transferId,
+            TransactionHandlers.ToResponse(outLeg, inLeg.AccountId),
+            TransactionHandlers.ToResponse(inLeg, outLeg.AccountId));
     }
 
     public static async Task<TransferResponse> Handle(
@@ -116,7 +119,10 @@ public static class TransferHandlers
         await PublishUpdatedAsync(outLeg, tenant, events, cancellationToken);
         await PublishUpdatedAsync(inLeg, tenant, events, cancellationToken);
 
-        return new TransferResponse(command.TransferId, TransactionHandlers.ToResponse(outLeg), TransactionHandlers.ToResponse(inLeg));
+        return new TransferResponse(
+            command.TransferId,
+            TransactionHandlers.ToResponse(outLeg, inLeg.AccountId),
+            TransactionHandlers.ToResponse(inLeg, outLeg.AccountId));
     }
 
     public static async Task<bool> Handle(
@@ -246,7 +252,10 @@ public static class TransferHandlers
         await PublishUpdatedAsync(counterpart, tenant, events, cancellationToken);
 
         var (outLeg, inLeg) = OrderLegs(transaction, counterpart);
-        return new TransferResponse(transferId, TransactionHandlers.ToResponse(outLeg), TransactionHandlers.ToResponse(inLeg));
+        return new TransferResponse(
+            transferId,
+            TransactionHandlers.ToResponse(outLeg, inLeg.AccountId),
+            TransactionHandlers.ToResponse(inLeg, outLeg.AccountId));
     }
 
     private static async Task<TransferResponse> ConvertCreatingCounterpartAsync(
@@ -295,7 +304,10 @@ public static class TransferHandlers
         await PublishCreatedAsync(newLeg, tenant, events, cancellationToken);
 
         var (outLeg, inLeg) = OrderLegs(transaction, newLeg);
-        return new TransferResponse(transferId, TransactionHandlers.ToResponse(outLeg), TransactionHandlers.ToResponse(inLeg));
+        return new TransferResponse(
+            transferId,
+            TransactionHandlers.ToResponse(outLeg, inLeg.AccountId),
+            TransactionHandlers.ToResponse(inLeg, outLeg.AccountId));
     }
 
     /// <summary>

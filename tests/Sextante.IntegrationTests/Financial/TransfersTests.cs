@@ -49,6 +49,10 @@ public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
         transfer.InLeg.Amount.Amount.Should().Be(100m);
         transfer.OutLeg.CategoryId.Should().BeNull();
         transfer.InLeg.CategoryId.Should().BeNull();
+        // Ambas as pernas já são conhecidas no momento da resposta — não deve
+        // ser preciso um GET extra para saber a conta contraparte.
+        transfer.OutLeg.CounterpartAccountId.Should().Be(toId);
+        transfer.InLeg.CounterpartAccountId.Should().Be(fromId);
     }
 
     [Fact]
@@ -171,6 +175,8 @@ public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
         var updated = await updateResponse.Content.ReadFromJsonAsync<TransferRow>();
         updated!.OutLeg.Amount.Amount.Should().Be(150m);
         updated.InLeg.Amount.Amount.Should().Be(150m);
+        updated.OutLeg.CounterpartAccountId.Should().Be(toId);
+        updated.InLeg.CounterpartAccountId.Should().Be(fromId);
     }
 
     [Fact]
@@ -240,6 +246,8 @@ public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
         transfer.InLeg.Kind.Should().Be("Transfer");
         transfer.OutLeg.CategoryId.Should().BeNull();
         transfer.InLeg.CategoryId.Should().BeNull();
+        transfer.OutLeg.CounterpartAccountId.Should().Be(accountB);
+        transfer.InLeg.CounterpartAccountId.Should().Be(accountA);
     }
 
     [Fact]
@@ -260,6 +268,8 @@ public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
         transfer!.OutLeg.Id.Should().Be(expenseId);
         transfer.InLeg.AccountId.Should().Be(accountB);
         transfer.InLeg.Amount.Amount.Should().Be(100m);
+        transfer.OutLeg.CounterpartAccountId.Should().Be(accountB);
+        transfer.InLeg.CounterpartAccountId.Should().Be(accountA);
         transfer.InLeg.Direction.Should().Be("Inflow");
     }
 
