@@ -55,7 +55,10 @@ public sealed class CreditCardTests : IClassFixture<IdentityIntegrationFixture>
 
         var response = await PostAccountAsync(client, Checking, 0m, new
         {
-            creditLimit = 2000m, statementClosingDay = 20, paymentDueDay = 10, paymentAccountId = (Guid?)null,
+            creditLimit = 2000m,
+            statementClosingDay = 20,
+            paymentDueDay = 10,
+            paymentAccountId = (Guid?)null,
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);

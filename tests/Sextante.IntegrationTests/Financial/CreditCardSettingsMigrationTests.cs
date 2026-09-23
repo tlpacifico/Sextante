@@ -24,7 +24,7 @@ public sealed class CreditCardSettingsMigrationTests : IClassFixture<IdentityInt
     {
         var accountId = await CreateAccountAsync("mig-cc-checking", Checking);
 
-        await ExpectCheckViolationAsync(accountId, "SET " + CompleteSettings);
+        await ExpectCheckViolationAsync(accountId, "SET " + SettingsClause());
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class CreditCardSettingsMigrationTests : IClassFixture<IdentityInt
     {
         var accountId = await CreateAccountAsync("mig-cc-limit", CreditCard);
 
-        await ExpectCheckViolationAsync(accountId, "SET " + CompleteSettings + ", credit_card_limit_amount = 0");
+        await ExpectCheckViolationAsync(accountId, "SET " + SettingsClause(limitAmount: "0"));
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class CreditCardSettingsMigrationTests : IClassFixture<IdentityInt
     {
         var accountId = await CreateAccountAsync("mig-cc-currency", CreditCard);
 
-        await ExpectCheckViolationAsync(accountId, "SET " + CompleteSettings + ", credit_card_limit_currency = 'USD'");
+        await ExpectCheckViolationAsync(accountId, "SET " + SettingsClause(limitCurrency: "'USD'"));
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class CreditCardSettingsMigrationTests : IClassFixture<IdentityInt
     {
         var accountId = await CreateAccountAsync("mig-cc-day", CreditCard);
 
-        await ExpectCheckViolationAsync(accountId, "SET " + CompleteSettings + ", credit_card_payment_due_day = 32");
+        await ExpectCheckViolationAsync(accountId, "SET " + SettingsClause(dueDay: "32"));
     }
 
     [Fact]
@@ -65,14 +65,16 @@ public sealed class CreditCardSettingsMigrationTests : IClassFixture<IdentityInt
         var accountId = await CreateAccountAsync("mig-cc-ok", CreditCard);
 
         await using var super = _fixture.OpenSuperuserConnection();
-        var act = async () => await ExecAsync(super, "UPDATE financial.accounts SET " + CompleteSettings + " WHERE id = @id", accountId);
+        var act = async () => await ExecAsync(super, "UPDATE financial.accounts SET " + SettingsClause() + " WHERE id = @id", accountId);
 
         await act.Should().NotThrowAsync();
     }
 
-    private const string CompleteSettings =
-        "credit_card_limit_amount = 2000, credit_card_limit_currency = 'EUR', " +
-        "credit_card_statement_closing_day = 20, credit_card_payment_due_day = 10";
+    // Cada coluna só pode aparecer uma vez no SET (senão o Postgres dá 42601).
+    private static string SettingsClause(
+        string limitAmount = "2000", string limitCurrency = "'EUR'", string closingDay = "20", string dueDay = "10")
+        => $"credit_card_limit_amount = {limitAmount}, credit_card_limit_currency = {limitCurrency}, " +
+           $"credit_card_statement_closing_day = {closingDay}, credit_card_payment_due_day = {dueDay}";
 
     private async Task ExpectCheckViolationAsync(Guid accountId, string setClause)
     {
