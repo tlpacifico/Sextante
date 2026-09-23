@@ -25,4 +25,19 @@ public sealed class ImportProfileRepository : IImportProfileRepository
 
     public Task<int> SaveChangesAsync(CancellationToken ct)
         => _db.SaveChangesAsync(ct);
+
+    public async Task SeedAsync(Guid tenantId, ImportProfile profile, CancellationToken ct)
+    {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
+        // set_config(.., true) limita o scope ao TX. RLS WITH CHECK aceita.
+        await _db.Database.ExecuteSqlRawAsync(
+            "SELECT set_config('app.current_tenant_id', {0}, true)",
+            new object[] { tenantId.ToString() },
+            ct);
+
+        await _db.ImportProfiles.AddAsync(profile, ct);
+        await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
 }

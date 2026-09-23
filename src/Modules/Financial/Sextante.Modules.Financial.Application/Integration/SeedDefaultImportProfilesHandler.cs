@@ -38,8 +38,9 @@ public static class SeedDefaultImportProfilesHandler
             decimalSeparator: ",",
             skipRows: 0);
 
-        await repository.AddAsync(profile, cancellationToken);
-        await repository.SaveChangesAsync(cancellationToken);
+        // Phase 6.5 §0.2 — com RLS em import_profiles, o subscriber tem de
+        // definir o tenant na ligação (corre fora da request HTTP).
+        await repository.SeedAsync(@event.TenantId, profile, cancellationToken);
 
         logger.LogInformation(
             "Seeded perfil de importação default '{ProfileName}' para tenant {TenantId}.",
