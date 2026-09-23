@@ -132,12 +132,41 @@ public sealed class AccountReconciliationTests : IClassFixture<IdentityIntegrati
     }
 
     [Fact]
+    public async Task Past_date_adjustment_is_placed_at_utc_noon_so_it_shows_on_the_same_local_day()
+    {
+        // Revisão final do grupo 4: às 23:59:59Z o acerto aparecia no dia
+        // seguinte em UTC+1 (Lisboa no verão).
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "rec-noon");
+        var accountId = await CreateAccountAsync(client, openingBalanceAmount: 100m, openingBalanceDate: Today.AddDays(-10));
+
+        var date = Today.AddDays(-3);
+        var body = await ReconcileOkAsync(client, accountId, date, 120m);
+
+        body.Adjustment!.OccurredAt.Should().Be(
+            new DateTimeOffset(date.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc)));
+    }
+
+    [Fact]
+    public async Task Tomorrow_in_utc_is_accepted_for_timezones_ahead_of_utc()
+    {
+        // Revisão final do grupo 4: entre as 00:00 e a 01:00 em UTC+1 o "hoje"
+        // local ainda é "amanhã" em UTC — o dialog pré-preenche-o.
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "rec-tomorrow");
+        var accountId = await CreateAccountAsync(client, openingBalanceAmount: 100m);
+
+        var body = await ReconcileOkAsync(client, accountId, Today.AddDays(1), 90m);
+
+        body.Adjustment!.OccurredAt.Should().BeOnOrBefore(DateTimeOffset.UtcNow);
+        (await GetCurrentBalanceAsync(client, accountId)).Should().Be(90m);
+    }
+
+    [Fact]
     public async Task Future_date_is_rejected()
     {
         var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "rec-future");
         var accountId = await CreateAccountAsync(client, openingBalanceAmount: 100m);
 
-        var response = await ReconcileAsync(client, accountId, Today.AddDays(1), 50m);
+        var response = await ReconcileAsync(client, accountId, Today.AddDays(2), 50m);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await CountTransactionsAsync(client, accountId)).Should().Be(0);
@@ -283,6 +312,7 @@ public sealed class AccountReconciliationTests : IClassFixture<IdentityIntegrati
         Guid Id,
         Guid AccountId,
         Guid? CategoryId,
+        DateTimeOffset OccurredAt,
         MoneyValue Amount,
         string? Description,
         string Direction,

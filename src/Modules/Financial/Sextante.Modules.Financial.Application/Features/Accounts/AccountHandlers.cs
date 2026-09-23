@@ -165,9 +165,13 @@ public static class AccountHandlers
             return null;
         }
 
+        // A data vem do calendário local do utilizador: em fusos à frente de
+        // UTC (Lisboa no verão), entre as 00:00 e a 01:00 o "hoje" local ainda
+        // é "amanhã" em UTC — tolera-se um dia; a hora do acerto é limitada
+        // a "agora" mais abaixo, nunca fica no futuro.
         var now = DateTimeOffset.UtcNow;
-        var today = DateOnly.FromDateTime(now.UtcDateTime);
-        if (command.Date > today)
+        var latestAcceptedDate = DateOnly.FromDateTime(now.UtcDateTime).AddDays(1);
+        if (command.Date > latestAcceptedDate)
         {
             throw new ReconciliationDateInFutureException();
         }
@@ -194,10 +198,12 @@ public static class AccountHandlers
                 account.Id, command.Date, calculated, actual, new Money(0m, account.Currency), null);
         }
 
-        // Último movimento do dia D ("depois de tudo o que aconteceu em D, o
-        // saldo era X"), nunca no futuro quando D é hoje.
-        var endOfDay = new DateTimeOffset(command.Date.ToDateTime(new TimeOnly(23, 59, 59), DateTimeKind.Utc));
-        var occurredAt = endOfDay < now ? endOfDay : now;
+        // Meio-dia UTC do dia D: dentro do corte do saldo a D (< D+1 00:00Z)
+        // e mostrado no próprio dia D em qualquer fuso até ±11h (às 23:59:59Z
+        // aparecia no dia seguinte em UTC+1 — revisão final do grupo 4).
+        // Nunca no futuro quando D é hoje.
+        var noonOfDate = new DateTimeOffset(command.Date.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc));
+        var occurredAt = noonOfDate < now ? noonOfDate : now;
 
         var primaryCurrency = await currency.GetPrimaryCurrencyAsync(cancellationToken);
         var snapshot = await exchangeRates.ResolveAsync(
