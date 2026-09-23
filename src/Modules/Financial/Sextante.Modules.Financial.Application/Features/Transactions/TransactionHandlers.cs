@@ -273,8 +273,8 @@ public static class TransactionHandlers
         var csv = TransactionCsvWriter.Write(rows.Select(r => new TransactionExportRow(
             r.OccurredAt,
             r.AccountName,
-            r.CategoryName,
-            r.CategoryKind == CategoryKindFilter.Income ? "Receita" : "Despesa",
+            r.CategoryName ?? string.Empty,
+            DescribeKind(r.Kind, r.Direction),
             r.Description,
             r.Amount,
             r.Currency,
@@ -393,7 +393,19 @@ public static class TransactionHandlers
                 => CategoryKindFilter.Income,
             _ when string.Equals(kind, "Expense", StringComparison.OrdinalIgnoreCase)
                 => CategoryKindFilter.Expense,
+            _ when string.Equals(kind, "Transfer", StringComparison.OrdinalIgnoreCase)
+                => CategoryKindFilter.Transfer,
+            _ when string.Equals(kind, "Adjustment", StringComparison.OrdinalIgnoreCase)
+                => CategoryKindFilter.Adjustment,
             _ => null,
+        };
+
+    private static string DescribeKind(TransactionKind kind, TransactionDirection direction)
+        => kind switch
+        {
+            TransactionKind.Transfer => "Transferência",
+            TransactionKind.Adjustment => "Acerto",
+            _ => direction == TransactionDirection.Inflow ? "Receita" : "Despesa",
         };
 
     private static string NormalizeViewMode(string? mode)

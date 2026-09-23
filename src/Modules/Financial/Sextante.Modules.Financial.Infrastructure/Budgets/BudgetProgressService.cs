@@ -3,6 +3,7 @@ using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Application.Features.Budgets;
 using Sextante.Modules.Financial.Domain.Budgets;
 using Sextante.Modules.Financial.Domain.Common;
+using Sextante.Modules.Financial.Domain.Transactions;
 using Sextante.Modules.Financial.Infrastructure.Persistence;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 
@@ -47,7 +48,9 @@ public sealed class BudgetProgressService : IBudgetProgressService
         var periodEndExclusive = budget.Period.End.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
         var rows = await _db.Transactions
-            .Where(t => t.CategoryId == budget.CategoryId
+            .Where(t => t.Kind == TransactionKind.Regular
+                        && t.Direction == TransactionDirection.Outflow
+                        && t.CategoryId == budget.CategoryId
                         && t.OccurredAt >= periodStart
                         && t.OccurredAt < periodEndExclusive)
             .Select(t => new TxRow(

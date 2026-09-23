@@ -73,8 +73,9 @@ public sealed record TransactionTotalsByCurrencyRow(
 public sealed record TransactionExportDataRow(
     DateTimeOffset OccurredAt,
     string AccountName,
-    string CategoryName,
-    CategoryKindFilter CategoryKind,
+    string? CategoryName,
+    TransactionKind Kind,
+    TransactionDirection Direction,
     string? Description,
     decimal Amount,
     string Currency,
@@ -89,8 +90,15 @@ public sealed record TransactionByCategoryRow(
     string ColorHex,
     Money Total);
 
+/// <summary>
+/// Filtro de tipo da listagem. <c>Expense</c>/<c>Income</c> = transações
+/// regulares de saída/entrada; <c>Transfer</c>/<c>Adjustment</c> = pelo
+/// <see cref="TransactionKind"/> (Phase 6.5).
+/// </summary>
 public enum CategoryKindFilter
 {
     Expense = 0,
     Income = 1,
+    Transfer = 2,
+    Adjustment = 3,
 }

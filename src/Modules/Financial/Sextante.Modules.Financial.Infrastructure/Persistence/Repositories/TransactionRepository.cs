@@ -68,21 +68,21 @@ public sealed class TransactionRepository : ITransactionRepository
     {
         var query = ApplyFilter(_db.Transactions.AsQueryable(), filter);
 
+        // Phase 6.5 (ADR-014) — só transações regulares são receita/despesa;
+        // a direção é da transação, sem depender da categoria (as sem
+        // categoria também contam).
         var rows = await query
-            .Join(
-                CategoriesIncludingArchived,
-                t => new { Id = t.CategoryId, t.TenantId },
-                c => new { Id = (Guid?)c.Id, c.TenantId },
-                (t, c) => new
-                {
-                    Amount = t.Amount.Amount,
-                    ExchangeRate = t.ExchangeRateToPrimary ?? 1.0m,
-                    c.Kind,
-                })
+            .Where(t => t.Kind == TransactionKind.Regular)
+            .Select(t => new
+            {
+                Amount = t.Amount.Amount,
+                ExchangeRate = t.ExchangeRateToPrimary ?? 1.0m,
+                t.Direction,
+            })
             .ToListAsync(cancellationToken);
 
-        var income = rows.Where(r => r.Kind == CategoryKind.Income).Sum(r => r.Amount * r.ExchangeRate);
-        var expense = rows.Where(r => r.Kind == CategoryKind.Expense).Sum(r => r.Amount * r.ExchangeRate);
+        var income = rows.Where(r => r.Direction == TransactionDirection.Inflow).Sum(r => r.Amount * r.ExchangeRate);
+        var expense = rows.Where(r => r.Direction == TransactionDirection.Outflow).Sum(r => r.Amount * r.ExchangeRate);
 
         return new TransactionTotals(
             new Money(income, primaryCurrency),
@@ -97,24 +97,21 @@ public sealed class TransactionRepository : ITransactionRepository
         var query = ApplyFilter(_db.Transactions.AsQueryable(), filter);
 
         var rows = await query
-            .Join(
-                CategoriesIncludingArchived,
-                t => new { Id = t.CategoryId, t.TenantId },
-                c => new { Id = (Guid?)c.Id, c.TenantId },
-                (t, c) => new
-                {
-                    Amount = t.Amount.Amount,
-                    Currency = t.Amount.Currency,
-                    c.Kind,
-                })
+            .Where(t => t.Kind == TransactionKind.Regular)
+            .Select(t => new
+            {
+                Amount = t.Amount.Amount,
+                Currency = t.Amount.Currency,
+                t.Direction,
+            })
             .ToListAsync(cancellationToken);
 
         return rows
             .GroupBy(r => r.Currency, StringComparer.Ordinal)
             .Select(g => new TransactionTotalsByCurrencyRow(
                 g.Key,
-                g.Where(x => x.Kind == CategoryKind.Income).Sum(x => x.Amount),
-                g.Where(x => x.Kind == CategoryKind.Expense).Sum(x => x.Amount)))
+                g.Where(x => x.Direction == TransactionDirection.Inflow).Sum(x => x.Amount),
+                g.Where(x => x.Direction == TransactionDirection.Outflow).Sum(x => x.Amount)))
             .OrderBy(r => r.Currency, StringComparer.Ordinal)
             .ToList();
     }
@@ -135,20 +132,24 @@ public sealed class TransactionRepository : ITransactionRepository
                 t => t.AccountId,
                 a => a.Id,
                 (t, a) => new { Transaction = t, AccountName = a.Name })
-            .Join(
+            // Left join: transferências, acertos e transações sem categoria
+            // também vão para o ficheiro (Phase 6.5).
+            .GroupJoin(
                 CategoriesIncludingArchived,
                 x => new { Id = x.Transaction.CategoryId, x.Transaction.TenantId },
                 c => new { Id = (Guid?)c.Id, c.TenantId },
-                (x, c) => new { x.Transaction, x.AccountName, Category = c })
+                (x, categories) => new { x.Transaction, x.AccountName, Categories = categories })
+            .SelectMany(
+                x => x.Categories.DefaultIfEmpty(),
+                (x, c) => new { x.Transaction, x.AccountName, CategoryName = c == null ? null : c.Name })
             .OrderByDescending(x => x.Transaction.OccurredAt)
             .ThenByDescending(x => x.Transaction.Id)
             .Select(x => new TransactionExportDataRow(
                 x.Transaction.OccurredAt,
                 x.AccountName,
-                x.Category.Name,
-                x.Category.Kind == CategoryKind.Income
-                    ? CategoryKindFilter.Income
-                    : CategoryKindFilter.Expense,
+                x.CategoryName,
+                x.Transaction.Kind,
+                x.Transaction.Direction,
                 x.Transaction.Description,
                 x.Transaction.Amount.Amount,
                 x.Transaction.Amount.Currency,
@@ -166,13 +167,17 @@ public sealed class TransactionRepository : ITransactionRepository
         string primaryCurrency,
         CancellationToken cancellationToken)
     {
-        var kind = kindFilter == CategoryKindFilter.Income ? CategoryKind.Income : CategoryKind.Expense;
+        var direction = kindFilter == CategoryKindFilter.Income
+            ? TransactionDirection.Inflow
+            : TransactionDirection.Outflow;
 
-        var query = ApplyFilter(_db.Transactions.AsQueryable(), filter);
+        var query = ApplyFilter(_db.Transactions.AsQueryable(), filter)
+            .Where(t => t.Kind == TransactionKind.Regular && t.Direction == direction);
 
+        // Transações sem categoria não têm fatia no donut (ficam só no summary).
         var rows = await query
             .Join(
-                CategoriesIncludingArchived.Where(c => c.Kind == kind),
+                CategoriesIncludingArchived,
                 t => new { Id = t.CategoryId, t.TenantId },
                 c => new { Id = (Guid?)c.Id, c.TenantId },
                 (t, c) => new
@@ -243,13 +248,16 @@ public sealed class TransactionRepository : ITransactionRepository
 
         if (filter.Kind is { } kindFilter)
         {
-            var kind = kindFilter == CategoryKindFilter.Income
-                ? CategoryKind.Income
-                : CategoryKind.Expense;
-
-            query = query.Where(t =>
-                CategoriesIncludingArchived.Any(c =>
-                    c.Id == t.CategoryId && c.TenantId == t.TenantId && c.Kind == kind));
+            query = kindFilter switch
+            {
+                CategoryKindFilter.Income => query.Where(t =>
+                    t.Kind == TransactionKind.Regular && t.Direction == TransactionDirection.Inflow),
+                CategoryKindFilter.Expense => query.Where(t =>
+                    t.Kind == TransactionKind.Regular && t.Direction == TransactionDirection.Outflow),
+                CategoryKindFilter.Transfer => query.Where(t => t.Kind == TransactionKind.Transfer),
+                CategoryKindFilter.Adjustment => query.Where(t => t.Kind == TransactionKind.Adjustment),
+                _ => query,
+            };
         }
 
         if (!string.IsNullOrWhiteSpace(filter.DescriptionContains))
