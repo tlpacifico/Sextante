@@ -22,6 +22,8 @@ import {
   ImportBatchDto,
   ImportProfileDto,
   ReapplyRulesRequest,
+  ReconcileAccountRequest,
+  ReconcileAccountResponse,
   ReapplyRulesResponse,
   RecurringRuleDto,
   ReorderRulesRequest,
@@ -75,6 +77,12 @@ export class FinancialApiService {
     }
     return firstValueFrom(
       this.http.get<AccountBalanceResponse>(`/api/financial/accounts/${id}/balance`, { params }),
+    );
+  }
+
+  reconcileAccount(id: string, req: ReconcileAccountRequest): Promise<ReconcileAccountResponse> {
+    return firstValueFrom(
+      this.http.post<ReconcileAccountResponse>(`/api/financial/accounts/${id}/reconcile`, req),
     );
   }
 

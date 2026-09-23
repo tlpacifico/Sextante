@@ -57,4 +57,49 @@ describe('TransactionsPage', () => {
     expect(text).toContain('Sem categoria');
     expect(text).toContain('+12');
   });
+
+  it('shows reconciliation adjustments as "Acerto" with delete but no edit action', async () => {
+    const fixture = TestBed.createComponent(TransactionsPage);
+    fixture.detectChanges();
+
+    httpMock.match((req) => req.url.startsWith('/api/financial/accounts')).forEach((r) => r.flush([]));
+    httpMock.match((req) => req.url.startsWith('/api/financial/categories')).forEach((r) => r.flush([]));
+    httpMock.match((req) => req.url.startsWith('/api/financial/transactions')).forEach((r) =>
+      r.flush({
+        items: [
+          {
+            id: 't-adj',
+            accountId: 'a1',
+            categoryId: null,
+            occurredAt: '2026-09-20T23:59:59Z',
+            amount: { amount: 15, currency: 'EUR' },
+            description: 'Acerto de saldo',
+            tags: [],
+            direction: 'Outflow',
+            kind: 'Adjustment',
+            transferId: null,
+            counterpartAccountId: null,
+            createdAt: '2026-09-20T00:00:00Z',
+            updatedAt: '2026-09-20T00:00:00Z',
+          },
+        ],
+        nextCursor: null,
+      }),
+    );
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent ?? '').toContain('Acerto');
+    const row = el.querySelector('tbody tr') as HTMLElement;
+    const actionsCell = row.querySelector('td:last-child') as HTMLElement;
+    expect(actionsCell.querySelectorAll('p-button').length).toBe(1);
+    expect(actionsCell.querySelector('.pi-pencil')).toBeNull();
+
+    const kinds = (fixture.componentInstance as unknown as { kindOptions: { value: string | null }[] })
+      .kindOptions.map((o) => o.value);
+    expect(kinds).toContain('Adjustment');
+    expect(kinds).toContain('Transfer');
+  });
 });

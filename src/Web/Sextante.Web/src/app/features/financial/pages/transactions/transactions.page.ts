@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { debounceTime } from 'rxjs';
 import { TableModule } from 'primeng/table';
@@ -148,6 +148,7 @@ import { MarkAsTransferDialogComponent } from './mark-as-transfer.dialog';
           icon="pi pi-tags"
           severity="secondary"
           size="small"
+          [disabled]="!allSelectedRegular()"
           (click)="openRecategorize()" />
         @if (selectedIds().length === 1 && selected()[0].kind === 'Regular') {
           <p-button
@@ -211,6 +212,11 @@ import { MarkAsTransferDialogComponent } from './mark-as-transfer.dialog';
                     <i class="pi pi-arrow-right-arrow-left text-xs"></i>
                     Transferência
                   </span>
+                } @else if (tx.kind === 'Adjustment') {
+                  <span class="inline-flex items-center gap-1 text-sm">
+                    <i class="pi pi-sliders-h text-xs"></i>
+                    Acerto
+                  </span>
                 } @else {
                   <span class="inline-flex items-center gap-1 text-sm">
                     <i [class]="getCategoryIcon(tx.categoryId)" class="text-xs"></i>
@@ -244,6 +250,14 @@ import { MarkAsTransferDialogComponent } from './mark-as-transfer.dialog';
                     [text]="true"
                     size="small"
                     (click)="confirmDeleteTransfer(tx)" />
+                } @else if (tx.kind === 'Adjustment') {
+                  <!-- Acertos não se editam; apagar reverte (Phase 6.5 grupo 4). -->
+                  <p-button
+                    icon="pi pi-trash"
+                    severity="danger"
+                    [text]="true"
+                    size="small"
+                    (click)="archiveTransaction(tx)" />
                 } @else {
                   <p-button
                     icon="pi pi-pencil"
@@ -307,6 +321,9 @@ export class TransactionsPage implements OnInit {
   protected readonly categories = signal<{ id: string; name: string; iconName: string; colorHex: string; kind: string }[]>([]);
   protected readonly selected = signal<TransactionDto[]>([]);
   protected readonly selectedTransaction = signal<TransactionDto | null>(null);
+  // Recategorizar só se aplica a transações regulares — a API recusa
+  // transferências e acertos (400 a meio do lote).
+  protected readonly allSelectedRegular = computed(() => this.selected().every(t => t.kind === 'Regular'));
   protected readonly editDialogVisible = signal(false);
   protected readonly recategorizeDialogVisible = signal(false);
   protected readonly exporting = signal(false);
@@ -319,6 +336,8 @@ export class TransactionsPage implements OnInit {
     { label: 'Todos', value: null },
     { label: 'Despesas', value: 'Expense' },
     { label: 'Receitas', value: 'Income' },
+    { label: 'Transferências', value: 'Transfer' },
+    { label: 'Acertos', value: 'Adjustment' },
   ];
 
   protected readonly filterForm = this.fb.nonNullable.group({

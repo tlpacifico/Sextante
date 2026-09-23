@@ -29,6 +29,7 @@ import {
 } from '../../../core/api/financial.types';
 import { MoneyPipe } from '../../../core/format/money.pipe';
 import { FinancialStore } from '../state/financial.store';
+import { ReconcileAccountDialogComponent } from './reconcile-account.dialog';
 
 @Component({
   selector: 'app-accounts-page',
@@ -47,6 +48,7 @@ import { FinancialStore } from '../state/financial.store';
     ToastModule,
     ConfirmDialogModule,
     MoneyPipe,
+    ReconcileAccountDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [MessageService, ConfirmationService],
@@ -74,7 +76,7 @@ import { FinancialStore } from '../state/financial.store';
             <th style="width: 12rem">Tipo</th>
             <th style="width: 12rem">Saldo inicial</th>
             <th style="width: 12rem">Saldo atual</th>
-            <th style="width: 9rem"></th>
+            <th style="width: 12rem"></th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-account>
@@ -95,6 +97,13 @@ import { FinancialStore } from '../state/financial.store';
               {{ account.currentBalance | money }}
             </td>
             <td>
+              <p-button
+                icon="pi pi-check-square"
+                severity="secondary"
+                [text]="true"
+                (onClick)="reconcileAccount.set(account)"
+                ariaLabel="Reconciliar"
+              ></p-button>
               <p-button
                 icon="pi pi-pencil"
                 severity="secondary"
@@ -121,6 +130,13 @@ import { FinancialStore } from '../state/financial.store';
         </ng-template>
       </p-table>
       </div>
+
+      <app-reconcile-account-dialog
+        [visible]="reconcileAccount() !== null"
+        [account]="reconcileAccount()"
+        (close)="reconcileAccount.set(null)"
+        (saved)="onReconciled()"
+      />
 
       <p-dialog
         [(visible)]="dialogOpen"
@@ -234,6 +250,7 @@ export class AccountsPage implements OnInit {
   protected readonly dialogOpenSignal = signal(false);
   protected readonly editingId = signal<string | null>(null);
   protected readonly submitting = signal(false);
+  protected readonly reconcileAccount = signal<AccountDto | null>(null);
 
   protected get dialogOpen(): boolean {
     return this.dialogOpenSignal();
@@ -354,6 +371,11 @@ export class AccountsPage implements OnInit {
     } finally {
       this.submitting.set(false);
     }
+  }
+
+  protected async onReconciled(): Promise<void> {
+    this.reconcileAccount.set(null);
+    await this.store.loadAccounts();
   }
 
   private toDateString(date: Date): string {

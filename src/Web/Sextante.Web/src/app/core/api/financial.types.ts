@@ -37,6 +37,24 @@ export interface AccountBalanceResponse {
   at: string;
 }
 
+// Phase 6.5 grupo 4 — acerto de saldo (reconciliação).
+export interface ReconcileAccountRequest {
+  /** YYYY-MM-DD, data local (nunca via toISOString). */
+  date: string;
+  actualBalance: number;
+}
+
+export interface ReconcileAccountResponse {
+  accountId: string;
+  date: string;
+  calculatedBalance: Money;
+  actualBalance: Money;
+  /** Real − calculado, com sinal. */
+  difference: Money;
+  /** null quando não há diferença. */
+  adjustment: TransactionDto | null;
+}
+
 export interface UpdateAccountRequest {
   name: string;
   type: AccountType;
