@@ -3,10 +3,12 @@ using Sextante.Modules.Financial.Application.Features.Accounts;
 using Sextante.Modules.Financial.Application.Features.Budgets;
 using Sextante.Modules.Financial.Application.Features.CategorizationRules;
 using Sextante.Modules.Financial.Application.Features.ImportProfiles;
+using Sextante.Modules.Financial.Application.Features.InstallmentPlans;
 using Sextante.Modules.Financial.Application.Features.RecurringRules;
 using Sextante.Modules.Financial.Application.Features.Transfers;
 using Sextante.Modules.Financial.Domain.Budgets;
 using Sextante.Modules.Financial.Domain.CategorizationRules;
+using Sextante.Modules.Financial.Domain.InstallmentPlans;
 using Sextante.Modules.Financial.Domain.RecurringRules;
 
 namespace Sextante.Modules.Financial.Api.Validators;
@@ -214,5 +216,41 @@ public sealed class ReconcileAccountValidator : AbstractValidator<ReconcileAccou
     {
         RuleFor(c => c.AccountId).NotEmpty();
         RuleFor(c => c.Date).NotEmpty().WithMessage("Data é obrigatória.");
+    }
+}
+
+public sealed class CreateInstallmentPlanValidator : AbstractValidator<CreateInstallmentPlanCommand>
+{
+    public CreateInstallmentPlanValidator()
+    {
+        RuleFor(c => c.AccountId).NotEmpty().WithMessage("Cartão é obrigatório.");
+        RuleFor(c => c.Description).NotEmpty().MaximumLength(InstallmentPlan.DescriptionMaxLength)
+            .WithMessage("A descrição do plano é obrigatória (máx. 200 caracteres).");
+        RuleFor(c => c.TotalAmount).GreaterThan(0m).WithMessage("O valor total tem de ser maior que zero.");
+        RuleFor(c => c.InstallmentCount).InclusiveBetween(InstallmentPlan.MinInstallments, InstallmentPlan.MaxInstallments)
+            .WithMessage("O número de prestações tem de estar entre 2 e 120.");
+        RuleFor(c => c.InstallmentsAlreadyPaid).GreaterThanOrEqualTo(0)
+            .WithMessage("As prestações já pagas não podem ser negativas.");
+        RuleFor(c => c.AnnualRate!.Value).InclusiveBetween(0m, InstallmentPlan.MaxAnnualRate)
+            .WithMessage("A TAN tem de estar entre 0 e 100 %.")
+            .When(c => c.AnnualRate.HasValue);
+    }
+}
+
+public sealed class UpdateInstallmentPlanValidator : AbstractValidator<UpdateInstallmentPlanCommand>
+{
+    public UpdateInstallmentPlanValidator()
+    {
+        RuleFor(c => c.Id).NotEmpty();
+        RuleFor(c => c.Description).NotEmpty().MaximumLength(InstallmentPlan.DescriptionMaxLength)
+            .WithMessage("A descrição do plano é obrigatória (máx. 200 caracteres).");
+        RuleFor(c => c.TotalAmount).GreaterThan(0m).WithMessage("O valor total tem de ser maior que zero.");
+        RuleFor(c => c.InstallmentCount).InclusiveBetween(InstallmentPlan.MinInstallments, InstallmentPlan.MaxInstallments)
+            .WithMessage("O número de prestações tem de estar entre 2 e 120.");
+        RuleFor(c => c.InstallmentsAlreadyPaid).GreaterThanOrEqualTo(0)
+            .WithMessage("As prestações já pagas não podem ser negativas.");
+        RuleFor(c => c.AnnualRate!.Value).InclusiveBetween(0m, InstallmentPlan.MaxAnnualRate)
+            .WithMessage("A TAN tem de estar entre 0 e 100 %.")
+            .When(c => c.AnnualRate.HasValue);
     }
 }

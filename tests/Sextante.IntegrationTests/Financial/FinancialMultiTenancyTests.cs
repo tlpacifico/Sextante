@@ -189,6 +189,60 @@ public sealed class FinancialMultiTenancyTests : IClassFixture<IdentityIntegrati
         accountB!.CreditCard.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Installment_plans_are_isolated_between_tenants()
+    {
+        // Phase 6.5 grupo 6 — planos de prestações de outro tenant nunca são
+        // visíveis nem alteráveis, e não se criam sobre cartões/compras alheios.
+        var (clientA, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtA-ip");
+        var (clientB, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtB-ip");
+        var cardA = await CreateAccountAsync(clientA, type: 3);
+        var cardB = await CreateAccountAsync(clientB, type: 3);
+        var categoryA = await CreateCategoryAsync(clientA, "Tecnologia");
+
+        var purchase = await clientA.PostAsJsonAsync("/api/financial/transactions", new
+        {
+            accountId = cardA,
+            categoryId = categoryA,
+            occurredAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+            amount = 600m,
+            currency = (string?)null,
+            description = "Compra",
+            tags = (string[]?)null,
+        });
+        purchase.EnsureSuccessStatusCode();
+        var purchaseA = (await purchase.Content.ReadFromJsonAsync<IdRow>())!.Id;
+
+        object Body(Guid accountId, Guid? purchaseId) => new
+        {
+            accountId,
+            purchaseTransactionId = purchaseId,
+            description = "Plano",
+            totalAmount = 600m,
+            installmentCount = 6,
+            installmentsAlreadyPaid = 0,
+            firstInstallmentDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"),
+            annualRate = (decimal?)null,
+        };
+
+        var created = await clientA.PostAsJsonAsync("/api/financial/installment-plans", Body(cardA, purchaseA));
+        created.EnsureSuccessStatusCode();
+        var planA = (await created.Content.ReadFromJsonAsync<IdRow>())!.Id;
+
+        (await clientB.GetAsync($"/api/financial/installment-plans/{planA}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await clientB.PutAsJsonAsync($"/api/financial/installment-plans/{planA}", Body(cardA, null))).StatusCode
+            .Should().Be(HttpStatusCode.NotFound);
+        (await clientB.DeleteAsync($"/api/financial/installment-plans/{planA}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await clientB.GetFromJsonAsync<List<IdRow>>("/api/financial/installment-plans")).Should().BeEmpty();
+
+        (await clientB.PostAsJsonAsync("/api/financial/installment-plans", Body(cardA, null))).StatusCode
+            .Should().Be(HttpStatusCode.NotFound);
+        (await clientB.PostAsJsonAsync("/api/financial/installment-plans", Body(cardB, purchaseA))).StatusCode
+            .Should().Be(HttpStatusCode.NotFound);
+
+        (await clientA.GetAsync($"/api/financial/installment-plans/{planA}")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     private static async Task<Guid> CreateAccountAsync(HttpClient client, short type)
     {
         var response = await client.PostAsJsonAsync("/api/financial/accounts", new
