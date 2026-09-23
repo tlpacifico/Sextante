@@ -9,6 +9,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
@@ -26,6 +27,7 @@ import {
   ACCOUNT_TYPE_LABELS,
   AccountDto,
   AccountType,
+  CreditCardSettingsInput,
 } from '../../../core/api/financial.types';
 import { MoneyPipe } from '../../../core/format/money.pipe';
 import { FinancialStore } from '../state/financial.store';
@@ -49,6 +51,7 @@ import { ReconcileAccountDialogComponent } from './reconcile-account.dialog';
     ConfirmDialogModule,
     MoneyPipe,
     ReconcileAccountDialogComponent,
+    RouterLink,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [MessageService, ConfirmationService],
@@ -76,7 +79,7 @@ import { ReconcileAccountDialogComponent } from './reconcile-account.dialog';
             <th style="width: 12rem">Tipo</th>
             <th style="width: 12rem">Saldo inicial</th>
             <th style="width: 12rem">Saldo atual</th>
-            <th style="width: 12rem"></th>
+            <th style="width: 14rem"></th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-account>
@@ -96,7 +99,16 @@ import { ReconcileAccountDialogComponent } from './reconcile-account.dialog';
               }
               {{ account.currentBalance | money }}
             </td>
-            <td>
+            <td class="whitespace-nowrap">
+              @if (account.type === 'CreditCard') {
+                <a
+                  [routerLink]="['/app/accounts', account.id, 'credit-card']"
+                  class="p-button p-button-text p-button-secondary p-button-icon-only"
+                  aria-label="Ver cartão"
+                >
+                  <i class="pi pi-credit-card"></i>
+                </a>
+              }
               <p-button
                 icon="pi pi-check-square"
                 severity="secondary"
@@ -204,6 +216,60 @@ import { ReconcileAccountDialogComponent } from './reconcile-account.dialog';
               <small class="text-[var(--p-text-muted-color)]">Não pode ser alterada depois de criar a conta.</small>
             </div>
           }
+          @if (form.controls.type.value === 'CreditCard') {
+            <fieldset class="flex flex-col gap-3 border-t border-[var(--p-content-border-color)] pt-3">
+              <legend class="text-sm font-medium pr-2">Definições do cartão</legend>
+              <div class="flex flex-col gap-1">
+                <label for="account-credit-limit">Limite de crédito</label>
+                <p-inputNumber
+                  inputId="account-credit-limit"
+                  mode="currency"
+                  [currency]="form.controls.currency.value || 'EUR'"
+                  locale="pt-PT"
+                  [min]="0"
+                  formControlName="creditLimit"
+                ></p-inputNumber>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="flex flex-col gap-1">
+                  <label for="account-closing-day">Dia de fecho</label>
+                  <p-inputNumber
+                    inputId="account-closing-day"
+                    [min]="1"
+                    [max]="31"
+                    [useGrouping]="false"
+                    formControlName="statementClosingDay"
+                  ></p-inputNumber>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label for="account-due-day">Dia de pagamento</label>
+                  <p-inputNumber
+                    inputId="account-due-day"
+                    [min]="1"
+                    [max]="31"
+                    [useGrouping]="false"
+                    formControlName="paymentDueDay"
+                  ></p-inputNumber>
+                </div>
+              </div>
+              <small class="text-[var(--p-text-muted-color)]">
+                Se o dia não existir no mês, conta o dia 1 do mês seguinte. O pagamento é no mês a seguir ao fecho quando o dia de pagamento não é posterior ao de fecho.
+              </small>
+              <div class="flex flex-col gap-1">
+                <label for="account-payment-account">Conta de pagamento</label>
+                <p-select
+                  inputId="account-payment-account"
+                  [options]="paymentAccountOptions()"
+                  optionLabel="name"
+                  optionValue="id"
+                  [showClear]="true"
+                  placeholder="Nenhuma"
+                  formControlName="paymentAccountId"
+                  styleClass="w-full"
+                ></p-select>
+              </div>
+            </fieldset>
+          }
           <div class="flex justify-end gap-2 pt-2">
             <p-button
               label="Cancelar"
@@ -268,7 +334,17 @@ export class AccountsPage implements OnInit {
     currency: ['EUR' as string, Validators.required],
     openingBalance: [0, [Validators.required, Validators.min(0)]],
     openingBalanceDate: [new Date(), Validators.required],
+    // Phase 6.5 grupo 5 — só obrigatórios quando o tipo é Cartão de crédito.
+    creditLimit: [null as number | null],
+    statementClosingDay: [null as number | null],
+    paymentDueDay: [null as number | null],
+    paymentAccountId: [null as string | null],
   });
+
+  /** Contas elegíveis para pagar o cartão: não cartões e não a própria. */
+  protected readonly paymentAccountOptions = computed(() =>
+    this.store.accounts().filter((a) => a.type !== 'CreditCard' && a.id !== this.editingId()),
+  );
 
   async ngOnInit(): Promise<void> {
     // CreditCard aceita saldo inicial negativo (dívida); os restantes tipos
@@ -281,6 +357,7 @@ export class AccountsPage implements OnInit {
           : [Validators.required, Validators.min(0)],
       );
       balanceControl.updateValueAndValidity();
+      this.applyCreditCardValidators(type);
     });
 
     try {
@@ -308,6 +385,10 @@ export class AccountsPage implements OnInit {
       currency: defaultCurrency,
       openingBalance: 0,
       openingBalanceDate: new Date(),
+      creditLimit: null,
+      statementClosingDay: null,
+      paymentDueDay: null,
+      paymentAccountId: null,
     });
     this.dialogOpenSignal.set(true);
   }
@@ -319,6 +400,10 @@ export class AccountsPage implements OnInit {
       type: account.type,
       currency: account.currency,
       openingBalance: account.openingBalance.amount,
+      creditLimit: account.creditCard?.creditLimit.amount ?? null,
+      statementClosingDay: account.creditCard?.statementClosingDay ?? null,
+      paymentDueDay: account.creditCard?.paymentDueDay ?? null,
+      paymentAccountId: account.creditCard?.paymentAccountId ?? null,
     });
     this.dialogOpenSignal.set(true);
   }
@@ -348,7 +433,11 @@ export class AccountsPage implements OnInit {
       const value = this.form.getRawValue();
       const id = this.editingId();
       if (id) {
-        await this.api.updateAccount(id, { name: value.name, type: value.type });
+        await this.api.updateAccount(id, {
+          name: value.name,
+          type: value.type,
+          creditCard: this.creditCardInput(),
+        });
         this.toast.add({ severity: 'success', summary: 'Conta atualizada' });
       } else {
         await this.api.createAccount({
@@ -357,6 +446,7 @@ export class AccountsPage implements OnInit {
           currency: value.currency,
           openingBalanceAmount: value.openingBalance,
           openingBalanceDate: this.toDateString(value.openingBalanceDate),
+          creditCard: this.creditCardInput(),
         });
         this.toast.add({ severity: 'success', summary: 'Conta criada' });
       }
@@ -371,6 +461,38 @@ export class AccountsPage implements OnInit {
     } finally {
       this.submitting.set(false);
     }
+  }
+
+  private applyCreditCardValidators(type: AccountType): void {
+    const { creditLimit, statementClosingDay, paymentDueDay, paymentAccountId } = this.form.controls;
+    if (type === 'CreditCard') {
+      creditLimit.setValidators([Validators.required, Validators.min(0.01)]);
+      statementClosingDay.setValidators([Validators.required, Validators.min(1), Validators.max(31)]);
+      paymentDueDay.setValidators([Validators.required, Validators.min(1), Validators.max(31)]);
+    } else {
+      for (const control of [creditLimit, statementClosingDay, paymentDueDay, paymentAccountId]) {
+        control.clearValidators();
+        control.setValue(null, { emitEvent: false });
+      }
+    }
+    for (const control of [creditLimit, statementClosingDay, paymentDueDay]) {
+      control.updateValueAndValidity({ emitEvent: false });
+    }
+  }
+
+  /** Só com o tipo Cartão e os três campos obrigatórios preenchidos. */
+  private creditCardInput(): CreditCardSettingsInput | null {
+    const value = this.form.getRawValue();
+    if (value.type !== 'CreditCard' || value.creditLimit === null
+      || value.statementClosingDay === null || value.paymentDueDay === null) {
+      return null;
+    }
+    return {
+      creditLimit: value.creditLimit,
+      statementClosingDay: value.statementClosingDay,
+      paymentDueDay: value.paymentDueDay,
+      paymentAccountId: value.paymentAccountId,
+    };
   }
 
   protected async onReconciled(): Promise<void> {

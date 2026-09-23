@@ -19,6 +19,7 @@ import {
   CreateRecurringRuleRequest,
   CreateTransactionRequest,
   CreateTransferRequest,
+  CreditCardViewDto,
   ImportBatchDto,
   ImportProfileDto,
   ReapplyRulesRequest,
@@ -77,6 +78,12 @@ export class FinancialApiService {
     }
     return firstValueFrom(
       this.http.get<AccountBalanceResponse>(`/api/financial/accounts/${id}/balance`, { params }),
+    );
+  }
+
+  getCreditCardView(id: string): Promise<CreditCardViewDto> {
+    return firstValueFrom(
+      this.http.get<CreditCardViewDto>(`/api/financial/accounts/${id}/credit-card`),
     );
   }
 

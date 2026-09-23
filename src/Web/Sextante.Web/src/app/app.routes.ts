@@ -61,6 +61,14 @@ export const routes: Routes = [
         title: 'Sextante — Contas',
       },
       {
+        path: 'accounts/:id/credit-card',
+        loadComponent: () =>
+          import('./features/financial/pages/credit-card.page').then(
+            (m) => m.CreditCardPage,
+          ),
+        title: 'Sextante — Cartão',
+      },
+      {
         path: 'categories',
         loadComponent: () =>
           import('./features/financial/pages/categories.page').then(

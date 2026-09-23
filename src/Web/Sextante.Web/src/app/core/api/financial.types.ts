@@ -21,6 +21,47 @@ export interface AccountDto {
   currentBalance: Money;
   createdAt: string;
   updatedAt: string;
+  /** Só em cartões configurados (Phase 6.5 grupo 5). */
+  creditCard: CreditCardSettingsDto | null;
+}
+
+// Phase 6.5 grupo 5 — definições e vista do cartão de crédito.
+export interface CreditCardSettingsDto {
+  creditLimit: Money;
+  statementClosingDay: number;
+  paymentDueDay: number;
+  paymentAccountId: string | null;
+}
+
+export interface CreditCardSettingsInput {
+  /** Na moeda da conta. */
+  creditLimit: number;
+  statementClosingDay: number;
+  paymentDueDay: number;
+  paymentAccountId: string | null;
+}
+
+export interface CreditCardCycleDto {
+  start: string;
+  end: string;
+  paymentDueDate: string;
+  spent: Money;
+  paymentsReceived: Money;
+}
+
+/** Sem `settings`, só `currentBalance` e `currentDebt` vêm preenchidos. */
+export interface CreditCardViewDto {
+  accountId: string;
+  currentBalance: Money;
+  currentDebt: Money;
+  settings: CreditCardSettingsDto | null;
+  available: Money | null;
+  currentCycle: CreditCardCycleDto | null;
+  previousCycle: CreditCardCycleDto | null;
+  previousClosingDebt: Money | null;
+  nextPaymentDueDate: string | null;
+  nextPaymentAmount: Money | null;
+  paymentAccountId: string | null;
 }
 
 export interface CreateAccountRequest {
@@ -29,6 +70,7 @@ export interface CreateAccountRequest {
   currency?: string | null;
   openingBalanceAmount: number;
   openingBalanceDate?: string | null;
+  creditCard?: CreditCardSettingsInput | null;
 }
 
 export interface AccountBalanceResponse {
@@ -58,6 +100,8 @@ export interface ReconcileAccountResponse {
 export interface UpdateAccountRequest {
   name: string;
   type: AccountType;
+  /** PUT substitui: null num cartão remove as definições. */
+  creditCard?: CreditCardSettingsInput | null;
 }
 
 export interface CategoryDto {
