@@ -183,6 +183,7 @@ import { FinancialStore } from '../state/financial.store';
                 formControlName="openingBalanceDate"
                 dateFormat="dd/mm/yy"
                 styleClass="w-full"
+                [maxDate]="today"
               ></p-datepicker>
               <small class="text-[var(--p-text-muted-color)]">Não pode ser alterada depois de criar a conta.</small>
             </div>
@@ -225,6 +226,10 @@ export class AccountsPage implements OnInit {
   protected typeLabel(type: AccountType): string {
     return ACCOUNT_TYPE_LABELS[type];
   }
+
+  // Data do saldo inicial não pode ser no futuro — regra de domínio
+  // (Account.Create). O datepicker já não oferece essas datas.
+  protected readonly today = new Date();
 
   protected readonly dialogOpenSignal = signal(false);
   protected readonly editingId = signal<string | null>(null);

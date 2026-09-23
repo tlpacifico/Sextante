@@ -97,7 +97,52 @@ public sealed class AccountsCrudTests : IClassFixture<IdentityIntegrationFixture
         (await client.GetAsync($"/api/financial/accounts/{account.Id}")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task Changing_type_of_credit_card_with_negative_opening_balance_is_rejected_with_400()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "acc-type");
+
+        var createResponse = await client.PostAsJsonAsync("/api/financial/accounts", new
+        {
+            name = "Cartão Ouro",
+            type = 3, // CreditCard
+            openingBalanceAmount = -100m,
+        });
+        createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var created = await createResponse.Content.ReadFromJsonAsync<AccountRow>();
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/financial/accounts/{created!.Id}", new
+        {
+            name = "Cartão Ouro",
+            type = 0, // Checking
+        });
+
+        updateResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await updateResponse.Content.ReadFromJsonAsync<ValidationProblemRow>();
+        body!.Title.Should().Be("Erros de validação");
+        body.Errors.Should().ContainKey("account");
+    }
+
+    [Fact]
+    public async Task Creating_account_with_opening_balance_date_in_the_future_is_rejected_with_400()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "acc-future");
+        var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+
+        var createResponse = await client.PostAsJsonAsync("/api/financial/accounts", new
+        {
+            name = "Conta do futuro",
+            type = 0,
+            openingBalanceAmount = 0m,
+            openingBalanceDate = tomorrow,
+        });
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     private sealed record IdRow(Guid Id);
 
     private sealed record AccountRow(Guid Id, string Name, string Type);
+
+    private sealed record ValidationProblemRow(string Title, Dictionary<string, string[]> Errors);
 }

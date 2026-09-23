@@ -53,10 +53,23 @@ public static class AccountsEndpoints
 
         group.MapPut("{id:guid}", async (Guid id, UpdateAccountBody body, IMessageBus bus, CancellationToken ct) =>
         {
-            var updated = await bus.InvokeAsync<AccountResponse?>(
-                new UpdateAccountCommand(id, body.Name, body.Type),
-                ct);
-            return updated is null ? Results.NotFound() : Results.Ok(updated);
+            try
+            {
+                var updated = await bus.InvokeAsync<AccountResponse?>(
+                    new UpdateAccountCommand(id, body.Name, body.Type),
+                    ct);
+                return updated is null ? Results.NotFound() : Results.Ok(updated);
+            }
+            catch (FinancialDomainException ex)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["account"] = [ex.Message],
+                    },
+                    title: "Erros de validação",
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
         });
 
         group.MapDelete("{id:guid}", async (Guid id, IMessageBus bus, CancellationToken ct) =>

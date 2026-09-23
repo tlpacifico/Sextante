@@ -85,6 +85,14 @@ public sealed class AccountTypeChangeInvalidException : FinancialDomainException
     }
 }
 
+public sealed class OpeningBalanceDateInFutureException : FinancialDomainException
+{
+    public OpeningBalanceDateInFutureException()
+        : base("A data do saldo inicial não pode ser no futuro.")
+    {
+    }
+}
+
 public sealed class AccountCurrencyMismatchException : FinancialDomainException
 {
     public AccountCurrencyMismatchException(string accountCurrency, string openingBalanceCurrency)

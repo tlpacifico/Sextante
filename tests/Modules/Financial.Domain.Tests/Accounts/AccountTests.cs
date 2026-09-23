@@ -160,4 +160,20 @@ public sealed class AccountTests
         account.ChangeType(AccountType.Savings);
         account.Type.Should().Be(AccountType.Savings);
     }
+
+    [Fact]
+    public void Create_rejects_opening_balance_date_in_the_future()
+    {
+        var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        var act = () => Account.Create("Conta", AccountType.Checking, "EUR", Eur100, Tenant, tomorrow);
+        act.Should().Throw<OpeningBalanceDateInFutureException>();
+    }
+
+    [Fact]
+    public void Create_accepts_opening_balance_date_of_today()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var account = Account.Create("Conta", AccountType.Checking, "EUR", Eur100, Tenant, today);
+        account.OpeningBalanceDate.Should().Be(today);
+    }
 }

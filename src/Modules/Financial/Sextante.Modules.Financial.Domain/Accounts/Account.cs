@@ -61,6 +61,13 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
             throw new OpeningBalanceNegativeException();
         }
 
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var resolvedOpeningBalanceDate = openingBalanceDate ?? today;
+        if (resolvedOpeningBalanceDate > today)
+        {
+            throw new OpeningBalanceDateInFutureException();
+        }
+
         return new Account
         {
             Id = GuidV7.NewId(),
@@ -69,7 +76,7 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
             Type = type,
             Currency = currency,
             OpeningBalance = openingBalance,
-            OpeningBalanceDate = openingBalanceDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
+            OpeningBalanceDate = resolvedOpeningBalanceDate,
         };
     }
 
