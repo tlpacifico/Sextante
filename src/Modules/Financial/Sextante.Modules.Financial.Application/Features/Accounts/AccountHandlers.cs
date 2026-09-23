@@ -130,8 +130,11 @@ public static class AccountHandlers
             return null;
         }
 
+        // Entre as duas leituras a conta pode ter sido arquivada em
+        // concorrência — trata como "não encontrado" (404), tal como no
+        // resto do módulo, em vez de forçar um saldo nulo com "!".
         var balance = await balances.GetBalanceAsync(query.AccountId, query.At, cancellationToken);
-        return new AccountBalanceResponse(query.AccountId, query.At, balance!);
+        return balance is null ? null : new AccountBalanceResponse(query.AccountId, query.At, balance);
     }
 
     private static AccountResponse ToResponse(Account account, Money currentBalance)
