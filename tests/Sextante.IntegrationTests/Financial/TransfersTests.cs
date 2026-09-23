@@ -1,0 +1,377 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using FluentAssertions;
+using Npgsql;
+
+namespace Sextante.IntegrationTests.Financial;
+
+/// <summary>
+/// Phase 6.5 grupo 3 — comandos de transferência (Task 2, camada de
+/// Aplicação). Estes testes exercitam os endpoints HTTP
+/// <c>/api/financial/transfers</c> e
+/// <c>/api/financial/transactions/{id}/convert-to-transfer</c>, que só
+/// são mapeados na Task 3 deste grupo (ver
+/// <c>.superpowers/sdd/2026-09-23-phase-6.5-group-3-transfers/</c>).
+/// Até lá, os testes aqui ficam RED por 404 de rota — a Task 2 prova os
+/// handlers/repositório/exceções via este ficheiro, mas só fecham GREEN
+/// depois da Task 3 mapear os endpoints (e ligar o try/catch de
+/// FinancialDomainException em TransactionsEndpoints.MapDelete).
+/// </summary>
+public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
+{
+    private readonly IdentityIntegrationFixture _fixture;
+
+    public TransfersTests(IdentityIntegrationFixture fixture) => _fixture = fixture;
+
+    [Fact]
+    public async Task Create_transfer_same_currency_creates_two_linked_legs_with_opposite_direction_and_amount()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-basic");
+        var fromId = await CreateAccountAsync(client);
+        var toId = await CreateAccountAsync(client);
+
+        var response = await CreateTransferAsync(client, fromId, toId, 100m, null, "Transferência teste");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var transfer = await response.Content.ReadFromJsonAsync<TransferRow>();
+
+        transfer!.TransferId.Should().NotBeEmpty();
+        transfer.OutLeg.AccountId.Should().Be(fromId);
+        transfer.InLeg.AccountId.Should().Be(toId);
+        transfer.OutLeg.Direction.Should().Be("Outflow");
+        transfer.InLeg.Direction.Should().Be("Inflow");
+        transfer.OutLeg.Kind.Should().Be("Transfer");
+        transfer.InLeg.Kind.Should().Be("Transfer");
+        transfer.OutLeg.TransferId.Should().Be(transfer.TransferId);
+        transfer.InLeg.TransferId.Should().Be(transfer.TransferId);
+        transfer.OutLeg.Amount.Amount.Should().Be(100m);
+        transfer.InLeg.Amount.Amount.Should().Be(100m);
+        transfer.OutLeg.CategoryId.Should().BeNull();
+        transfer.InLeg.CategoryId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Create_transfer_cross_currency_requires_amount_in_and_records_it_on_the_in_leg()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-fx");
+        var fromId = await CreateAccountAsync(client, "EUR");
+        var toId = await CreateAccountAsync(client, "USD");
+        await SeedExchangeRateAsync("EUR", "USD", 1.09m);
+
+        var withoutAmountIn = await CreateTransferAsync(client, fromId, toId, 100m, null, "fx sem amountIn");
+        withoutAmountIn.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var withAmountIn = await CreateTransferAsync(client, fromId, toId, 100m, 120m, "fx com amountIn");
+        withAmountIn.StatusCode.Should().Be(HttpStatusCode.Created);
+        var transfer = await withAmountIn.Content.ReadFromJsonAsync<TransferRow>();
+
+        transfer!.OutLeg.Amount.Currency.Should().Be("EUR");
+        transfer.OutLeg.Amount.Amount.Should().Be(100m);
+        transfer.InLeg.Amount.Currency.Should().Be("USD");
+        transfer.InLeg.Amount.Amount.Should().Be(120m);
+    }
+
+    [Fact]
+    public async Task Create_transfer_to_nonexistent_account_creates_no_leg_at_all()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-404acc");
+        var fromId = await CreateAccountAsync(client);
+
+        var response = await CreateTransferAsync(client, fromId, Guid.NewGuid(), 50m, null, "conta inexistente");
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var list = await client.GetFromJsonAsync<TxPage>($"/api/financial/transactions?accountIds={fromId}");
+        list!.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Create_transfer_to_another_tenants_account_returns_404_and_creates_nothing()
+    {
+        var (clientA, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-tenant-a");
+        var (clientB, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-tenant-b");
+        var fromId = await CreateAccountAsync(clientA);
+        var otherTenantAccountId = await CreateAccountAsync(clientB);
+
+        var response = await CreateTransferAsync(clientA, fromId, otherTenantAccountId, 50m, null, "cross-tenant");
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var list = await clientA.GetFromJsonAsync<TxPage>($"/api/financial/transactions?accountIds={fromId}");
+        list!.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Create_transfer_same_account_for_both_sides_returns_400()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-same-acc");
+        var accountId = await CreateAccountAsync(client);
+
+        var response = await CreateTransferAsync(client, accountId, accountId, 50m, null, "mesma conta");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Summary_and_budgets_are_unchanged_by_a_transfer_but_account_balances_change()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-summary");
+        var fromId = await CreateAccountAsync(client, "EUR", 500m);
+        var toId = await CreateAccountAsync(client, "EUR", 500m);
+
+        var range = "dateFrom=" + Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(-1).ToString("O"))
+            + "&dateTo=" + Uri.EscapeDataString(DateTimeOffset.UtcNow.AddMinutes(1).ToString("O"));
+
+        var summaryBefore = await client.GetFromJsonAsync<JsonElement>($"/api/financial/transactions/summary?{range}");
+
+        var create = await CreateTransferAsync(client, fromId, toId, 100m, null, "movimento entre contas");
+        create.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var summaryAfter = await client.GetFromJsonAsync<JsonElement>($"/api/financial/transactions/summary?{range}");
+        summaryAfter.GetProperty("income").GetProperty("amount").GetDecimal()
+            .Should().Be(summaryBefore.GetProperty("income").GetProperty("amount").GetDecimal());
+        summaryAfter.GetProperty("expense").GetProperty("amount").GetDecimal()
+            .Should().Be(summaryBefore.GetProperty("expense").GetProperty("amount").GetDecimal());
+
+        var accounts = await client.GetFromJsonAsync<List<AccountRow>>("/api/financial/accounts");
+        accounts.Should().ContainSingle(a => a.Id == fromId).Which.CurrentBalance.Amount.Should().Be(400m);
+        accounts.Should().ContainSingle(a => a.Id == toId).Which.CurrentBalance.Amount.Should().Be(600m);
+    }
+
+    [Fact]
+    public async Task Update_transfer_changes_amount_on_both_legs()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-update");
+        var fromId = await CreateAccountAsync(client);
+        var toId = await CreateAccountAsync(client);
+        var created = await CreateTransferAsync(client, fromId, toId, 100m, null, "original");
+        var transfer = await created.Content.ReadFromJsonAsync<TransferRow>();
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/financial/transfers/{transfer!.TransferId}", new
+        {
+            fromAccountId = fromId,
+            toAccountId = toId,
+            occurredAt = DateTimeOffset.UtcNow.AddMinutes(-30),
+            amountOut = 150m,
+            amountIn = (decimal?)null,
+            description = "atualizada",
+        });
+
+        updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var updated = await updateResponse.Content.ReadFromJsonAsync<TransferRow>();
+        updated!.OutLeg.Amount.Amount.Should().Be(150m);
+        updated.InLeg.Amount.Amount.Should().Be(150m);
+    }
+
+    [Fact]
+    public async Task Delete_transfer_soft_deletes_both_legs_and_excludes_them_from_balance()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-delete");
+        var fromId = await CreateAccountAsync(client, "EUR", 500m);
+        var toId = await CreateAccountAsync(client, "EUR", 500m);
+        var created = await CreateTransferAsync(client, fromId, toId, 100m, null, "a apagar");
+        var transfer = await created.Content.ReadFromJsonAsync<TransferRow>();
+
+        var deleteResponse = await client.DeleteAsync($"/api/financial/transfers/{transfer!.TransferId}");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var accounts = await client.GetFromJsonAsync<List<AccountRow>>("/api/financial/accounts");
+        accounts.Should().ContainSingle(a => a.Id == fromId).Which.CurrentBalance.Amount.Should().Be(500m);
+        accounts.Should().ContainSingle(a => a.Id == toId).Which.CurrentBalance.Amount.Should().Be(500m);
+    }
+
+    [Fact]
+    public async Task Archiving_or_updating_a_single_leg_via_the_regular_transaction_endpoint_returns_400()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-single-leg");
+        var fromId = await CreateAccountAsync(client);
+        var toId = await CreateAccountAsync(client);
+        var created = await CreateTransferAsync(client, fromId, toId, 100m, null, "perna isolada");
+        var transfer = await created.Content.ReadFromJsonAsync<TransferRow>();
+        var outLegId = transfer!.OutLeg.Id;
+
+        var putResponse = await client.PutAsJsonAsync($"/api/financial/transactions/{outLegId}", new
+        {
+            accountId = fromId,
+            categoryId = Guid.NewGuid(),
+            occurredAt = DateTimeOffset.UtcNow.AddMinutes(-1),
+            amount = 100m,
+            description = "tentativa direta",
+            tags = (string[]?)null,
+        });
+        putResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var deleteResponse = await client.DeleteAsync($"/api/financial/transactions/{outLegId}");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Convert_existing_regular_transaction_to_transfer_linking_an_existing_counterpart()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-convert-link");
+        var accountA = await CreateAccountAsync(client);
+        var accountB = await CreateAccountAsync(client);
+        var expenseCategory = await CreateCategoryAsync(client, "Diversos", kind: 0);
+        var incomeCategory = await CreateCategoryAsync(client, "Diversos In", kind: 1);
+
+        var expenseId = await CreateTransactionAsync(client, accountA, expenseCategory, 100m, "saída A");
+        var incomeId = await CreateTransactionAsync(client, accountB, incomeCategory, 100m, "entrada B");
+
+        var convertResponse = await client.PostAsJsonAsync(
+            $"/api/financial/transactions/{expenseId}/convert-to-transfer",
+            new { counterpartAccountId = accountB, counterpartTransactionId = incomeId });
+
+        convertResponse.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created);
+        var transfer = await convertResponse.Content.ReadFromJsonAsync<TransferRow>();
+        transfer!.OutLeg.Id.Should().Be(expenseId);
+        transfer.InLeg.Id.Should().Be(incomeId);
+        transfer.OutLeg.Kind.Should().Be("Transfer");
+        transfer.InLeg.Kind.Should().Be("Transfer");
+        transfer.OutLeg.CategoryId.Should().BeNull();
+        transfer.InLeg.CategoryId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Convert_existing_regular_transaction_to_transfer_creates_the_counterpart_when_none_given()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-convert-new");
+        var accountA = await CreateAccountAsync(client);
+        var accountB = await CreateAccountAsync(client);
+        var expenseCategory = await CreateCategoryAsync(client, "Diversos", kind: 0);
+        var expenseId = await CreateTransactionAsync(client, accountA, expenseCategory, 100m, "saída A");
+
+        var convertResponse = await client.PostAsJsonAsync(
+            $"/api/financial/transactions/{expenseId}/convert-to-transfer",
+            new { counterpartAccountId = accountB, counterpartTransactionId = (Guid?)null });
+
+        convertResponse.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created);
+        var transfer = await convertResponse.Content.ReadFromJsonAsync<TransferRow>();
+        transfer!.OutLeg.Id.Should().Be(expenseId);
+        transfer.InLeg.AccountId.Should().Be(accountB);
+        transfer.InLeg.Amount.Amount.Should().Be(100m);
+        transfer.InLeg.Direction.Should().Be("Inflow");
+    }
+
+    [Fact]
+    public async Task Convert_cross_currency_without_counterpart_transaction_returns_400()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-convert-fx");
+        var accountA = await CreateAccountAsync(client, "EUR");
+        var accountB = await CreateAccountAsync(client, "USD");
+        var expenseCategory = await CreateCategoryAsync(client, "Diversos", kind: 0);
+        var expenseId = await CreateTransactionAsync(client, accountA, expenseCategory, 100m, "saída EUR");
+
+        var convertResponse = await client.PostAsJsonAsync(
+            $"/api/financial/transactions/{expenseId}/convert-to-transfer",
+            new { counterpartAccountId = accountB, counterpartTransactionId = (Guid?)null });
+
+        convertResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Reading_or_deleting_another_tenants_transfer_returns_404()
+    {
+        var (clientA, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-tenant-read-a");
+        var (clientB, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-tenant-read-b");
+        var fromId = await CreateAccountAsync(clientA);
+        var toId = await CreateAccountAsync(clientA);
+        var created = await CreateTransferAsync(clientA, fromId, toId, 50m, null, "tenant A");
+        var transfer = await created.Content.ReadFromJsonAsync<TransferRow>();
+
+        var deleteFromB = await clientB.DeleteAsync($"/api/financial/transfers/{transfer!.TransferId}");
+        deleteFromB.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    private static Task<HttpResponseMessage> CreateTransferAsync(
+        HttpClient client, Guid fromAccountId, Guid toAccountId, decimal amountOut, decimal? amountIn, string description)
+        => client.PostAsJsonAsync("/api/financial/transfers", new
+        {
+            fromAccountId,
+            toAccountId,
+            occurredAt = DateTimeOffset.UtcNow.AddMinutes(-1),
+            amountOut,
+            amountIn,
+            description,
+        });
+
+    private static Task<Guid> CreateAccountAsync(HttpClient client, string currency = "EUR", decimal openingBalanceAmount = 0m)
+        => CreateAsync(client, "/api/financial/accounts", new
+        {
+            name = $"Conta {Guid.NewGuid():N}",
+            type = 0,
+            currency,
+            openingBalanceAmount,
+        });
+
+    private static Task<Guid> CreateCategoryAsync(HttpClient client, string name, int kind)
+        => CreateAsync(client, "/api/financial/categories", new
+        {
+            name,
+            kind,
+            iconName = "pi-tag",
+            colorHex = "#64748B",
+        });
+
+    private static Task<Guid> CreateTransactionAsync(
+        HttpClient client, Guid accountId, Guid categoryId, decimal amount, string description)
+        => CreateAsync(client, "/api/financial/transactions", new
+        {
+            accountId,
+            categoryId,
+            occurredAt = DateTimeOffset.UtcNow.AddMinutes(-1),
+            amount,
+            currency = (string?)null,
+            description,
+            tags = (string[]?)null,
+        });
+
+    private static async Task<Guid> CreateAsync(HttpClient client, string url, object body)
+    {
+        var response = await client.PostAsJsonAsync(url, body);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<IdRow>())!.Id;
+    }
+
+    private async Task SeedExchangeRateAsync(string from, string to, decimal rate)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        await using var superConn = _fixture.OpenSuperuserConnection();
+        await using var seedCmd = new NpgsqlCommand(
+            """
+            INSERT INTO shared."exchange_rates"
+              ("id", "rate_date", "from_currency", "to_currency", "rate", "source",
+               "created_at", "updated_at", "version")
+            VALUES
+              (@id, @rateDate, @from, @to, @rate, 'manual',
+               now(), now(), 1)
+            ON CONFLICT ("rate_date", "from_currency", "to_currency") DO NOTHING
+            """,
+            superConn);
+        seedCmd.Parameters.AddWithValue("id", Guid.NewGuid());
+        seedCmd.Parameters.AddWithValue("rateDate", today);
+        seedCmd.Parameters.AddWithValue("from", from);
+        seedCmd.Parameters.AddWithValue("to", to);
+        seedCmd.Parameters.AddWithValue("rate", rate);
+        await seedCmd.ExecuteNonQueryAsync();
+    }
+
+    private sealed record IdRow(Guid Id);
+
+    private sealed record MoneyValue(decimal Amount, string Currency);
+
+    private sealed record AccountRow(Guid Id, string Name, string Type, MoneyValue CurrentBalance);
+
+    private sealed record TransactionRow(
+        Guid Id,
+        Guid AccountId,
+        Guid? CategoryId,
+        MoneyValue Amount,
+        string? Description,
+        string Direction,
+        string Kind,
+        Guid? TransferId);
+
+    private sealed record TransferRow(Guid TransferId, TransactionRow OutLeg, TransactionRow InLeg);
+
+    private sealed record TxItem(Guid Id, Guid AccountId);
+
+    private sealed record TxPage(IReadOnlyList<TxItem> Items, string? NextCursor);
+}

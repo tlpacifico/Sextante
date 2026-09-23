@@ -207,6 +207,22 @@ public sealed class TransactionRepository : ITransactionRepository
             .ToList();
     }
 
+    public async Task<IReadOnlyList<Transaction>> GetByTransferIdAsync(Guid transferId, CancellationToken cancellationToken)
+        => await _db.Transactions.Where(t => t.TransferId == transferId).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyDictionary<Guid, Guid>> GetCounterpartAccountIdsAsync(
+        IReadOnlyCollection<Guid> transactionIds, CancellationToken cancellationToken)
+    {
+        var pairs = await (
+            from t1 in _db.Transactions
+            join t2 in _db.Transactions on t1.TransferId equals t2.TransferId
+            where transactionIds.Contains(t1.Id) && t1.Id != t2.Id
+            select new { t1.Id, CounterpartAccountId = t2.AccountId })
+            .ToListAsync(cancellationToken);
+
+        return pairs.ToDictionary(p => p.Id, p => p.CounterpartAccountId);
+    }
+
     // Phase 6.5 §0.4 — categorias arquivadas (soft-delete) continuam a
     // nomear e classificar as transações antigas. IgnoreQueryFilters tira
     // também o filtro de tenant, por isso todos os joins são por

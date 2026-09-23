@@ -413,7 +413,9 @@ public static class TransactionHandlers
             ? ViewModeOriginal
             : ViewModeConverted;
 
-    private static TransactionResponse ToResponse(Transaction transaction)
+    // internal (não private) — Phase 6.5 grupo 3: TransferHandlers reaproveita
+    // este mapeamento para cada perna, mesmo assembly.
+    internal static TransactionResponse ToResponse(Transaction transaction)
         => new(
             transaction.Id,
             transaction.AccountId,

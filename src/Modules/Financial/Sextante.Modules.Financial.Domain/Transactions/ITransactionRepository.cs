@@ -43,6 +43,20 @@ public interface ITransactionRepository
         CategoryKindFilter kindFilter,
         string primaryCurrency,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Phase 6.5 grupo 3 — as duas pernas de uma transferência. O filtro
+    /// global de tenant já se aplica; devolve o que existir (0, 1 ou 2).
+    /// </summary>
+    Task<IReadOnlyList<Transaction>> GetByTransferIdAsync(Guid transferId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Grupo 6.3 R7 — conta da perna oposta para cada transação pedida, num só
+    /// round-trip (self-join por TransferId). Só transações Transfer aparecem
+    /// no resultado; ids de transações Regular/Adjustment são omitidos.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, Guid>> GetCounterpartAccountIdsAsync(
+        IReadOnlyCollection<Guid> transactionIds, CancellationToken cancellationToken);
 }
 
 public sealed record TransactionFilter(

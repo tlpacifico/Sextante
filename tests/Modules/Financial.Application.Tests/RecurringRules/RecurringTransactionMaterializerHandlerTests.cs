@@ -415,6 +415,12 @@ public sealed class RecurringTransactionMaterializerHandlerTests
             TransactionFilter filter, CategoryKindFilter kindFilter, string primaryCurrency, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<TransactionByCategoryRow>>(
                 Array.Empty<TransactionByCategoryRow>());
+
+        // Phase 6.5 grupo 3 — transferências: os stubs não exercitam este caminho.
+        public Task<IReadOnlyList<Transaction>> GetByTransferIdAsync(Guid transferId, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<Transaction>>(Added.Where(t => t.TransferId == transferId).ToList());
+        public Task<IReadOnlyDictionary<Guid, Guid>> GetCounterpartAccountIdsAsync(IReadOnlyCollection<Guid> transactionIds, CancellationToken ct)
+            => Task.FromResult<IReadOnlyDictionary<Guid, Guid>>(new Dictionary<Guid, Guid>());
     }
 
     private sealed class StubExchangeRateService : IExchangeRateService

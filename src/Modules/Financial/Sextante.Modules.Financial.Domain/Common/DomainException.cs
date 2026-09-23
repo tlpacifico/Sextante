@@ -240,3 +240,52 @@ public sealed class AccountNotFoundForImportException : FinancialDomainException
 {
     public AccountNotFoundForImportException(string accountName) : base($"Conta '{accountName}' não encontrada. Crie a conta antes de importar.") { }
 }
+
+// Transfer exceptions (Phase 6.5, grupo 3)
+public sealed class TransferAccountsMustDifferException : FinancialDomainException
+{
+    public TransferAccountsMustDifferException()
+        : base("A conta de origem e a conta de destino têm de ser diferentes.")
+    {
+    }
+}
+
+public sealed class TransferAmountInRequiredException : FinancialDomainException
+{
+    public TransferAmountInRequiredException()
+        : base("É necessário indicar o valor recebido quando as contas têm moedas diferentes.")
+    {
+    }
+}
+
+public sealed class TransferCounterpartCurrencyMismatchException : FinancialDomainException
+{
+    public TransferCounterpartCurrencyMismatchException()
+        : base("Não é possível criar a contraparte automaticamente entre moedas diferentes; ligue a uma transação existente ou use 'Nova transferência'.")
+    {
+    }
+}
+
+public sealed class TransferCounterpartAmountMismatchException : FinancialDomainException
+{
+    public TransferCounterpartAmountMismatchException()
+        : base("O valor da transação selecionada não corresponde ao valor a converter.")
+    {
+    }
+}
+
+public sealed class TransferCounterpartAlreadyLinkedException : FinancialDomainException
+{
+    public TransferCounterpartAlreadyLinkedException()
+        : base("A transação selecionada já faz parte de outra transferência.")
+    {
+    }
+}
+
+public sealed class TransferCounterpartSameDirectionException : FinancialDomainException
+{
+    public TransferCounterpartSameDirectionException()
+        : base("A transação selecionada tem de ter o sentido oposto (entrada ↔ saída).")
+    {
+    }
+}
