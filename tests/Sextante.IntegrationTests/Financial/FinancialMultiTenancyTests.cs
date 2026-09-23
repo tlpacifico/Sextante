@@ -155,6 +155,53 @@ public sealed class FinancialMultiTenancyTests : IClassFixture<IdentityIntegrati
         pageB!.Items.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Credit_card_view_of_other_tenant_returns_404()
+    {
+        // Phase 6.5 grupo 5 — a vista do cartão respeita o isolamento.
+        var (clientA, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtA-cc");
+        var (clientB, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtB-cc");
+        var cardA = await CreateAccountAsync(clientA, type: 3);
+
+        var response = await clientB.GetAsync($"/api/financial/accounts/{cardA}/credit-card");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Payment_account_of_other_tenant_is_rejected()
+    {
+        // Phase 6.5 grupo 5 — a conta de pagamento tem de ser do próprio tenant.
+        var (clientA, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtA-ccpay");
+        var (clientB, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtB-ccpay");
+        var checkingA = await CreateAccountAsync(clientA, type: 0);
+        var cardB = await CreateAccountAsync(clientB, type: 3);
+
+        var put = await clientB.PutAsJsonAsync($"/api/financial/accounts/{cardB}", new
+        {
+            name = "Cartão B",
+            type = 3,
+            creditCard = new { creditLimit = 1000m, statementClosingDay = 20, paymentDueDay = 10, paymentAccountId = checkingA },
+        });
+        put.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var accountB = await clientB.GetFromJsonAsync<CardRow>($"/api/financial/accounts/{cardB}");
+        accountB!.CreditCard.Should().BeNull();
+    }
+
+    private static async Task<Guid> CreateAccountAsync(HttpClient client, short type)
+    {
+        var response = await client.PostAsJsonAsync("/api/financial/accounts", new
+        {
+            name = $"Conta {Guid.NewGuid():N}",
+            type,
+            currency = "EUR",
+            openingBalanceAmount = 0m,
+        });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<IdRow>())!.Id;
+    }
+
     private static async Task<Guid> CreateCategoryAsync(HttpClient client, string name)
     {
         var response = await client.PostAsJsonAsync("/api/financial/categories", new
@@ -188,4 +235,5 @@ public sealed class FinancialMultiTenancyTests : IClassFixture<IdentityIntegrati
     private sealed record BudgetIdRow(Guid Id);
     private sealed record TxItem(Guid Id);
     private sealed record TxPage(IReadOnlyList<TxItem> Items, string? NextCursor);
+    private sealed record CardRow(Guid Id, object? CreditCard);
 }

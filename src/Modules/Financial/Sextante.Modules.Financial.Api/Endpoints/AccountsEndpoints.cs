@@ -32,6 +32,27 @@ public static class AccountsEndpoints
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
+        // Phase 6.5 grupo 5 — vista do cartão de crédito.
+        group.MapGet("{id:guid}/credit-card", async (Guid id, IMessageBus bus, CancellationToken ct) =>
+        {
+            try
+            {
+                var view = await bus.InvokeAsync<CreditCardViewResponse?>(new GetCreditCardViewQuery(id), ct);
+                return view is null ? Results.NotFound() : Results.Ok(view);
+            }
+            catch (FinancialDomainException ex)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["account"] = [ex.Message],
+                    },
+                    detail: ex.Message,
+                    title: "Erros de validação",
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
+        });
+
         // Phase 6.5 grupo 4 — acerto de saldo (reconciliação).
         group.MapPost("{id:guid}/reconcile", async (Guid id, ReconcileAccountBody body, IMessageBus bus, CancellationToken ct) =>
         {
@@ -87,7 +108,7 @@ public static class AccountsEndpoints
             try
             {
                 var updated = await bus.InvokeAsync<AccountResponse?>(
-                    new UpdateAccountCommand(id, body.Name, body.Type),
+                    new UpdateAccountCommand(id, body.Name, body.Type, body.CreditCard),
                     ct);
                 return updated is null ? Results.NotFound() : Results.Ok(updated);
             }
@@ -128,5 +149,8 @@ public static class AccountsEndpoints
 
     public sealed record ReconcileAccountBody(DateOnly Date, decimal ActualBalance);
 
-    public sealed record UpdateAccountBody(string Name, Sextante.Modules.Financial.Domain.Accounts.AccountType Type);
+    public sealed record UpdateAccountBody(
+        string Name,
+        Sextante.Modules.Financial.Domain.Accounts.AccountType Type,
+        CreditCardSettingsInput? CreditCard = null);
 }

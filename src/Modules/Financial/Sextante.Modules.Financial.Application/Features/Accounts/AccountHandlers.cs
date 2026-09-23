@@ -40,6 +40,11 @@ public static class AccountHandlers
             tenant.TenantId,
             command.OpeningBalanceDate);
 
+        if (command.CreditCard is { } creditCard)
+        {
+            await ConfigureCreditCardAsync(account, creditCard, repository, cancellationToken);
+        }
+
         await repository.AddAsync(account, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
 
@@ -62,6 +67,18 @@ public static class AccountHandlers
 
         account.Rename(command.Name);
         account.ChangeType(command.Type);
+
+        // PUT substitui as definições do cartão; ChangeType já as limpou se a
+        // conta deixou de ser cartão.
+        if (command.CreditCard is { } creditCard)
+        {
+            await ConfigureCreditCardAsync(account, creditCard, repository, cancellationToken);
+        }
+        else if (account.Type == AccountType.CreditCard)
+        {
+            account.RemoveCreditCardSettings();
+        }
+
         repository.Update(account);
         await repository.SaveChangesAsync(cancellationToken);
 
@@ -243,6 +260,119 @@ public static class AccountHandlers
             TransactionHandlers.ToResponse(adjustment));
     }
 
+    /// <summary>
+    /// Phase 6.5 grupo 5 — vista do cartão: dívida, disponível, ciclo corrente,
+    /// extrato anterior e próximo pagamento, calculados a partir das
+    /// definições e das transações (nada de extrato persistido).
+    /// </summary>
+    public static async Task<CreditCardViewResponse?> Handle(
+        GetCreditCardViewQuery query,
+        IAccountRepository accounts,
+        IAccountBalanceQuery balances,
+        ICreditCardActivityQuery activity,
+        CancellationToken cancellationToken)
+    {
+        var account = await accounts.GetByIdAsync(query.AccountId, cancellationToken);
+        if (account is null)
+        {
+            return null;
+        }
+
+        if (account.Type != AccountType.CreditCard)
+        {
+            throw new AccountNotCreditCardException();
+        }
+
+        var currentBalance = await balances.GetBalanceAsync(account.Id, null, cancellationToken);
+        if (currentBalance is null)
+        {
+            // Arquivada em concorrência — mesmo tratamento de GetAccountBalanceQuery.
+            return null;
+        }
+
+        var currency = account.Currency;
+        Money InCurrency(decimal amount) => new(amount, currency);
+
+        if (account.CreditCard is not { } settings)
+        {
+            return new CreditCardViewResponse(
+                account.Id, currentBalance, InCurrency(Math.Max(0m, -currentBalance.Amount)),
+                null, null, null, null, null, null, null, null);
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var currentCycle = CreditCardCalendar.CycleContaining(today, settings.StatementClosingDay, settings.PaymentDueDay);
+        var previousCycle = CreditCardCalendar.Previous(currentCycle, settings.StatementClosingDay, settings.PaymentDueDay);
+
+        var balanceAtPreviousClose = await balances.GetBalanceAsync(account.Id, previousCycle.End, cancellationToken);
+        if (balanceAtPreviousClose is null)
+        {
+            return null;
+        }
+
+        var movements = await activity.GetMovementsAsync(
+            account.Id, previousCycle.Start, currentCycle.End, cancellationToken);
+
+        var statement = CreditCardStatementCalculator.Calculate(
+            settings, today, currentBalance.Amount, balanceAtPreviousClose.Amount, movements);
+
+        Guid? paymentAccountId = null;
+        if (settings.PaymentAccountId is { } id && await accounts.GetByIdAsync(id, cancellationToken) is not null)
+        {
+            paymentAccountId = id;
+        }
+
+        CreditCardCycleResponse ToCycleResponse(CreditCardCycleTotals totals) => new(
+            totals.Cycle.Start,
+            totals.Cycle.End,
+            totals.Cycle.PaymentDueDate,
+            InCurrency(totals.Spent),
+            InCurrency(totals.PaymentsReceived));
+
+        return new CreditCardViewResponse(
+            account.Id,
+            currentBalance,
+            InCurrency(statement.CurrentDebt),
+            ToSettingsResponse(settings),
+            InCurrency(statement.Available),
+            ToCycleResponse(statement.CurrentCycle),
+            ToCycleResponse(statement.PreviousCycle),
+            InCurrency(statement.PreviousClosingDebt),
+            statement.NextPaymentDueDate,
+            InCurrency(statement.NextPaymentAmount),
+            paymentAccountId);
+    }
+
+    /// <summary>
+    /// A conta de pagamento é uma soft reference (sem FK): tem de existir no
+    /// tenant (o filtro global do EF esconde as de outros tenants) e não ser
+    /// um cartão. A própria conta é recusada pelo domínio.
+    /// </summary>
+    private static async Task ConfigureCreditCardAsync(
+        Account account,
+        CreditCardSettingsInput input,
+        IAccountRepository repository,
+        CancellationToken cancellationToken)
+    {
+        if (input.PaymentAccountId is { } paymentAccountId && paymentAccountId != account.Id)
+        {
+            var paymentAccount = await repository.GetByIdAsync(paymentAccountId, cancellationToken);
+            if (paymentAccount is null || paymentAccount.Type == AccountType.CreditCard)
+            {
+                throw new CreditCardPaymentAccountInvalidException();
+            }
+        }
+
+        account.ConfigureCreditCard(
+            new Money(input.CreditLimit, account.Currency),
+            input.StatementClosingDay,
+            input.PaymentDueDay,
+            input.PaymentAccountId);
+    }
+
+    private static CreditCardSettingsResponse ToSettingsResponse(CreditCardSettings settings)
+        => new(settings.CreditLimit, settings.StatementClosingDay, settings.PaymentDueDay, settings.PaymentAccountId);
+
     private static AccountResponse ToResponse(Account account, Money currentBalance)
         => new(
             account.Id,
@@ -253,5 +383,6 @@ public static class AccountHandlers
             account.CreatedAt,
             account.UpdatedAt,
             account.OpeningBalanceDate,
-            currentBalance);
+            currentBalance,
+            account.CreditCard is { } settings ? ToSettingsResponse(settings) : null);
 }

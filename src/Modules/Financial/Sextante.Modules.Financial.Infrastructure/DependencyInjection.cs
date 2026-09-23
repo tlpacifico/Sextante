@@ -66,6 +66,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<IAccountBalanceQuery, AccountBalanceQuery>();
+        services.AddScoped<ICreditCardActivityQuery, CreditCardActivityQuery>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<ITransactionRepository, TransactionRepository>();
         services.AddScoped<IRecurringRuleRepository, RecurringRuleRepository>();
