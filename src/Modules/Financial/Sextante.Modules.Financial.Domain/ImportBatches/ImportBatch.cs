@@ -82,8 +82,16 @@ public sealed class ImportBatch : ITenantOwned, IAuditable, IFinancialAggregate
         Status = ImportBatchStatus.Confirming;
     }
 
+    /// <summary>
+    /// Phase 6.5 grupo 7 — um lote só se importa uma vez: um segundo confirm
+    /// (ex.: repetido depois de um timeout) duplicaria transações e voltaria
+    /// a mexer em transferências já ligadas.
+    /// </summary>
     public void MarkImporting()
     {
+        if (Status is not (ImportBatchStatus.PreviewReady or ImportBatchStatus.Confirming))
+            throw new ImportBatchAlreadyImportedException();
+
         Status = ImportBatchStatus.Importing;
     }
 

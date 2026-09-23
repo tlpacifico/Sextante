@@ -22,10 +22,11 @@ public sealed class ImportTransferResolverTests
     private readonly Account _card = Account.Create("Cartão", AccountType.CreditCard, "EUR", new Money(0m, "EUR"), Tenant);
 
     private Task<ImportTransferResolution> ResolveAsync(
-        Account? target, StubTransferCounterpartQuery query, HashSet<Guid>? claimed = null)
+        Account? target, StubTransferCounterpartQuery query, HashSet<Guid>? claimed = null,
+        ImportPendingLegs? pending = null)
         => ImportTransferResolver.ResolveAsync(
             _checking, target, TransactionDirection.Outflow, 450m, "EUR", Date,
-            query, claimed ?? new HashSet<Guid>(), CancellationToken.None);
+            query, pending ?? new ImportPendingLegs(), claimed ?? new HashSet<Guid>(), CancellationToken.None);
 
     [Fact]
     public async Task Missing_target_is_invalid()
@@ -106,5 +107,58 @@ public sealed class ImportTransferResolverTests
 
         first.Status.Should().Be(ImportTransferStatus.LinkExisting);
         second.Status.Should().Be(ImportTransferStatus.CreateCounterpart);
+    }
+
+    [Fact]
+    public async Task Leg_planned_earlier_in_the_batch_is_already_recorded()
+    {
+        // I4 — CSV com as duas contas: a perna criada por uma linha anterior
+        // do mesmo lote conta como "já registada".
+        var pending = new ImportPendingLegs();
+        var legId = Guid.NewGuid();
+        pending.AddTransferLeg(legId, _checking.Id, TransactionDirection.Outflow, 450m, "EUR", Date.AddDays(2), _card.Id);
+
+        var resolution = await ResolveAsync(_card, new StubTransferCounterpartQuery(), pending: pending);
+
+        resolution.Status.Should().Be(ImportTransferStatus.AlreadyRecorded);
+        resolution.TransactionId.Should().Be(legId);
+    }
+
+    [Fact]
+    public async Task Regular_planned_earlier_in_the_batch_is_linked()
+    {
+        var pending = new ImportPendingLegs();
+        var regularId = Guid.NewGuid();
+        pending.AddRegular(regularId, _card.Id, TransactionDirection.Inflow, 450m, "EUR", Date.AddDays(3));
+
+        var resolution = await ResolveAsync(_card, new StubTransferCounterpartQuery(), pending: pending);
+
+        resolution.Status.Should().Be(ImportTransferStatus.LinkExisting);
+        resolution.TransactionId.Should().Be(regularId);
+    }
+
+    [Fact]
+    public async Task Row_without_rule_finds_existing_leg_and_its_counterpart_account()
+    {
+        // I3 — só o extrato da conta tem regra: a linha do cartão, sem regra,
+        // reconhece a perna criada pelo outro extrato.
+        var leg = new TransferCandidate(Guid.NewGuid(), Date.AddDays(-3), _checking.Id);
+        var query = new StubTransferCounterpartQuery().With(_card.Id, TransactionKind.Transfer, leg);
+
+        var found = await ImportTransferResolver.FindRecordedLegAsync(
+            _card, TransactionDirection.Inflow, 450m, "EUR", Date, query, new ImportPendingLegs(), new HashSet<Guid>(),
+            CancellationToken.None);
+
+        found.Should().Be(leg);
+    }
+
+    [Fact]
+    public async Task Row_without_rule_and_no_leg_finds_nothing()
+    {
+        var found = await ImportTransferResolver.FindRecordedLegAsync(
+            _card, TransactionDirection.Inflow, 450m, "EUR", Date, new StubTransferCounterpartQuery(),
+            new ImportPendingLegs(), new HashSet<Guid>(), CancellationToken.None);
+
+        found.Should().BeNull();
     }
 }

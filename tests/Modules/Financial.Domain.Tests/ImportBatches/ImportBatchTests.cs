@@ -102,6 +102,30 @@ public sealed class ImportBatchTests
     }
 
     [Fact]
+    public void MarkImporting_from_preview_ready_advances_status()
+    {
+        var batch = ImportBatch.StartParsing("x.csv", Tenant);
+        batch.SetPreview(10, "[]", false, 0);
+
+        batch.MarkImporting();
+
+        batch.Status.Should().Be(ImportBatchStatus.Importing);
+    }
+
+    [Fact]
+    public void MarkImporting_a_completed_batch_is_rejected()
+    {
+        var batch = ImportBatch.StartParsing("x.csv", Tenant);
+        batch.SetPreview(10, "[]", false, 0);
+        batch.MarkImporting();
+        batch.Complete(10, 0, 0);
+
+        var act = () => batch.MarkImporting();
+
+        act.Should().Throw<ImportBatchAlreadyImportedException>();
+    }
+
+    [Fact]
     public void Complete_advances_to_completed_and_records_imported_rows()
     {
         var batch = ImportBatch.StartParsing("x.csv", Tenant);

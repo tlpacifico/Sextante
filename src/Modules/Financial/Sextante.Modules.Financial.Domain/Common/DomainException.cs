@@ -187,6 +187,10 @@ public sealed class ImportAccountRequiredException : FinancialDomainException
 {
     public ImportAccountRequiredException() : base("Escolha a conta de destino da importação.") { }
 }
+public sealed class ImportBatchAlreadyImportedException : FinancialDomainException
+{
+    public ImportBatchAlreadyImportedException() : base("Este lote já foi importado. Carregue o ficheiro de novo para importar outra vez.") { }
+}
 public sealed class ImportBatchWithoutAccountException : FinancialDomainException
 {
     public ImportBatchWithoutAccountException() : base("Este lote não tem conta de destino. Carregue o ficheiro de novo.") { }

@@ -88,52 +88,92 @@ public static class ImportPreviewBuilder
         }
 
         var results = await ruleEngine.ApplyAsync(ruleCandidates.Select(c => c.Tx).ToList(), tenantId, ct);
+        var resultByRow = new Dictionary<int, CategorizationMatchResult>();
+        for (var k = 0; k < ruleCandidates.Count && k < results.Count; k++)
+        {
+            resultByRow[ruleCandidates[k].RowIndex] = results[k];
+        }
+
         var byId = categories.ToDictionary(c => c.Id);
         var accountsById = accounts.ToDictionary(a => a.Id);
         var claimed = new HashSet<Guid>();
-        for (var k = 0; k < ruleCandidates.Count && k < results.Count; k++)
+        var pending = new ImportPendingLegs();
+
+        // Por ordem do ficheiro, como o confirm: cada linha vê o que as
+        // anteriores do lote já planearam (achado I4).
+        for (var i = 0; i < parsed.Length; i++)
         {
-            var result = results[k];
-            var rowIndex = ruleCandidates[k].RowIndex;
-            var (row, account) = parsed[rowIndex]!.Value;
+            // R6 — duplicado "normal" não passa pela resolução.
+            if (parsed[i] is not { } p || rows[i].IsDuplicate) continue;
 
-            if (result.TargetAccountId is { } targetId)
+            var (row, account) = p;
+            var currency = row.Currency ?? account.Currency;
+            resultByRow.TryGetValue(i, out var result);
+
+            if (result?.TargetAccountId is { } targetId)
             {
-                // R6 — duplicado "normal" não passa pela resolução.
-                if (rows[rowIndex].IsDuplicate) continue;
-
                 accountsById.TryGetValue(targetId, out var target);
                 var resolution = await ImportTransferResolver.ResolveAsync(
-                    account, target, row.Direction, row.AbsAmount, row.Currency ?? account.Currency, row.Date,
-                    transferQuery, claimed, ct);
+                    account, target, row.Direction, row.AbsAmount, currency, row.Date, transferQuery, pending, claimed, ct);
 
-                rows[rowIndex] = rows[rowIndex] with
+                rows[i] = rows[i] with
                 {
                     TransferStatus = resolution.Status.ToString(),
                     TransferTargetAccountId = targetId,
                     TransferTargetAccountName = target?.Name,
                     TransferCounterpartTransactionId = resolution.TransactionId,
                 };
-                if (resolution.Status == ImportTransferStatus.AlreadyRecorded)
+                switch (resolution.Status)
                 {
-                    rows[rowIndex] = rows[rowIndex] with
-                    {
-                        IsDuplicate = true,
-                        DuplicateTransactionId = resolution.TransactionId,
-                    };
+                    case ImportTransferStatus.AlreadyRecorded:
+                        rows[i] = rows[i] with { IsDuplicate = true, DuplicateTransactionId = resolution.TransactionId };
+                        break;
+                    case ImportTransferStatus.CreateCounterpart:
+                        PlanTransfer(pending, row, account, currency, target!, createCounterpart: true);
+                        break;
+                    case ImportTransferStatus.LinkExisting:
+                        PlanTransfer(pending, row, account, currency, target!, createCounterpart: false);
+                        pending.MarkAsTransferLeg(resolution.TransactionId!.Value, account.Id);
+                        break;
+                    default:
+                        pending.AddRegular(Guid.NewGuid(), account.Id, row.Direction, row.AbsAmount, currency, row.Date);
+                        break;
                 }
 
                 continue;
             }
 
-            if (result.NewCategoryId is not { } categoryId
+            // Achado I3 — sem regra de transferência, mas o outro extrato já
+            // criou esta perna: "já registada", como com regra.
+            var recorded = await ImportTransferResolver.FindRecordedLegAsync(
+                account, row.Direction, row.AbsAmount, currency, row.Date, transferQuery, pending, claimed, ct);
+            if (recorded is not null)
+            {
+                Account? counterpartAccount = null;
+                if (recorded.CounterpartAccountId is { } counterpartId)
+                    accountsById.TryGetValue(counterpartId, out counterpartAccount);
+                rows[i] = rows[i] with
+                {
+                    IsDuplicate = true,
+                    DuplicateTransactionId = recorded.TransactionId,
+                    TransferStatus = nameof(ImportTransferStatus.AlreadyRecorded),
+                    TransferTargetAccountId = recorded.CounterpartAccountId,
+                    TransferTargetAccountName = counterpartAccount?.Name,
+                    TransferCounterpartTransactionId = recorded.TransactionId,
+                };
+                continue;
+            }
+
+            pending.AddRegular(Guid.NewGuid(), account.Id, row.Direction, row.AbsAmount, currency, row.Date);
+
+            if (result?.NewCategoryId is not { } categoryId
                 || !byId.TryGetValue(categoryId, out var category)
                 || Transaction.DirectionFor(category.Kind) != row.Direction)
             {
                 continue;
             }
 
-            rows[rowIndex] = rows[rowIndex] with
+            rows[i] = rows[i] with
             {
                 SuggestedCategoryId = category.Id,
                 SuggestedCategoryName = category.Name,
@@ -142,5 +182,20 @@ public static class ImportPreviewBuilder
         }
 
         return rows;
+    }
+
+    /// <summary>Regista no lote as pernas que o confirm vai criar para esta linha.</summary>
+    private static void PlanTransfer(
+        ImportPendingLegs pending, ParsedImportRow row, Account account, string currency, Account target,
+        bool createCounterpart)
+    {
+        pending.AddTransferLeg(Guid.NewGuid(), account.Id, row.Direction, row.AbsAmount, currency, row.Date, target.Id);
+        if (createCounterpart)
+        {
+            var opposite = row.Direction == TransactionDirection.Outflow
+                ? TransactionDirection.Inflow
+                : TransactionDirection.Outflow;
+            pending.AddTransferLeg(Guid.NewGuid(), target.Id, opposite, row.AbsAmount, currency, row.Date, account.Id);
+        }
     }
 }

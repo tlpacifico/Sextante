@@ -250,6 +250,8 @@ public static class CsvImportHandlers
             .ToList();
         var ruleResults = await ruleEngine.ApplyAsync(ruleInputs, tenant.TenantId, ct);
         var claimed = new HashSet<Guid>();
+        var pending = new ImportPendingLegs();
+        var createdById = new Dictionary<Guid, Transaction>();
 
         for (var i = 0; i < items.Count; i++)
         {
@@ -258,27 +260,40 @@ public static class CsvImportHandlers
             var currency = row.Currency ?? account.Currency;
             var occurredAt = new DateTimeOffset(row.Date, TimeOnly.MinValue, TimeSpan.Zero);
 
+            // Resolve-se sempre contra o estado atual (DB + o que o lote já
+            // planeou): o preview pode estar desatualizado (achado I1).
             ImportTransferResolution? resolution = null;
             Account? target = null;
             if (ruleResult?.TargetAccountId is { } targetId)
             {
                 accountsById.TryGetValue(targetId, out target);
                 resolution = await ImportTransferResolver.ResolveAsync(
-                    account, target, row.Direction, row.AbsAmount, currency, row.Date, transferQuery, claimed, ct);
+                    account, target, row.Direction, row.AbsAmount, currency, row.Date,
+                    transferQuery, pending, claimed, ct);
+            }
+            else if (!forced
+                && await ImportTransferResolver.FindRecordedLegAsync(
+                    account, row.Direction, row.AbsAmount, currency, row.Date,
+                    transferQuery, pending, claimed, ct) is { } recorded)
+            {
+                // Achado I3 — sem regra, mas o outro extrato já criou a perna.
+                resolution = new ImportTransferResolution(ImportTransferStatus.AlreadyRecorded, recorded.TransactionId);
             }
 
-            if (alreadyRecorded)
+            if (alreadyRecorded || (!forced && resolution?.Status == ImportTransferStatus.AlreadyRecorded))
             {
-                // Q1 — só se a perna continua a ser a mesma que o preview mostrou.
+                // Q1 — não se importa; a data da perna passa a ser a deste extrato.
                 if (resolution is { Status: ImportTransferStatus.AlreadyRecorded, TransactionId: { } legId }
-                    && legId == previewRow.DuplicateTransactionId
-                    && await txRepo.GetByIdAsync(legId, ct) is { } leg)
+                    && (createdById.GetValueOrDefault(legId) ?? await txRepo.GetByIdAsync(legId, ct)) is { } leg)
                 {
                     if (DateOnly.FromDateTime(leg.OccurredAt.UtcDateTime) != row.Date)
                     {
                         leg.UpdateTransferLeg(leg.AccountId, occurredAt, leg.Amount, leg.Description);
-                        txRepo.Update(leg);
-                        updated.Add(leg);
+                        if (!createdById.ContainsKey(leg.Id))
+                        {
+                            txRepo.Update(leg);
+                            updated.Add(leg);
+                        }
                     }
 
                     transfersAlreadyRecorded++;
@@ -290,7 +305,7 @@ public static class CsvImportHandlers
             // Duplicado incluído à força: é uma transferência nova (Q1).
             if (forced && resolution?.Status == ImportTransferStatus.AlreadyRecorded)
             {
-                resolution = target!.Currency == currency
+                resolution = target is not null && target.Currency == currency
                     ? new ImportTransferResolution(ImportTransferStatus.CreateCounterpart, null)
                     : new ImportTransferResolution(ImportTransferStatus.CurrencyMismatch, null);
             }
@@ -325,11 +340,18 @@ public static class CsvImportHandlers
 
                     if (resolution.Status == ImportTransferStatus.LinkExisting)
                     {
-                        var counterpart = await txRepo.GetByIdAsync(resolution.TransactionId!.Value, ct)
+                        var counterpartId = resolution.TransactionId!.Value;
+                        var counterpart = createdById.GetValueOrDefault(counterpartId)
+                            ?? await txRepo.GetByIdAsync(counterpartId, ct)
                             ?? throw new TransferCounterpartAlreadyLinkedException();
                         counterpart.ConvertToTransferLeg(transferId);
-                        txRepo.Update(counterpart);
-                        updated.Add(counterpart);
+                        if (!createdById.ContainsKey(counterpart.Id))
+                        {
+                            txRepo.Update(counterpart);
+                            updated.Add(counterpart);
+                        }
+
+                        pending.MarkAsTransferLeg(counterpart.Id, account.Id);
                         transfersLinked++;
                     }
                     else
@@ -342,11 +364,16 @@ public static class CsvImportHandlers
                             row.Description, tenant.TenantId, exchangeRate);
                         await txRepo.AddAsync(counterpartLeg, ct);
                         created.Add(counterpartLeg);
+                        createdById[counterpartLeg.Id] = counterpartLeg;
+                        pending.AddTransferLeg(
+                            counterpartLeg.Id, target.Id, opposite, row.AbsAmount, currency, row.Date, account.Id);
                         transfersCreated++;
                     }
 
                     await txRepo.AddAsync(leg, ct);
                     created.Add(leg);
+                    createdById[leg.Id] = leg;
+                    pending.AddTransferLeg(leg.Id, account.Id, row.Direction, row.AbsAmount, currency, row.Date, target!.Id);
                     imported++;
                     continue;
                 }
@@ -396,6 +423,8 @@ public static class CsvImportHandlers
 
                 await txRepo.AddAsync(tx, ct);
                 created.Add(tx);
+                createdById[tx.Id] = tx;
+                pending.AddRegular(tx.Id, account.Id, row.Direction, row.AbsAmount, currency, row.Date);
                 imported++;
             }
             catch (FinancialDomainException)
