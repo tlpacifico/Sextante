@@ -77,6 +77,9 @@ public sealed class FinancialDbContext : DbContext
                     .HasMaxLength(3)
                     .IsRequired();
             });
+            b.Property(a => a.OpeningBalanceDate)
+                .HasColumnName("opening_balance_date")
+                .IsRequired();
             b.Property(a => a.CreatedAt).HasColumnName("created_at").IsRequired();
             b.Property(a => a.UpdatedAt).HasColumnName("updated_at").IsRequired();
             b.Property(a => a.DeletedAt).HasColumnName("deleted_at");
