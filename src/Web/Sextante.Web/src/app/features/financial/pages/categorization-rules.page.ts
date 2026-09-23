@@ -25,6 +25,8 @@ import {
   MATCH_TYPE_LABELS,
   MATCH_TYPES,
   MatchType,
+  RULE_ACTION_LABELS,
+  RuleAction,
 } from '../../../core/api/financial.types';
 import { FinancialStore } from '../state/financial.store';
 
@@ -73,7 +75,7 @@ import { FinancialStore } from '../state/financial.store';
             <th>Nome</th>
             <th>Padrão</th>
             <th style="width: 7rem">Tipo</th>
-            <th>Categoria</th>
+            <th>Ação</th>
             <th style="width: 5rem">Ativa</th>
             <th style="width: 9rem"></th>
           </tr>
@@ -116,10 +118,17 @@ import { FinancialStore } from '../state/financial.store';
               <p-tag [value]="matchTypeLabel(rule.matchType)" [rounded]="true" severity="info"></p-tag>
             </td>
             <td>
-              <span class="flex items-center gap-1">
-                <i class="pi {{ rule.categoryIcon }}" [style.color]="rule.categoryColor"></i>
-                <span>{{ rule.categoryName }}</span>
-              </span>
+              @if (rule.action === 'MarkAsTransfer') {
+                <span class="flex items-center gap-1">
+                  <i class="pi pi-arrow-right-arrow-left"></i>
+                  <span>Transferência → {{ rule.targetAccountName ?? '?' }}</span>
+                </span>
+              } @else {
+                <span class="flex items-center gap-1">
+                  <i class="pi {{ rule.categoryIcon }}" [style.color]="rule.categoryColor"></i>
+                  <span>{{ rule.categoryName }}</span>
+                </span>
+              }
             </td>
             <td>
               <p-checkbox
@@ -175,6 +184,34 @@ import { FinancialStore } from '../state/financial.store';
             ></p-select>
           </div>
           <div class="flex flex-col gap-1">
+            <label for="rule-action">Ação</label>
+            <p-select
+              inputId="rule-action"
+              [options]="actionOptions"
+              optionLabel="label"
+              optionValue="value"
+              formControlName="action"
+              styleClass="w-full"
+            ></p-select>
+          </div>
+          @if (isTransfer()) {
+            <div class="flex flex-col gap-1">
+              <label for="rule-target">Conta de destino</label>
+              <p-select
+                inputId="rule-target"
+                [options]="accountOptions()"
+                optionLabel="label"
+                optionValue="value"
+                formControlName="targetAccountId"
+                styleClass="w-full"
+                placeholder="Escolha a conta"
+              ></p-select>
+              <small class="text-[var(--p-text-muted-color)]">
+                Movimentos que casam com o padrão passam a ser transferências para esta conta.
+              </small>
+            </div>
+          } @else {
+          <div class="flex flex-col gap-1">
             <label for="rule-category">Categoria alvo</label>
             <p-select
               inputId="rule-category"
@@ -198,6 +235,7 @@ import { FinancialStore } from '../state/financial.store';
               </ng-template>
             </p-select>
           </div>
+          }
           <div class="flex flex-col gap-1">
             <label for="rule-priority">Prioridade (menor = maior prioridade)</label>
             <p-inputNumber
@@ -231,6 +269,11 @@ export class CategorizationRulesPage implements OnInit {
   protected readonly rules = signal<CategorizationRuleDto[]>([]);
   protected readonly matchTypeOptions = MATCH_TYPES.map(t => ({ value: t, label: MATCH_TYPE_LABELS[t] }));
   protected readonly matchTypeLabel = (m: MatchType) => MATCH_TYPE_LABELS[m];
+  protected readonly actionOptions = (Object.keys(RULE_ACTION_LABELS) as RuleAction[])
+    .map(a => ({ value: a, label: RULE_ACTION_LABELS[a] }));
+
+  protected readonly accountOptions = computed(() =>
+    this.store.accounts().map(a => ({ value: a.id, label: a.name })));
 
   protected readonly categoryOptions = computed(() => {
     const cats = this.store.categories();
@@ -252,13 +295,34 @@ export class CategorizationRulesPage implements OnInit {
     name: ['', [Validators.required, Validators.maxLength(128)]],
     pattern: ['', [Validators.required, Validators.maxLength(512)]],
     matchType: ['Contains' as string, Validators.required],
+    action: ['SetCategory' as RuleAction, Validators.required],
     categoryId: ['', Validators.required],
+    targetAccountId: [{ value: '', disabled: true }, Validators.required],
     priority: [1, [Validators.required, Validators.min(0)]],
   });
 
+  protected readonly isTransfer = signal(false);
+
+  constructor() {
+    // Phase 6.5 grupo 7 — categoria XOR conta de destino, conforme a ação.
+    this.form.controls.action.valueChanges.subscribe(action => this.applyAction(action));
+  }
+
+  private applyAction(action: RuleAction): void {
+    const transfer = action === 'MarkAsTransfer';
+    this.isTransfer.set(transfer);
+    if (transfer) {
+      this.form.controls.categoryId.disable({ emitEvent: false });
+      this.form.controls.targetAccountId.enable({ emitEvent: false });
+    } else {
+      this.form.controls.categoryId.enable({ emitEvent: false });
+      this.form.controls.targetAccountId.disable({ emitEvent: false });
+    }
+  }
+
   async ngOnInit(): Promise<void> {
     try {
-      await Promise.all([this.loadRules(), this.store.loadCategories()]);
+      await Promise.all([this.loadRules(), this.store.loadCategories(), this.store.loadAccounts()]);
     } catch {
       this.toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar dados.' });
     }
@@ -278,9 +342,12 @@ export class CategorizationRulesPage implements OnInit {
       name: '',
       pattern: '',
       matchType: 'Contains',
+      action: 'SetCategory',
       categoryId: '',
+      targetAccountId: '',
       priority: nextPriority,
     });
+    this.applyAction('SetCategory');
     this.dialogOpenSignal.set(true);
   }
 
@@ -290,9 +357,12 @@ export class CategorizationRulesPage implements OnInit {
       name: rule.name,
       pattern: rule.pattern,
       matchType: rule.matchType,
-      categoryId: rule.categoryId,
+      action: rule.action,
+      categoryId: rule.categoryId ?? '',
+      targetAccountId: rule.targetAccountId ?? '',
       priority: rule.priority,
     });
+    this.applyAction(rule.action);
     this.dialogOpenSignal.set(true);
   }
 
@@ -338,6 +408,8 @@ export class CategorizationRulesPage implements OnInit {
         categoryId: rule.categoryId,
         priority: rule.priority,
         isActive: !rule.isActive,
+        action: rule.action,
+        targetAccountId: rule.targetAccountId,
       });
       await this.loadRules();
     } catch {
@@ -350,19 +422,22 @@ export class CategorizationRulesPage implements OnInit {
     this.submitting.set(true);
     try {
       const value = this.form.getRawValue();
+      const transfer = value.action === 'MarkAsTransfer';
+      const request = {
+        name: value.name,
+        pattern: value.pattern,
+        matchType: value.matchType,
+        categoryId: transfer ? null : value.categoryId,
+        priority: value.priority,
+        action: value.action,
+        targetAccountId: transfer ? value.targetAccountId : null,
+      };
       const id = this.editingId();
       if (id) {
-        await this.api.updateCategorizationRule(id, {
-          name: value.name,
-          pattern: value.pattern,
-          matchType: value.matchType,
-          categoryId: value.categoryId,
-          priority: value.priority,
-          isActive: true,
-        });
+        await this.api.updateCategorizationRule(id, { ...request, isActive: true });
         this.toast.add({ severity: 'success', summary: 'Regra atualizada' });
       } else {
-        await this.api.createCategorizationRule(value);
+        await this.api.createCategorizationRule(request);
         this.toast.add({ severity: 'success', summary: 'Regra criada' });
       }
       this.close();

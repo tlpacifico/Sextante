@@ -2,11 +2,14 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
@@ -25,8 +28,10 @@ import {
   PreviewRow,
   ColumnMappingInput,
   ConfirmImportResponse,
+  IMPORT_TRANSFER_STATUS_LABELS,
   TRANSACTION_FIELD_LABELS,
 } from '../../../core/api/financial.types';
+import { FinancialStore } from '../state/financial.store';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -82,6 +87,22 @@ const DECIMAL_SEPARATOR_OPTIONS = [
           <h2 class="text-lg font-medium mb-4">1. Selecionar ficheiro</h2>
 
           <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1">
+              <label for="wiz-account">Conta de destino</label>
+              <p-select
+                inputId="wiz-account"
+                [options]="accountOptions()"
+                optionLabel="label"
+                optionValue="value"
+                [formControl]="uploadForm.controls.accountId"
+                styleClass="w-full"
+                placeholder="Escolha a conta"
+              ></p-select>
+              <small class="text-[var(--p-text-muted-color)]">
+                Se o ficheiro tiver uma coluna Conta mapeada, essa coluna manda.
+              </small>
+            </div>
+
             <div class="flex flex-col gap-1">
               <label for="wiz-profile">Perfil de importação (opcional)</label>
               <p-select
@@ -141,7 +162,7 @@ const DECIMAL_SEPARATOR_OPTIONS = [
               <p-button
                 label="Analisar ficheiro"
                 icon="pi pi-arrow-right"
-                [disabled]="!selectedFile() || uploading()"
+                [disabled]="!selectedFile() || !selectedAccountId() || uploading()"
                 [loading]="uploading()"
                 (onClick)="analyzeFile()"
               ></p-button>
@@ -292,10 +313,29 @@ const DECIMAL_SEPARATOR_OPTIONS = [
               <span class="font-medium text-green-500">{{ autoCategorizedCount() }}</span>
             </div>
             <div class="px-3 py-2 rounded bg-[var(--p-surface-100)] dark:bg-[var(--p-surface-800)]">
+              <span class="text-[var(--p-text-muted-color)]">Transferências: </span>
+              <span class="font-medium">{{ transferCount() }}</span>
+            </div>
+            <div class="px-3 py-2 rounded bg-[var(--p-surface-100)] dark:bg-[var(--p-surface-800)]">
               <span class="text-[var(--p-text-muted-color)]">Com erros: </span>
               <span class="font-medium text-red-500">{{ errorCount() }}</span>
             </div>
           </div>
+
+          @if (beforeOpeningBalanceCount() > 0) {
+            <div class="flex items-center gap-2 mb-4 min-h-11">
+              <p-checkbox
+                inputId="wiz-before-obd"
+                [binary]="true"
+                [ngModel]="includeBeforeOpeningBalance()"
+                (onChange)="includeBeforeOpeningBalance.set(!includeBeforeOpeningBalance())"
+              ></p-checkbox>
+              <label for="wiz-before-obd">
+                Incluir {{ beforeOpeningBalanceCount() }}
+                {{ beforeOpeningBalanceCount() === 1 ? 'linha anterior' : 'linhas anteriores' }} ao saldo inicial
+              </label>
+            </div>
+          }
 
           <div class="overflow-x-auto border border-[var(--p-surface-300)] dark:border-[var(--p-surface-700)] rounded">
             <table class="w-full text-sm">
@@ -317,6 +357,7 @@ const DECIMAL_SEPARATOR_OPTIONS = [
               <tbody>
                 @for (row of response.previewRows; track row.rowIndex) {
                   <tr class="border-t border-[var(--p-surface-200)] dark:border-[var(--p-surface-700)]"
+                    [class.opacity-60]="isExcluded(row)"
                     [class.bg-orange-50]="row.isDuplicate"
                     [class.dark:bg-orange-950]="row.isDuplicate"
                     [class.bg-red-50]="row.error"
@@ -336,13 +377,27 @@ const DECIMAL_SEPARATOR_OPTIONS = [
                       {{ row.values.join(' | ') }}
                     </td>
                     <td class="px-3 py-2">
-                      @if (row.isAutoCategorized && row.suggestedCategoryName) {
+                      @if (row.transferStatus) {
+                        <div class="flex flex-col gap-1">
+                          <p-tag
+                            icon="pi pi-arrow-right-arrow-left"
+                            [value]="'Transferência → ' + (row.transferTargetAccountName ?? '?')"
+                            [rounded]="true"
+                            severity="info"
+                          ></p-tag>
+                          <span class="text-xs text-[var(--p-text-muted-color)]">
+                            {{ transferStatusLabels[row.transferStatus] }}
+                          </span>
+                        </div>
+                      } @else if (row.isAutoCategorized && row.suggestedCategoryName) {
                         <p-tag [value]="row.suggestedCategoryName" [rounded]="true" severity="success"></p-tag>
                       }
                     </td>
                     <td class="px-3 py-2">
                       @if (row.error) {
                         <p-tag [value]="row.error" [rounded]="true" severity="danger"></p-tag>
+                      } @else if (row.isBeforeOpeningBalance) {
+                        <p-tag value="Antes do saldo inicial" [rounded]="true" severity="secondary"></p-tag>
                       } @else if (row.isDuplicate) {
                         <p-tag value="Duplicado" [rounded]="true" severity="warn"></p-tag>
                       } @else if (row.isAutoCategorized) {
@@ -397,6 +452,30 @@ const DECIMAL_SEPARATOR_OPTIONS = [
               <span>Manuais (precisam de categoria)</span>
               <span class="font-medium text-orange-500">{{ result.manualCount }}</span>
             </div>
+            @if (result.transfersCreated > 0) {
+              <div class="flex justify-between px-4 py-2 rounded bg-[var(--p-surface-100)] dark:bg-[var(--p-surface-800)]">
+                <span>Transferências criadas</span>
+                <span class="font-medium">{{ result.transfersCreated }}</span>
+              </div>
+            }
+            @if (result.transfersLinked > 0) {
+              <div class="flex justify-between px-4 py-2 rounded bg-[var(--p-surface-100)] dark:bg-[var(--p-surface-800)]">
+                <span>Ligadas a transações existentes</span>
+                <span class="font-medium">{{ result.transfersLinked }}</span>
+              </div>
+            }
+            @if (result.transfersAlreadyRecorded > 0) {
+              <div class="flex justify-between px-4 py-2 rounded bg-[var(--p-surface-100)] dark:bg-[var(--p-surface-800)]">
+                <span>Já registadas (data corrigida)</span>
+                <span class="font-medium">{{ result.transfersAlreadyRecorded }}</span>
+              </div>
+            }
+            @if (result.skippedBeforeOpeningBalance > 0) {
+              <div class="flex justify-between px-4 py-2 rounded bg-[var(--p-surface-100)] dark:bg-[var(--p-surface-800)]">
+                <span>Ignoradas (antes do saldo inicial)</span>
+                <span class="font-medium">{{ result.skippedBeforeOpeningBalance }}</span>
+              </div>
+            }
             <div class="flex justify-between px-4 py-2 rounded bg-[var(--p-surface-100)] dark:bg-[var(--p-surface-800)]">
               <span>Com erros</span>
               <span class="font-medium text-red-500">{{ result.errorRows }}</span>
@@ -429,8 +508,14 @@ export class ImportWizardPage implements OnInit {
   private readonly api = inject(FinancialApiService);
   private readonly fb = inject(FormBuilder);
   private readonly toast = inject(MessageService);
+  private readonly store = inject(FinancialStore);
 
   protected readonly profiles = signal<ImportProfileDto[]>([]);
+  protected readonly transferStatusLabels = IMPORT_TRANSFER_STATUS_LABELS;
+  protected readonly includeBeforeOpeningBalance = signal(false);
+
+  protected readonly accountOptions = computed(() =>
+    this.store.accounts().map(a => ({ value: a.id, label: `${a.name} (${a.currency})` })));
   protected readonly selectedFile = signal<File | null>(null);
   protected readonly dragOver = signal(false);
   protected readonly uploading = signal(false);
@@ -453,6 +538,20 @@ export class ImportWizardPage implements OnInit {
     const r = this.uploadResponse();
     return r ? r.previewRows.filter(p => p.isAutoCategorized).length : 0;
   };
+
+  protected readonly transferCount = () => {
+    const r = this.uploadResponse();
+    return r ? r.previewRows.filter(p => p.transferStatus).length : 0;
+  };
+
+  protected readonly beforeOpeningBalanceCount = () => {
+    const r = this.uploadResponse();
+    return r ? r.previewRows.filter(p => p.isBeforeOpeningBalance && !p.error).length : 0;
+  };
+
+  protected readonly isExcluded = (row: PreviewRow): boolean =>
+    (row.isBeforeOpeningBalance && !this.includeBeforeOpeningBalance())
+    || (row.isDuplicate && !(this.duplicateSelection()[row.rowIndex] ?? false));
 
   protected readonly errorCount = () => {
     const r = this.uploadResponse();
@@ -485,7 +584,12 @@ export class ImportWizardPage implements OnInit {
   ];
 
   protected readonly uploadForm = this.fb.nonNullable.group({
+    accountId: ['', Validators.required],
     importProfileId: [''],
+  });
+
+  protected readonly selectedAccountId = toSignal(this.uploadForm.controls.accountId.valueChanges, {
+    initialValue: '',
   });
 
   protected readonly mappingForm = this.fb.nonNullable.group({
@@ -498,10 +602,26 @@ export class ImportWizardPage implements OnInit {
   public columnMappingGroup = this.fb.nonNullable.group({});
 
   async ngOnInit(): Promise<void> {
+    await Promise.all([this.loadProfiles(), this.loadAccounts()]);
+  }
+
+  private async loadProfiles(): Promise<void> {
     try {
       this.profiles.set(await this.api.listImportProfiles());
     } catch {
       // non-critical – user can import without a profile
+    }
+  }
+
+  private async loadAccounts(): Promise<void> {
+    try {
+      await this.store.loadAccounts();
+      const accounts = this.store.accounts();
+      if (accounts.length === 1 && !this.uploadForm.controls.accountId.value) {
+        this.uploadForm.controls.accountId.setValue(accounts[0].id);
+      }
+    } catch {
+      this.toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar as contas.' });
     }
   }
 
@@ -547,12 +667,13 @@ export class ImportWizardPage implements OnInit {
 
   protected async analyzeFile(): Promise<void> {
     const file = this.selectedFile();
-    if (!file) return;
+    const accountId = this.uploadForm.controls.accountId.value;
+    if (!file || !accountId) return;
 
     this.uploading.set(true);
     try {
       const profileId = this.uploadForm.controls.importProfileId.value || null;
-      const response = await this.api.uploadCsv(file, profileId || null);
+      const response = await this.api.uploadCsv(file, accountId, profileId);
       this.uploadResponse.set(response);
 
       this.mappingForm.patchValue({
@@ -567,8 +688,8 @@ export class ImportWizardPage implements OnInit {
       }
 
       this.activeStep.set(2);
-    } catch {
-      this.toast.add({ severity: 'error', summary: 'Erro', detail: 'Erro ao analisar o ficheiro.' });
+    } catch (error) {
+      this.toast.add({ severity: 'error', summary: 'Erro', detail: firstProblemMessage(error) ?? 'Erro ao analisar o ficheiro.' });
     } finally {
       this.uploading.set(false);
     }
@@ -669,7 +790,8 @@ export class ImportWizardPage implements OnInit {
 
     this.confirming.set(true);
     try {
-      const result = await this.api.confirmImport(response.batchId, selectedDuplicates);
+      const result = await this.api.confirmImport(
+        response.batchId, selectedDuplicates, this.includeBeforeOpeningBalance());
       this.confirmResult.set(result);
       this.activeStep.set(4);
     } catch {
@@ -688,6 +810,15 @@ export class ImportWizardPage implements OnInit {
     this.uploadResponse.set(null);
     this.confirmResult.set(null);
     this.duplicateSelection.set({});
+    this.includeBeforeOpeningBalance.set(false);
     this.activeStep.set(1);
   }
+}
+
+/** Primeira mensagem de um ValidationProblem (400) do backend, se houver. */
+function firstProblemMessage(error: unknown): string | null {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 400) return null;
+  const errors = error.error?.errors as Record<string, string[]> | undefined;
+  const first = errors ? Object.values(errors).flat()[0] : undefined;
+  return first ?? error.error?.detail ?? null;
 }

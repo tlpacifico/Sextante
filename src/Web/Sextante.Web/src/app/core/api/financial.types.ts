@@ -302,12 +302,16 @@ export const CATEGORY_KIND_LABELS: Record<CategoryKind, string> = {
 // --- Categorization Rules (Phase 4) ---
 export type MatchType = 'Contains' | 'Equals' | 'StartsWith';
 
+/** Phase 6.5 grupo 7 — a regra atribui categoria ou marca como transferência. */
+export type RuleAction = 'SetCategory' | 'MarkAsTransfer';
+
 export interface CategorizationRuleDto {
   id: string;
   name: string;
   pattern: string;
   matchType: MatchType;
-  categoryId: string;
+  /** `null` em regras de transferência. */
+  categoryId: string | null;
   categoryName: string;
   categoryIcon: string;
   categoryColor: string;
@@ -315,23 +319,30 @@ export interface CategorizationRuleDto {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  action: RuleAction;
+  targetAccountId: string | null;
+  targetAccountName: string | null;
 }
 
 export interface CreateCategorizationRuleRequest {
   name: string;
   pattern: string;
   matchType: string;
-  categoryId: string;
+  categoryId: string | null;
   priority: number;
+  action: RuleAction;
+  targetAccountId: string | null;
 }
 
 export interface UpdateCategorizationRuleRequest {
   name: string;
   pattern: string;
   matchType: string;
-  categoryId: string;
+  categoryId: string | null;
   priority: number;
   isActive: boolean;
+  action: RuleAction;
+  targetAccountId: string | null;
 }
 
 export interface ReorderRulesRequest {
@@ -356,6 +367,11 @@ export const MATCH_TYPE_LABELS: Record<MatchType, string> = {
   Contains: 'Contém',
   Equals: 'Igual a',
   StartsWith: 'Começa com',
+};
+
+export const RULE_ACTION_LABELS: Record<RuleAction, string> = {
+  SetCategory: 'Atribuir categoria',
+  MarkAsTransfer: 'Marcar como transferência',
 };
 
 // --- Import Profiles (Phase 4) ---
@@ -412,6 +428,22 @@ export const TRANSACTION_FIELD_LABELS: Record<TransactionField, string> = {
 };
 
 // --- CSV Import (Phase 4) ---
+/** Phase 6.5 grupo 7 — o que acontece a uma linha marcada como transferência por regra. */
+export type ImportTransferStatus =
+  | 'CreateCounterpart'
+  | 'LinkExisting'
+  | 'AlreadyRecorded'
+  | 'CurrencyMismatch'
+  | 'InvalidTarget';
+
+export const IMPORT_TRANSFER_STATUS_LABELS: Record<ImportTransferStatus, string> = {
+  CreateCounterpart: 'cria a perna na outra conta',
+  LinkExisting: 'liga a uma transação existente',
+  AlreadyRecorded: 'já registada — corrige a data',
+  CurrencyMismatch: 'moedas diferentes — importada como normal',
+  InvalidTarget: 'conta alvo inválida — importada como normal',
+};
+
 export interface PreviewRow {
   rowIndex: number;
   values: string[];
@@ -421,6 +453,12 @@ export interface PreviewRow {
   suggestedCategoryId: string | null;
   isAutoCategorized: boolean;
   error: string | null;
+  accountId: string | null;
+  isBeforeOpeningBalance: boolean;
+  transferStatus: ImportTransferStatus | null;
+  transferTargetAccountId: string | null;
+  transferTargetAccountName: string | null;
+  transferCounterpartTransactionId: string | null;
 }
 
 export interface UploadCsvResponse {
@@ -455,6 +493,10 @@ export interface ConfirmImportResponse {
   manualCount: number;
   errorRows: number;
   status: string;
+  skippedBeforeOpeningBalance: number;
+  transfersCreated: number;
+  transfersLinked: number;
+  transfersAlreadyRecorded: number;
 }
 
 export interface ImportBatchDto {

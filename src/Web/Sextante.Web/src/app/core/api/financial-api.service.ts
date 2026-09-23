@@ -354,12 +354,12 @@ export class FinancialApiService {
   }
 
   // CSV Import (Phase 4) -----------------------------------------------------
-  uploadCsv(file: File, importProfileId?: string | null): Promise<UploadCsvResponse> {
+  uploadCsv(file: File, accountId: string, importProfileId?: string | null): Promise<UploadCsvResponse> {
     const formData = new FormData();
     formData.append('file', file);
-    let url = '/api/financial/imports/upload';
+    let url = `/api/financial/imports/upload?accountId=${accountId}`;
     if (importProfileId) {
-      url += `?importProfileId=${importProfileId}`;
+      url += `&importProfileId=${importProfileId}`;
     }
     return firstValueFrom(this.http.post<UploadCsvResponse>(url, formData));
   }
@@ -368,8 +368,15 @@ export class FinancialApiService {
     return firstValueFrom(this.http.put<UploadCsvResponse>(`/api/financial/imports/${batchId}/preview`, req));
   }
 
-  confirmImport(batchId: string, includeDuplicates: string[]): Promise<ConfirmImportResponse> {
-    return firstValueFrom(this.http.post<ConfirmImportResponse>(`/api/financial/imports/${batchId}/confirm`, { includeDuplicates }));
+  confirmImport(
+    batchId: string,
+    includeDuplicates: string[],
+    includeBeforeOpeningBalance = false,
+  ): Promise<ConfirmImportResponse> {
+    return firstValueFrom(this.http.post<ConfirmImportResponse>(
+      `/api/financial/imports/${batchId}/confirm`,
+      { includeDuplicates, includeBeforeOpeningBalance },
+    ));
   }
 
   listImportBatches(): Promise<ImportBatchDto[]> {

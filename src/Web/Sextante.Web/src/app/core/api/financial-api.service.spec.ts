@@ -143,10 +143,10 @@ describe('FinancialApiService', () => {
     await promise;
   });
 
-  it('uploadCsv POSTs FormData to /api/financial/imports/upload', async () => {
+  it('uploadCsv POSTs FormData with the destination account', async () => {
     const file = new File(['Data;Valor\n01-01;10'], 'test.csv', { type: 'text/csv' });
-    const promise = service.uploadCsv(file);
-    const req = httpMock.expectOne('/api/financial/imports/upload');
+    const promise = service.uploadCsv(file, 'acc-1');
+    const req = httpMock.expectOne('/api/financial/imports/upload?accountId=acc-1');
     expect(req.request.method).toBe('POST');
     expect(req.request.body instanceof FormData).toBeTrue();
     req.flush({ batchId: 'b1', headers: [], rows: [], totalRowCount: 0, truncated: false });
@@ -155,8 +155,8 @@ describe('FinancialApiService', () => {
 
   it('uploadCsv appends importProfileId as query param when provided', async () => {
     const file = new File(['x'], 'test.csv', { type: 'text/csv' });
-    const promise = service.uploadCsv(file, 'profile-1');
-    const req = httpMock.expectOne('/api/financial/imports/upload?importProfileId=profile-1');
+    const promise = service.uploadCsv(file, 'acc-1', 'profile-1');
+    const req = httpMock.expectOne('/api/financial/imports/upload?accountId=acc-1&importProfileId=profile-1');
     expect(req.request.method).toBe('POST');
     req.flush({ batchId: 'b1', headers: [], rows: [], totalRowCount: 0, truncated: false });
     await promise;
@@ -166,7 +166,15 @@ describe('FinancialApiService', () => {
     const promise = service.confirmImport('batch-1', ['tx-1', 'tx-2']);
     const req = httpMock.expectOne('/api/financial/imports/batch-1/confirm');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ includeDuplicates: ['tx-1', 'tx-2'] });
+    expect(req.request.body).toEqual({ includeDuplicates: ['tx-1', 'tx-2'], includeBeforeOpeningBalance: false });
+    req.flush({ importedCount: 0, autoCategorizedCount: 0, errorCount: 0 });
+    await promise;
+  });
+
+  it('confirmImport sends includeBeforeOpeningBalance when asked', async () => {
+    const promise = service.confirmImport('batch-1', [], true);
+    const req = httpMock.expectOne('/api/financial/imports/batch-1/confirm');
+    expect(req.request.body).toEqual({ includeDuplicates: [], includeBeforeOpeningBalance: true });
     req.flush({ importedCount: 0, autoCategorizedCount: 0, errorCount: 0 });
     await promise;
   });
