@@ -334,7 +334,7 @@ export class AccountsPage implements OnInit {
           type: value.type,
           currency: value.currency,
           openingBalanceAmount: value.openingBalance,
-          openingBalanceDate: value.openingBalanceDate.toISOString().slice(0, 10),
+          openingBalanceDate: this.toDateString(value.openingBalanceDate),
         });
         this.toast.add({ severity: 'success', summary: 'Conta criada' });
       }
@@ -349,6 +349,13 @@ export class AccountsPage implements OnInit {
     } finally {
       this.submitting.set(false);
     }
+  }
+
+  private toDateString(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   private async archive(id: string): Promise<void> {

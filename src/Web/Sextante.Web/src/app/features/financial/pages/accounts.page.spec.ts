@@ -83,4 +83,44 @@ describe('AccountsPage', () => {
       }),
     );
   });
+
+  it('sends the opening balance date as the local calendar day, not the UTC-shifted one', async () => {
+    const fixture = TestBed.createComponent(AccountsPage);
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush([]));
+
+    const component = fixture.componentInstance as unknown as {
+      form: { patchValue(value: Record<string, unknown>): void };
+      submit(): Promise<void>;
+    };
+
+    // Meia-noite local a 1 de agosto de 2026 — em qualquer fuso horário a
+    // leste de UTC (ex.: Lisboa no verão, UTC+1), `.toISOString()` desloca
+    // esta data para 31/07 em UTC. O pedido enviado ao backend tem de manter
+    // "2026-08-01", a data efetivamente escolhida no calendário local.
+    component.form.patchValue({
+      name: 'Conta de teste',
+      openingBalanceDate: new Date(2026, 7, 1),
+    });
+    const submitting = component.submit();
+
+    const req = httpMock.expectOne('/api/financial/accounts');
+    expect(req.request.body.openingBalanceDate).toBe('2026-08-01');
+    req.flush({
+      id: 'a1',
+      name: '',
+      type: 'Checking',
+      currency: 'EUR',
+      openingBalance: { amount: 0, currency: 'EUR' },
+      openingBalanceDate: '2026-08-01',
+      currentBalance: { amount: 0, currency: 'EUR' },
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-01T00:00:00Z',
+    });
+    // `submit()` recarrega a lista de contas após criar — a chamada só chega
+    // ao HttpTestingController depois de um "tick" de microtasks.
+    await fixture.whenStable();
+    httpMock.expectOne('/api/financial/accounts').flush([]);
+    await submitting;
+  });
 });
