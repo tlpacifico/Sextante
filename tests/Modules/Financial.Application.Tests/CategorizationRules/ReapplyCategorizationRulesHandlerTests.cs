@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.Features.CategorizationRules;
 using Sextante.Modules.Financial.Application.Tests.TestSupport;
@@ -18,8 +19,8 @@ public sealed class ReapplyCategorizationRulesHandlerTests
         Guid accountId, Guid categoryId, DateTimeOffset occurredAt,
         decimal amount, string description)
     {
-        return Transaction.Create(
-            accountId, categoryId, occurredAt,
+        return Transaction.CreateRegular(
+            accountId, categoryId, CategoryKind.Expense, occurredAt,
             new Money(amount, "EUR"), description, null, Tenant,
             now: DateTimeOffset.UtcNow);
     }
@@ -41,7 +42,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: true),
-            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.TotalProcessed.Should().Be(1, "the already-categorized one is filtered out");
         response.CategorizedCount.Should().Be(1);
@@ -65,7 +66,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.TotalProcessed.Should().Be(2);
         response.CategorizedCount.Should().Be(2);
@@ -80,8 +81,8 @@ public sealed class ReapplyCategorizationRulesHandlerTests
         var category = Guid.NewGuid();
 
         var withDescription = NewTx(account, category, DateTimeOffset.UtcNow.AddDays(-1), 10m, "Continente");
-        var blankDescription = Transaction.Create(
-            account, category, DateTimeOffset.UtcNow.AddDays(-1),
+        var blankDescription = Transaction.CreateRegular(
+            account, category, CategoryKind.Expense, DateTimeOffset.UtcNow.AddDays(-1),
             new Money(10m, "EUR"), null, null, Tenant);
 
         var txRepo = new StubTxRepo(withDescription, blankDescription);
@@ -89,7 +90,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.TotalProcessed.Should().Be(1);
         engine.LastInputs.Should().HaveCount(1);
@@ -107,7 +108,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(category, from, to, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         txRepo.LastFilter.Should().NotBeNull();
         txRepo.LastFilter!.DateFrom.Should().Be(from);
@@ -126,7 +127,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.TotalProcessed.Should().Be(2);
         response.CategorizedCount.Should().Be(0);
@@ -144,7 +145,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.CategorizedCount.Should().Be(0);
         response.UnchangedCount.Should().Be(1);
@@ -165,7 +166,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(oldCategory, null, null, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.TotalProcessed.Should().Be(250);
         response.CategorizedCount.Should().Be(250);
@@ -183,12 +184,24 @@ public sealed class ReapplyCategorizationRulesHandlerTests
         await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
             new StubTxRepo(t1, t2),
+            new InMemoryCategoryRepository().With(newCategory, CategoryKind.Expense),
             new StubEngine(matchToCategory: newCategory, matchedRule: Guid.NewGuid()),
             new StubTenantContext(Tenant), events, CancellationToken.None);
 
         events.Published.OfType<TransactionUpdatedIntegrationEvent>()
             .Select(e => e.TransactionId)
             .Should().BeEquivalentTo(new[] { t1.Id }, "t2 já tinha a categoria — não mudou, não publica");
+    }
+
+    private static InMemoryCategoryRepository CategoriesFor(StubEngine engine)
+    {
+        var categories = new InMemoryCategoryRepository();
+        if (engine.MatchToCategory is { } id)
+        {
+            categories.With(id, CategoryKind.Expense);
+        }
+
+        return categories;
     }
 
     private sealed class StubTxRepo : ITransactionRepository
@@ -204,7 +217,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
             IEnumerable<Transaction> filtered = Items;
             if (filter.DateFrom.HasValue) filtered = filtered.Where(t => t.OccurredAt >= filter.DateFrom.Value);
             if (filter.DateTo.HasValue) filtered = filtered.Where(t => t.OccurredAt <= filter.DateTo.Value);
-            if (filter.CategoryIds is { Count: > 0 }) filtered = filtered.Where(t => filter.CategoryIds.Contains(t.CategoryId));
+            if (filter.CategoryIds is { Count: > 0 }) filtered = filtered.Where(t => t.CategoryId != null && filter.CategoryIds.Contains(t.CategoryId.Value));
 
             // Mesma paginação por cursor do TransactionRepository real
             // (OccurredAt desc, Id desc, máx. 100 por página).
@@ -247,6 +260,8 @@ public sealed class ReapplyCategorizationRulesHandlerTests
         private readonly Guid? _matchToCategory;
         private readonly Guid? _matchedRule;
         public IReadOnlyList<TransactionToCategorize> LastInputs { get; private set; } = Array.Empty<TransactionToCategorize>();
+
+        public Guid? MatchToCategory => _matchToCategory;
 
         public StubEngine(Guid? matchToCategory, Guid? matchedRule)
         {

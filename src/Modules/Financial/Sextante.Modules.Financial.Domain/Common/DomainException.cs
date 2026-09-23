@@ -37,6 +37,14 @@ public sealed class TransactionAmountMustBePositiveException : FinancialDomainEx
     }
 }
 
+public sealed class TransactionNotRegularException : FinancialDomainException
+{
+    public TransactionNotRegularException()
+        : base("Só transações regulares podem ser editadas ou recategorizadas diretamente.")
+    {
+    }
+}
+
 public sealed class TransactionInFutureException : FinancialDomainException
 {
     public TransactionInFutureException()

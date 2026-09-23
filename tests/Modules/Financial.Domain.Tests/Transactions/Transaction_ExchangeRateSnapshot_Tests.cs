@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Transactions;
 using Sextante.SharedKernel;
 
@@ -16,9 +17,9 @@ public sealed class Transaction_ExchangeRateSnapshot_Tests
         var occurredAt = DateTimeOffset.UtcNow.AddDays(-1);
         var snapshot = new ExchangeRateSnapshot(5.4545m, DateTimeOffset.UtcNow);
 
-        var transaction = Transaction.Create(
+        var transaction = Transaction.CreateRegular(
             AccountId,
-            CategoryId,
+            CategoryId, CategoryKind.Expense,
             occurredAt,
             new Money(300m, "USD"),
             null, null, Tenant, snapshot);
@@ -32,9 +33,9 @@ public sealed class Transaction_ExchangeRateSnapshot_Tests
     {
         var occurredAt = DateTimeOffset.UtcNow.AddDays(-1);
 
-        var transaction = Transaction.Create(
+        var transaction = Transaction.CreateRegular(
             AccountId,
-            CategoryId,
+            CategoryId, CategoryKind.Expense,
             occurredAt,
             new Money(200m, "EUR"),
             null, null, Tenant, exchangeRate: null);
@@ -49,9 +50,9 @@ public sealed class Transaction_ExchangeRateSnapshot_Tests
         var occurredAt = DateTimeOffset.UtcNow.AddDays(-2);
         var originalSnapshot = new ExchangeRateSnapshot(1.10m, DateTimeOffset.UtcNow.AddDays(-2));
 
-        var transaction = Transaction.Create(
+        var transaction = Transaction.CreateRegular(
             AccountId,
-            CategoryId,
+            CategoryId, CategoryKind.Expense,
             occurredAt,
             new Money(100m, "USD"),
             null, null, Tenant, originalSnapshot);
@@ -59,6 +60,7 @@ public sealed class Transaction_ExchangeRateSnapshot_Tests
         transaction.Update(
             AccountId,
             CategoryId,
+            CategoryKind.Expense,
             occurredAt,
             new Money(150m, "USD"),
             null, null);

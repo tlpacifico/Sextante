@@ -151,6 +151,7 @@ public static class CategorizationRuleHandlers
     public static async Task<ReapplyCategorizationRulesResponse> Handle(
         ReapplyCategorizationRulesCommand command,
         ITransactionRepository txRepo,
+        ICategoryRepository categoryRepo,
         ICategorizationRuleEngine engine,
         ITenantContext tenant,
         IIntegrationEventPublisher events,
@@ -183,6 +184,9 @@ public static class CategorizationRuleHandlers
 
         var results = await engine.ApplyAsync(toProcess, tenant.TenantId, ct);
 
+        // A direção segue o tipo da categoria; regras que apontam para uma
+        // categoria arquivada não recategorizam (ficam como inalteradas).
+        var kinds = (await categoryRepo.ListAsync(ct)).ToDictionary(c => c.Id, c => c.Kind);
         var byId = allTransactions.ToDictionary(t => t.Id);
         var changed = new List<Transaction>();
         foreach (var result in results)
@@ -193,7 +197,9 @@ public static class CategorizationRuleHandlers
 
             if (tx.CategoryId == result.NewCategoryId.Value) continue;
 
-            tx.SetCategory(result.NewCategoryId.Value);
+            if (!kinds.TryGetValue(result.NewCategoryId.Value, out var kind)) continue;
+
+            tx.SetCategory(result.NewCategoryId.Value, kind);
             if (result.MatchedRuleId is not null)
                 tx.MarkCategorizedByRule(result.MatchedRuleId.Value);
 

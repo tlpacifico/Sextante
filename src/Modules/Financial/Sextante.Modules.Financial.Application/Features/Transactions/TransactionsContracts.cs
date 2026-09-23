@@ -6,7 +6,7 @@ namespace Sextante.Modules.Financial.Application.Features.Transactions;
 public sealed record TransactionResponse(
     Guid Id,
     Guid AccountId,
-    Guid CategoryId,
+    Guid? CategoryId,
     DateTimeOffset OccurredAt,
     Money Amount,
     string? Description,

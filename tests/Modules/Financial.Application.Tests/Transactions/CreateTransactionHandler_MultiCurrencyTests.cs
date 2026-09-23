@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Application.Features.Transactions;
 using Sextante.Modules.Financial.Application.Tests.TestSupport;
@@ -38,6 +39,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             command,
             fixture.Transactions,
             fixture.Accounts,
+            fixture.Categories,
             fixture.TenantContext,
             fixture.TenantCurrency,
             fixture.ExchangeRates,
@@ -79,6 +81,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             command,
             fixture.Transactions,
             fixture.Accounts,
+            fixture.Categories,
             fixture.TenantContext,
             fixture.TenantCurrency,
             fixture.ExchangeRates,
@@ -120,6 +123,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             command,
             fixture.Transactions,
             fixture.Accounts,
+            fixture.Categories,
             fixture.TenantContext,
             fixture.TenantCurrency,
             fixture.ExchangeRates,
@@ -155,6 +159,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             command,
             fixture.Transactions,
             fixture.Accounts,
+            fixture.Categories,
             fixture.TenantContext,
             fixture.TenantCurrency,
             fixture.ExchangeRates,
@@ -189,6 +194,7 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             command,
             fixture.Transactions,
             fixture.Accounts,
+            fixture.Categories,
             fixture.TenantContext,
             fixture.TenantCurrency,
             fixture.ExchangeRates,
@@ -218,7 +224,10 @@ public sealed class CreateTransactionHandler_MultiCurrencyTests
             CurrencyDirectory = new StubCurrencyDirectory(active: new[] { "EUR", "USD", "BRL", "GBP" });
             ExchangeRates = new StubExchangeRateService(returnsNull: true);
             Events = new StubIntegrationEventPublisher();
+            Categories = new InMemoryCategoryRepository();
         }
+
+        public InMemoryCategoryRepository Categories { get; }
 
         public StubTenantContext TenantContext { get; }
         public StubTenantCurrencyResolver TenantCurrency { get; }

@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Application.Features.Transactions;
 using Sextante.Modules.Financial.Application.Tests.TestSupport;
 using Sextante.Modules.Financial.Domain.Common;
@@ -33,7 +34,7 @@ public sealed class UpdateAndRecategorizeHandlerTests
             Tags: null);
 
         var response = await TransactionHandlers.Handle(
-            command, repo, new StubTenantContext(Tenant), publisher, CancellationToken.None);
+            command, repo, new InMemoryCategoryRepository(), new StubTenantContext(Tenant), publisher, CancellationToken.None);
 
         response.Should().NotBeNull();
         response!.AccountId.Should().Be(newAccountId);
@@ -58,7 +59,7 @@ public sealed class UpdateAndRecategorizeHandlerTests
             DateTimeOffset.UtcNow, 50m, null, null);
 
         var act = () => TransactionHandlers.Handle(
-            command, repo, new StubTenantContext(Tenant), publisher, CancellationToken.None);
+            command, repo, new InMemoryCategoryRepository(), new StubTenantContext(Tenant), publisher, CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
         publisher.Published.Should().BeEmpty();
@@ -77,7 +78,7 @@ public sealed class UpdateAndRecategorizeHandlerTests
         var command = new RecategorizeTransactionsCommand(new[] { t1.Id, t3.Id }, newCategory);
 
         var result = await TransactionHandlers.Handle(
-            command, repo, new StubTenantContext(Tenant), publisher, CancellationToken.None);
+            command, repo, new InMemoryCategoryRepository(), new StubTenantContext(Tenant), publisher, CancellationToken.None);
 
         result.UpdatedCount.Should().Be(2);
         t1.CategoryId.Should().Be(newCategory);
@@ -97,16 +98,17 @@ public sealed class UpdateAndRecategorizeHandlerTests
         var command = new RecategorizeTransactionsCommand(new[] { Guid.NewGuid(), Guid.NewGuid() }, Guid.NewGuid());
 
         var result = await TransactionHandlers.Handle(
-            command, repo, new StubTenantContext(Tenant), publisher, CancellationToken.None);
+            command, repo, new InMemoryCategoryRepository(), new StubTenantContext(Tenant), publisher, CancellationToken.None);
 
         result.UpdatedCount.Should().Be(0);
         publisher.Published.Should().BeEmpty();
     }
 
     private static Transaction NewTransaction()
-        => Transaction.Create(
+        => Transaction.CreateRegular(
             Guid.NewGuid(),
             Guid.NewGuid(),
+            CategoryKind.Expense,
             DateTimeOffset.UtcNow.AddDays(-2),
             new Money(100m, "EUR"),
             description: "original",

@@ -165,7 +165,7 @@ public sealed class RecurringTransactionMaterializerHandlerTests
     }
 
     [Fact]
-    public async Task Rule_without_category_uses_Guid_Empty()
+    public async Task Rule_without_category_creates_uncategorized_outflow()
     {
         var rule = RecurringRule.Create(
             "Uncategorized", new Money(75m, "EUR"), AccountId, null,
@@ -181,7 +181,32 @@ public sealed class RecurringTransactionMaterializerHandlerTests
 
         result.Materialized.Should().Be(1);
         var tx = fixture.Transactions.Added.Should().ContainSingle().Subject;
-        tx.CategoryId.Should().Be(Guid.Empty);
+        // Phase 6.5 (R2): sem sentinel Guid.Empty — sem categoria, saída.
+        tx.CategoryId.Should().BeNull();
+        tx.Direction.Should().Be(TransactionDirection.Outflow);
+        tx.Kind.Should().Be(TransactionKind.Regular);
+    }
+
+    [Fact]
+    public async Task Rule_with_income_category_materializes_inflow()
+    {
+        var incomeCategory = Guid.NewGuid();
+        var rule = RecurringRule.Create(
+            "Salário", new Money(2000m, "EUR"), AccountId, incomeCategory,
+            Frequency.Monthly, 1,
+            RunDate, null, null, Tenant, RunDate);
+        var fixture = new HandlerFixture(RunDate, primaryCurrency: "EUR")
+            .WithRule(rule);
+        fixture.Categories.With(incomeCategory, CategoryKind.Income);
+
+        await fixture.Sut.ExecuteAsync(
+            new RecurringMaterializerPayload(RunDate),
+            fixture.TenantContext,
+            CancellationToken.None);
+
+        var tx = fixture.Transactions.Added.Should().ContainSingle().Subject;
+        tx.CategoryId.Should().Be(incomeCategory);
+        tx.Direction.Should().Be(TransactionDirection.Inflow);
     }
 
     [Fact]
@@ -247,7 +272,7 @@ public sealed class RecurringTransactionMaterializerHandlerTests
             Transactions = new InMemoryTransactionRepository();
             Rules = new StubRecurringRuleRepository();
             ExchangeRateService = new StubExchangeRateService(returnsNull: true);
-            Categories = new StubCategoryRepository();
+            Categories = new InMemoryCategoryRepository();
             Events = new StubIntegrationEventPublisher();
         }
 
@@ -256,7 +281,7 @@ public sealed class RecurringTransactionMaterializerHandlerTests
         public InMemoryTransactionRepository Transactions { get; }
         public StubRecurringRuleRepository Rules { get; }
         public StubExchangeRateService ExchangeRateService { get; private set; }
-        public StubCategoryRepository Categories { get; }
+        public InMemoryCategoryRepository Categories { get; }
         public StubIntegrationEventPublisher Events { get; }
 
         public RecurringTransactionMaterializerHandler Sut =>

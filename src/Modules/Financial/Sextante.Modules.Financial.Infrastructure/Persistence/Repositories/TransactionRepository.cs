@@ -72,7 +72,7 @@ public sealed class TransactionRepository : ITransactionRepository
             .Join(
                 CategoriesIncludingArchived,
                 t => new { Id = t.CategoryId, t.TenantId },
-                c => new { c.Id, c.TenantId },
+                c => new { Id = (Guid?)c.Id, c.TenantId },
                 (t, c) => new
                 {
                     Amount = t.Amount.Amount,
@@ -100,7 +100,7 @@ public sealed class TransactionRepository : ITransactionRepository
             .Join(
                 CategoriesIncludingArchived,
                 t => new { Id = t.CategoryId, t.TenantId },
-                c => new { c.Id, c.TenantId },
+                c => new { Id = (Guid?)c.Id, c.TenantId },
                 (t, c) => new
                 {
                     Amount = t.Amount.Amount,
@@ -138,7 +138,7 @@ public sealed class TransactionRepository : ITransactionRepository
             .Join(
                 CategoriesIncludingArchived,
                 x => new { Id = x.Transaction.CategoryId, x.Transaction.TenantId },
-                c => new { c.Id, c.TenantId },
+                c => new { Id = (Guid?)c.Id, c.TenantId },
                 (x, c) => new { x.Transaction, x.AccountName, Category = c })
             .OrderByDescending(x => x.Transaction.OccurredAt)
             .ThenByDescending(x => x.Transaction.Id)
@@ -174,7 +174,7 @@ public sealed class TransactionRepository : ITransactionRepository
             .Join(
                 CategoriesIncludingArchived.Where(c => c.Kind == kind),
                 t => new { Id = t.CategoryId, t.TenantId },
-                c => new { c.Id, c.TenantId },
+                c => new { Id = (Guid?)c.Id, c.TenantId },
                 (t, c) => new
                 {
                     c.Id,
@@ -228,7 +228,7 @@ public sealed class TransactionRepository : ITransactionRepository
 
         if (filter.CategoryIds is { Count: > 0 } categoryIds)
         {
-            query = query.Where(t => categoryIds.Contains(t.CategoryId));
+            query = query.Where(t => t.CategoryId != null && categoryIds.Contains(t.CategoryId.Value));
         }
 
         if (filter.AccountIds is { Count: > 0 } accountIds)

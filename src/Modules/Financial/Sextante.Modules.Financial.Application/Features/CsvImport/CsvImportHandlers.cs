@@ -287,6 +287,7 @@ public static class CsvImportHandlers
         // Pre-load accounts for lookup
         var accounts = await accountRepo.ListAsync(ct);
         var categories = await categoryRepo.ListAsync(ct);
+        var kinds = categories.ToDictionary(c => c.Id, c => c.Kind);
 
         var includeSet = new HashSet<Guid>(command.IncludeDuplicates);
         var rowsToImport = previewRows
@@ -375,6 +376,13 @@ public static class CsvImportHandlers
 
                 // Category: use suggested (from preview) or infer from amount sign
                 var categoryId = row.SuggestedCategoryId;
+                // Sugestão para uma categoria entretanto arquivada: cai na
+                // inferência pelo sinal, como se não houvesse sugestão.
+                if (categoryId is not null && !kinds.ContainsKey(categoryId.Value))
+                {
+                    categoryId = null;
+                }
+
                 if (categoryId is null)
                 {
                     // Phase 5.5 — inferir tipo pelo sinal do valor:
@@ -399,9 +407,10 @@ public static class CsvImportHandlers
                     autoCategorized++;
                 }
 
-                var tx = Transaction.Create(
+                var tx = Transaction.CreateRegular(
                     account.Id,
                     categoryId.Value,
+                    kinds[categoryId.Value],
                     new DateTimeOffset(date, TimeOnly.MinValue, TimeSpan.Zero),
                     money,
                     description,
@@ -416,8 +425,9 @@ public static class CsvImportHandlers
                 if (ruleResult?.MatchedRuleId is not null)
                 {
                     tx.MarkCategorizedByRule(ruleResult.MatchedRuleId.Value);
-                    if (ruleResult.NewCategoryId is not null)
-                        tx.SetCategory(ruleResult.NewCategoryId.Value);
+                    if (ruleResult.NewCategoryId is not null
+                        && kinds.TryGetValue(ruleResult.NewCategoryId.Value, out var ruleKind))
+                        tx.SetCategory(ruleResult.NewCategoryId.Value, ruleKind);
                 }
 
                 await txRepo.AddAsync(tx, ct);

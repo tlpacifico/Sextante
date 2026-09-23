@@ -1,6 +1,7 @@
 using Sextante.Modules.Financial.Application.Common;
 using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Domain.Accounts;
+using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Financial.Domain.Transactions;
 using Sextante.Modules.Financial.PublicApi.Events;
@@ -23,6 +24,7 @@ public static class TransactionHandlers
         CreateTransactionCommand command,
         ITransactionRepository repository,
         IAccountRepository accountRepository,
+        ICategoryRepository categoryRepository,
         ITenantContext tenant,
         ITenantCurrencyResolver currency,
         IExchangeRateService exchangeRates,
@@ -53,9 +55,13 @@ public static class TransactionHandlers
             command.OccurredAt,
             cancellationToken);
 
-        var transaction = Transaction.Create(
+        var category = await categoryRepository.GetByIdAsync(command.CategoryId, cancellationToken)
+            ?? throw new ArgumentException("Categoria não encontrada.", nameof(command));
+
+        var transaction = Transaction.CreateRegular(
             command.AccountId,
-            command.CategoryId,
+            category.Id,
+            category.Kind,
             command.OccurredAt,
             new Money(command.Amount, requestedCurrency),
             command.Description,
@@ -71,7 +77,7 @@ public static class TransactionHandlers
                 transaction.Id,
                 tenant.TenantId.Value,
                 transaction.AccountId,
-                transaction.CategoryId == Guid.Empty ? null : transaction.CategoryId,
+                transaction.CategoryId,
                 transaction.Amount.Amount,
                 transaction.Amount.Currency,
                 transaction.OccurredAt,
@@ -84,6 +90,7 @@ public static class TransactionHandlers
     public static async Task<TransactionResponse?> Handle(
         UpdateTransactionCommand command,
         ITransactionRepository repository,
+        ICategoryRepository categoryRepository,
         ITenantContext tenant,
         IIntegrationEventPublisher events,
         CancellationToken cancellationToken)
@@ -96,9 +103,13 @@ public static class TransactionHandlers
 
         // Update preserva a moeda original e o ER frozen — apenas
         // amount/dates/desc/tags são editáveis.
+        var category = await categoryRepository.GetByIdAsync(command.CategoryId, cancellationToken)
+            ?? throw new ArgumentException("Categoria não encontrada.", nameof(command));
+
         transaction.Update(
             command.AccountId,
-            command.CategoryId,
+            category.Id,
+            category.Kind,
             command.OccurredAt,
             new Money(command.Amount, transaction.Amount.Currency),
             command.Description,
@@ -112,7 +123,7 @@ public static class TransactionHandlers
                 transaction.Id,
                 tenant.TenantId.Value,
                 transaction.AccountId,
-                transaction.CategoryId == Guid.Empty ? null : transaction.CategoryId,
+                transaction.CategoryId,
                 transaction.Amount.Amount,
                 transaction.Amount.Currency,
                 transaction.OccurredAt,
@@ -146,7 +157,7 @@ public static class TransactionHandlers
                 transaction.Id,
                 tenant.TenantId.Value,
                 transaction.AccountId,
-                transaction.CategoryId == Guid.Empty ? null : transaction.CategoryId,
+                transaction.CategoryId,
                 transaction.Amount.Amount,
                 transaction.Amount.Currency,
                 transaction.OccurredAt,
@@ -160,16 +171,20 @@ public static class TransactionHandlers
     public static async Task<RecategorizeTransactionsResponse> Handle(
         RecategorizeTransactionsCommand command,
         ITransactionRepository repository,
+        ICategoryRepository categoryRepository,
         ITenantContext tenant,
         IIntegrationEventPublisher events,
         CancellationToken cancellationToken)
     {
+        var category = await categoryRepository.GetByIdAsync(command.CategoryId, cancellationToken)
+            ?? throw new ArgumentException("Categoria não encontrada.", nameof(command));
+
         var transactions = await repository.GetByIdsAsync(command.Ids, cancellationToken);
         var updated = 0;
 
         foreach (var tx in transactions)
         {
-            tx.SetCategory(command.CategoryId);
+            tx.SetCategory(category.Id, category.Kind);
             repository.Update(tx);
             updated++;
 
@@ -178,7 +193,7 @@ public static class TransactionHandlers
                     tx.Id,
                     tenant.TenantId.Value,
                     tx.AccountId,
-                    tx.CategoryId == Guid.Empty ? null : tx.CategoryId,
+                    tx.CategoryId,
                     tx.Amount.Amount,
                     tx.Amount.Currency,
                     tx.OccurredAt,

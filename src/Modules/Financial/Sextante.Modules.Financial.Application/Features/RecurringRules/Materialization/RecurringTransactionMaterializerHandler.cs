@@ -103,49 +103,60 @@ public sealed class RecurringTransactionMaterializerHandler
                             }
                         }
 
-                        // A Transaction armazena sempre Amount > 0 (domínio
-                        // Phase 2). O sinal (negativo para Expense, positivo
-                        // para Income) é derivado via Category.Kind no read-side
-                        // (dashboard, summaries). O materializer cria a
-                        // Transaction com Amount absoluto.
+                        // A Transaction armazena sempre Amount > 0; o sentido
+                        // (entrada/saída) é a Direction (Phase 6.5, ADR-014).
                         var signedAmount = DetermineSignedAmount(rule);
-
-                        var targetCategoryId = rule.CategoryId;
-                        if (targetCategoryId is null)
-                        {
-                            // Sem categoria atribuída: a Transaction fica
-                            // uncategorized. Regras Phase 4 podem categorizá-la
-                            // via reapply endpoint.
-                            _logger.LogDebug(
-                                "Regra {RuleId} sem categoria — Transaction fica uncategorized",
-                                rule.Id);
-                            // A Transaction exige um CategoryId; usamos
-                            // Guid.Empty como marker. O frontend trata
-                            // CategoryId == Guid.Empty como "Sem categoria".
-                            targetCategoryId = Guid.Empty;
-                        }
 
                         var occurredAt = new DateTimeOffset(
                             occurrenceDate.Year, occurrenceDate.Month, occurrenceDate.Day,
                             0, 0, 0, TimeSpan.Zero);
 
-                        var transaction = Transaction.Create(
-                            rule.AccountId,
-                            targetCategoryId.Value,
-                            occurredAt,
-                            new Money(signedAmount, rule.Amount.Currency),
-                            rule.Description,
-                            rule.Tags.Count > 0 ? rule.Tags : null,
-                            tenant.TenantId,
-                            snapshot,
-                            recurringRuleId: rule.Id);
+                        var category = rule.CategoryId is { } categoryId
+                            ? await _categoryRepo.GetByIdAsync(categoryId, ct)
+                            : null;
+
+                        Transaction transaction;
+                        if (category is not null)
+                        {
+                            transaction = Transaction.CreateRegular(
+                                rule.AccountId,
+                                category.Id,
+                                category.Kind,
+                                occurredAt,
+                                new Money(signedAmount, rule.Amount.Currency),
+                                rule.Description,
+                                rule.Tags.Count > 0 ? rule.Tags : null,
+                                tenant.TenantId,
+                                snapshot,
+                                recurringRuleId: rule.Id);
+                        }
+                        else
+                        {
+                            // Regra sem categoria (ou categoria arquivada): a
+                            // transação fica sem categoria e, como a regra não
+                            // tem sentido próprio, conta como saída. Regras de
+                            // categorização podem classificá-la depois.
+                            _logger.LogDebug(
+                                "Regra {RuleId} sem categoria ativa — transação sem categoria, saída",
+                                rule.Id);
+                            transaction = Transaction.CreateUncategorized(
+                                rule.AccountId,
+                                TransactionDirection.Outflow,
+                                occurredAt,
+                                new Money(signedAmount, rule.Amount.Currency),
+                                rule.Description,
+                                rule.Tags.Count > 0 ? rule.Tags : null,
+                                tenant.TenantId,
+                                snapshot,
+                                recurringRuleId: rule.Id);
+                        }
 
                         await _txRepo.AddAsync(transaction, ct);
                         publishQueue.Add(new TransactionCreatedIntegrationEvent(
                             transaction.Id,
                             tenant.TenantId.Value,
                             transaction.AccountId,
-                            transaction.CategoryId == Guid.Empty ? null : transaction.CategoryId,
+                            transaction.CategoryId,
                             transaction.Amount.Amount,
                             transaction.Amount.Currency,
                             transaction.OccurredAt,

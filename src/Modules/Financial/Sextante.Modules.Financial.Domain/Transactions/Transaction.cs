@@ -1,3 +1,4 @@
+using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Common;
 using Sextante.SharedKernel;
 
@@ -20,7 +21,19 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
     public Guid Id { get; private set; }
     public TenantId TenantId { get; private set; }
     public Guid AccountId { get; private set; }
-    public Guid CategoryId { get; private set; }
+    /// <summary>
+    /// <c>null</c> em transferências, acertos e transações regulares ainda
+    /// sem categoria.
+    /// </summary>
+    public Guid? CategoryId { get; private set; }
+    public TransactionDirection Direction { get; private set; }
+    public TransactionKind Kind { get; private set; }
+
+    /// <summary>
+    /// Liga as duas pernas de uma transferência (Phase 6.5). <c>null</c>
+    /// fora de <see cref="TransactionKind.Transfer"/>.
+    /// </summary>
+    public Guid? TransferId { get; private set; }
     public DateTimeOffset OccurredAt { get; private set; }
     public Money Amount { get; private set; }
     public string? Description { get; private set; }
@@ -41,14 +54,24 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
 
     public Guid? RecurringRuleId { get; private set; }
 
+    /// <summary>
+    /// Valor com sinal para somas de saldo: positivo à entrada, negativo à saída.
+    /// </summary>
+    public decimal SignedAmount
+        => Direction == TransactionDirection.Inflow ? Amount.Amount : -Amount.Amount;
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
     public int Version { get; set; }
 
-    public static Transaction Create(
+    /// <summary>
+    /// Transação regular categorizada; a direção segue o tipo da categoria.
+    /// </summary>
+    public static Transaction CreateRegular(
         Guid accountId,
         Guid categoryId,
+        CategoryKind categoryKind,
         DateTimeOffset occurredAt,
         Money amount,
         string? description,
@@ -57,6 +80,50 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
         ExchangeRateSnapshot? exchangeRate = null,
         DateTimeOffset? now = null,
         Guid? recurringRuleId = null)
+    {
+        EnsureCategory(categoryId);
+
+        return Build(
+            accountId, categoryId, DirectionFor(categoryKind), TransactionKind.Regular, null,
+            occurredAt, amount, description, tags, tenantId, exchangeRate, now, recurringRuleId);
+    }
+
+    /// <summary>
+    /// Transação regular ainda sem categoria (ex.: recorrente sem categoria).
+    /// Conta nos totais pela direção dada.
+    /// </summary>
+    public static Transaction CreateUncategorized(
+        Guid accountId,
+        TransactionDirection direction,
+        DateTimeOffset occurredAt,
+        Money amount,
+        string? description,
+        IEnumerable<string>? tags,
+        TenantId tenantId,
+        ExchangeRateSnapshot? exchangeRate = null,
+        DateTimeOffset? now = null,
+        Guid? recurringRuleId = null)
+        => Build(
+            accountId, null, direction, TransactionKind.Regular, null,
+            occurredAt, amount, description, tags, tenantId, exchangeRate, now, recurringRuleId);
+
+    public static TransactionDirection DirectionFor(CategoryKind kind)
+        => kind == CategoryKind.Income ? TransactionDirection.Inflow : TransactionDirection.Outflow;
+
+    private static Transaction Build(
+        Guid accountId,
+        Guid? categoryId,
+        TransactionDirection direction,
+        TransactionKind kind,
+        Guid? transferId,
+        DateTimeOffset occurredAt,
+        Money amount,
+        string? description,
+        IEnumerable<string>? tags,
+        TenantId tenantId,
+        ExchangeRateSnapshot? exchangeRate,
+        DateTimeOffset? now,
+        Guid? recurringRuleId)
     {
         if (amount.Amount <= 0m)
         {
@@ -78,6 +145,9 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
             TenantId = tenantId,
             AccountId = accountId,
             CategoryId = categoryId,
+            Direction = direction,
+            Kind = kind,
+            TransferId = transferId,
             OccurredAt = occurredAt,
             Amount = amount,
             Description = normalized,
@@ -92,12 +162,16 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
     public void Update(
         Guid accountId,
         Guid categoryId,
+        CategoryKind categoryKind,
         DateTimeOffset occurredAt,
         Money amount,
         string? description,
         IEnumerable<string>? tags,
         DateTimeOffset? now = null)
     {
+        EnsureRegular();
+        EnsureCategory(categoryId);
+
         if (amount.Amount <= 0m)
         {
             throw new TransactionAmountMustBePositiveException();
@@ -111,6 +185,7 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
 
         AccountId = accountId;
         CategoryId = categoryId;
+        Direction = DirectionFor(categoryKind);
         OccurredAt = occurredAt;
         Amount = amount;
         Description = NormalizeDescription(description);
@@ -133,9 +208,33 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
         CategorizedAt = DateTimeOffset.UtcNow;
     }
 
-    public void SetCategory(Guid categoryId)
+    /// <summary>
+    /// Recategoriza uma transação regular; a direção passa a seguir o tipo
+    /// da nova categoria (despesa → receita inverte o sinal).
+    /// </summary>
+    public void SetCategory(Guid categoryId, CategoryKind categoryKind)
     {
+        EnsureRegular();
+        EnsureCategory(categoryId);
+
         CategoryId = categoryId;
+        Direction = DirectionFor(categoryKind);
+    }
+
+    private void EnsureRegular()
+    {
+        if (Kind != TransactionKind.Regular)
+        {
+            throw new TransactionNotRegularException();
+        }
+    }
+
+    private static void EnsureCategory(Guid categoryId)
+    {
+        if (categoryId == Guid.Empty)
+        {
+            throw new ArgumentException("Categoria obrigatória.", nameof(categoryId));
+        }
     }
 
     public void SetRecurringRuleId(Guid recurringRuleId)

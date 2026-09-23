@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Transactions;
 using Sextante.SharedKernel;
 
@@ -12,8 +13,8 @@ public sealed class TransactionCategorizationTests
     [Fact]
     public void Newly_created_transaction_has_no_categorization_audit()
     {
-        var tx = Transaction.Create(
-            Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1),
+        var tx = Transaction.CreateRegular(
+            Guid.NewGuid(), Guid.NewGuid(), CategoryKind.Expense, DateTimeOffset.UtcNow.AddDays(-1),
             Eur10, "café", null, Tenant);
 
         tx.CategorizationRuleId.Should().BeNull();
@@ -23,8 +24,8 @@ public sealed class TransactionCategorizationTests
     [Fact]
     public void MarkCategorizedByRule_records_rule_id_and_timestamp()
     {
-        var tx = Transaction.Create(
-            Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1),
+        var tx = Transaction.CreateRegular(
+            Guid.NewGuid(), Guid.NewGuid(), CategoryKind.Expense, DateTimeOffset.UtcNow.AddDays(-1),
             Eur10, "café", null, Tenant);
 
         var ruleId = Guid.NewGuid();
@@ -40,14 +41,14 @@ public sealed class TransactionCategorizationTests
     [Fact]
     public void SetCategory_replaces_category_without_clearing_rule_audit()
     {
-        var tx = Transaction.Create(
-            Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1),
+        var tx = Transaction.CreateRegular(
+            Guid.NewGuid(), Guid.NewGuid(), CategoryKind.Expense, DateTimeOffset.UtcNow.AddDays(-1),
             Eur10, "café", null, Tenant);
         var ruleId = Guid.NewGuid();
         tx.MarkCategorizedByRule(ruleId);
 
         var newCategory = Guid.NewGuid();
-        tx.SetCategory(newCategory);
+        tx.SetCategory(newCategory, CategoryKind.Expense);
 
         tx.CategoryId.Should().Be(newCategory);
         tx.CategorizationRuleId.Should().Be(ruleId);
@@ -57,14 +58,14 @@ public sealed class TransactionCategorizationTests
     [Fact]
     public void Update_does_not_alter_categorization_audit()
     {
-        var tx = Transaction.Create(
-            Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1),
+        var tx = Transaction.CreateRegular(
+            Guid.NewGuid(), Guid.NewGuid(), CategoryKind.Expense, DateTimeOffset.UtcNow.AddDays(-1),
             Eur10, "café", null, Tenant);
         var ruleId = Guid.NewGuid();
         tx.MarkCategorizedByRule(ruleId);
         var capturedAt = tx.CategorizedAt;
 
-        tx.Update(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-2),
+        tx.Update(Guid.NewGuid(), Guid.NewGuid(), CategoryKind.Expense, DateTimeOffset.UtcNow.AddDays(-2),
             new Money(20m, "EUR"), "outro", null);
 
         tx.CategorizationRuleId.Should().Be(ruleId);
