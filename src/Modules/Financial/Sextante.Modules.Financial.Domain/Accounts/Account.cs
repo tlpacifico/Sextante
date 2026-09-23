@@ -29,6 +29,12 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
     public Money OpeningBalance { get; private set; }
     public DateOnly OpeningBalanceDate { get; private set; }
 
+    /// <summary>
+    /// Só em contas <see cref="AccountType.CreditCard"/>; <c>null</c> enquanto
+    /// o cartão não for configurado (Phase 6.5 grupo 5).
+    /// </summary>
+    public CreditCardSettings? CreditCard { get; private set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
@@ -105,8 +111,56 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
             throw new AccountTypeChangeInvalidException();
         }
 
+        // Definições de cartão só existem em contas CreditCard (CHECK na DB).
+        if (Type == AccountType.CreditCard && newType != AccountType.CreditCard)
+        {
+            CreditCard = null;
+        }
+
         Type = newType;
     }
+
+    /// <summary>
+    /// Configura (ou substitui) as definições do cartão. O limite tem de estar
+    /// na moeda da conta (requirements.md D12).
+    /// </summary>
+    public void ConfigureCreditCard(Money creditLimit, int statementClosingDay, int paymentDueDay, Guid? paymentAccountId)
+    {
+        if (Type != AccountType.CreditCard)
+        {
+            throw new CreditCardSettingsRequireCreditCardException();
+        }
+
+        if (!string.Equals(creditLimit.Currency, Currency, StringComparison.Ordinal))
+        {
+            throw new CreditLimitCurrencyMismatchException();
+        }
+
+        if (creditLimit.Amount <= 0m)
+        {
+            throw new CreditLimitMustBePositiveException();
+        }
+
+        if (!IsValidDay(statementClosingDay) || !IsValidDay(paymentDueDay))
+        {
+            throw new CreditCardDayOutOfRangeException();
+        }
+
+        if (paymentAccountId == Id)
+        {
+            throw new CreditCardPaymentAccountInvalidException();
+        }
+
+        CreditCard = new CreditCardSettings(creditLimit, statementClosingDay, paymentDueDay, paymentAccountId);
+    }
+
+    public void RemoveCreditCardSettings()
+    {
+        CreditCard = null;
+    }
+
+    private static bool IsValidDay(int day)
+        => day is >= CreditCardSettings.MinDay and <= CreditCardSettings.MaxDay;
 
     public void Archive()
     {

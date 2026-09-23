@@ -313,3 +313,51 @@ public sealed class ReconciliationBeforeOpeningBalanceException : FinancialDomai
     {
     }
 }
+
+public sealed class CreditCardSettingsRequireCreditCardException : FinancialDomainException
+{
+    public CreditCardSettingsRequireCreditCardException()
+        : base("Só contas do tipo cartão de crédito têm definições de cartão.")
+    {
+    }
+}
+
+public sealed class CreditLimitMustBePositiveException : FinancialDomainException
+{
+    public CreditLimitMustBePositiveException()
+        : base("O limite de crédito tem de ser maior que zero.")
+    {
+    }
+}
+
+public sealed class CreditLimitCurrencyMismatchException : FinancialDomainException
+{
+    public CreditLimitCurrencyMismatchException()
+        : base("O limite de crédito tem de estar na moeda do cartão.")
+    {
+    }
+}
+
+public sealed class CreditCardDayOutOfRangeException : FinancialDomainException
+{
+    public CreditCardDayOutOfRangeException()
+        : base("Os dias de fecho e de pagamento têm de estar entre 1 e 31.")
+    {
+    }
+}
+
+public sealed class CreditCardPaymentAccountInvalidException : FinancialDomainException
+{
+    public CreditCardPaymentAccountInvalidException()
+        : base("A conta de pagamento tem de ser outra conta do utilizador que não seja um cartão de crédito.")
+    {
+    }
+}
+
+public sealed class AccountNotCreditCardException : FinancialDomainException
+{
+    public AccountNotCreditCardException()
+        : base("Esta conta não é um cartão de crédito.")
+    {
+    }
+}
