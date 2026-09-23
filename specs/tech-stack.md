@@ -388,6 +388,8 @@ Sextante.sln
 | Versão Angular | **21 LTS** (upgrade do 19 que entrou no scaffold da Phase 0) |
 | Responsive design | **Mobile-first**, breakpoints Tailwind, sanity check em 375 / 768 / 1280 px obrigatório por page (§19.5) |
 | Error tracking externo | Sentry SaaS free tier (sentry.io), ADR-012 |
+| Transferências entre contas | Par de transações ligadas (`TransferId`), direção explícita na `Transaction`, ADR-014 |
+| Saldo de conta | On-demand desde `OpeningBalanceDate`, ADR-014 |
 
 ---
 
@@ -406,11 +408,11 @@ Sextante.sln
 - ADR-011 Frontend UI stack (PrimeNG + Tailwind + Signals)
 - ADR-012 Sentry como error tracker externo
 - ADR-013 CD automático via GitHub Actions
+- ADR-014 Transferências entre contas e saldo de conta
 
 ### Pendentes
 - **ADR-007 Versionamento da API**: adiado. Escrever quando se introduzir versionamento.
 - **ADR-008 Provider de cotações**: para Fase 2. Avaliação comparativa Brapi (BR) + Yahoo Finance/Alpha Vantage (intl) quando começar Sub-fase 2.2.
-- **ADR-014 Transferências e saldo de conta**: escrever no arranque da Phase 6.5 (grupo 0.1) — transferência como par de transações ligadas, direção explícita na `Transaction`, saldo on-demand.
 - **ADR-009 Soft delete vs hard delete**: **resolvido nesta Constitution** (soft-delete uniforme). Escrever ADR formal quando for tocada a primeira feature que elimine entidades (Sprint 2 ou 3) para registar o porquê.
 
 ---
