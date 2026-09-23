@@ -173,6 +173,10 @@ public sealed class CategorizationRulePriorityNegativeException : FinancialDomai
 {
     public CategorizationRulePriorityNegativeException() : base("A prioridade da regra não pode ser negativa.") { }
 }
+public sealed class CategorizationRuleTargetAccountRequiredException : FinancialDomainException
+{
+    public CategorizationRuleTargetAccountRequiredException() : base("A conta de destino da transferência é obrigatória.") { }
+}
 public sealed class CategorizationRuleDuplicatePriorityException : FinancialDomainException
 {
     public CategorizationRuleDuplicatePriorityException(int priority) : base($"Já existe uma regra com prioridade {priority}. Ajuste as prioridades.") { }

@@ -128,4 +128,83 @@ public sealed class CategorizationRuleTests
         rule.Archive();
         rule.DeletedAt.Should().NotBeNull();
     }
+
+    private static readonly Guid Target = Guid.NewGuid();
+
+    [Fact]
+    public void Create_sets_SetCategory_action()
+    {
+        var rule = CategorizationRule.Create("Continente", "x", CategorizationMatchType.Contains, Category, 0, Tenant);
+
+        rule.Action.Should().Be(RuleAction.SetCategory);
+        rule.TargetAccountId.Should().BeNull();
+    }
+
+    [Fact]
+    public void CreateTransfer_sets_action_and_target_without_category()
+    {
+        var rule = CategorizationRule.CreateTransfer(
+            "Pagamento cartão", "PAGAMENTO CARTAO", CategorizationMatchType.Contains, Target, 3, Tenant);
+
+        rule.Action.Should().Be(RuleAction.MarkAsTransfer);
+        rule.TargetAccountId.Should().Be(Target);
+        rule.CategoryId.Should().BeNull();
+        rule.IsActive.Should().BeTrue();
+        rule.Priority.Should().Be(3);
+    }
+
+    [Fact]
+    public void CreateTransfer_requires_target_account()
+    {
+        var act = () => CategorizationRule.CreateTransfer(
+            "Pagamento cartão", "x", CategorizationMatchType.Contains, Guid.Empty, 0, Tenant);
+
+        act.Should().Throw<CategorizationRuleTargetAccountRequiredException>();
+    }
+
+    [Fact]
+    public void CreateTransfer_validates_name_like_Create()
+    {
+        var act = () => CategorizationRule.CreateTransfer(
+            " ", "x", CategorizationMatchType.Contains, Target, 0, Tenant);
+
+        act.Should().Throw<CategorizationRuleNameRequiredException>();
+    }
+
+    [Fact]
+    public void UpdateAsTransfer_switches_a_category_rule_to_transfer()
+    {
+        var rule = CategorizationRule.Create("Continente", "x", CategorizationMatchType.Contains, Category, 0, Tenant);
+
+        rule.UpdateAsTransfer("Cartão", "CARTAO", CategorizationMatchType.StartsWith, Target, 2, isActive: false);
+
+        rule.Action.Should().Be(RuleAction.MarkAsTransfer);
+        rule.TargetAccountId.Should().Be(Target);
+        rule.CategoryId.Should().BeNull();
+        rule.Name.Should().Be("Cartão");
+        rule.MatchType.Should().Be(CategorizationMatchType.StartsWith);
+        rule.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public void UpdateAsTransfer_requires_target_account()
+    {
+        var rule = CategorizationRule.Create("Continente", "x", CategorizationMatchType.Contains, Category, 0, Tenant);
+
+        var act = () => rule.UpdateAsTransfer("Cartão", "x", CategorizationMatchType.Contains, Guid.Empty, 0, true);
+
+        act.Should().Throw<CategorizationRuleTargetAccountRequiredException>();
+    }
+
+    [Fact]
+    public void Update_switches_a_transfer_rule_back_to_category()
+    {
+        var rule = CategorizationRule.CreateTransfer("Cartão", "x", CategorizationMatchType.Contains, Target, 0, Tenant);
+
+        rule.Update("Continente", "x", CategorizationMatchType.Contains, Category, 0, true);
+
+        rule.Action.Should().Be(RuleAction.SetCategory);
+        rule.CategoryId.Should().Be(Category);
+        rule.TargetAccountId.Should().BeNull();
+    }
 }

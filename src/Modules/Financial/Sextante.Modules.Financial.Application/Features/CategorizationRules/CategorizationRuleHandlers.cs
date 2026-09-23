@@ -101,7 +101,9 @@ public static class CategorizationRuleHandlers
         var rule = await ruleRepo.GetByIdAsync(query.Id, ct);
         if (rule is null) return null;
 
-        var category = await categoryRepo.GetByIdAsync(rule.CategoryId, ct);
+        var category = rule.CategoryId is { } categoryId
+            ? await categoryRepo.GetByIdAsync(categoryId, ct)
+            : null;
         return ToResponse(rule, category);
     }
 
@@ -112,7 +114,7 @@ public static class CategorizationRuleHandlers
         CancellationToken ct)
     {
         var rules = await ruleRepo.ListAsync(ct);
-        var categoryIds = rules.Select(r => r.CategoryId).Distinct().ToList();
+        var categoryIds = rules.Where(r => r.CategoryId is not null).Select(r => r.CategoryId!.Value).Distinct().ToList();
         var categories = new Dictionary<Guid, Category>();
         foreach (var catId in categoryIds)
         {
@@ -124,7 +126,9 @@ public static class CategorizationRuleHandlers
         return rules
             .Select(r =>
             {
-                categories.TryGetValue(r.CategoryId, out var cat);
+                Category? cat = null;
+                if (r.CategoryId is { } id)
+                    categories.TryGetValue(id, out cat);
                 return ToResponse(r, cat);
             })
             .ToList();

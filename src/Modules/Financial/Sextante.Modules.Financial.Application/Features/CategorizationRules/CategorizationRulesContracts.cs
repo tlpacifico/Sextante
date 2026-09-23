@@ -7,7 +7,7 @@ public sealed record CategorizationRuleResponse(
     string Name,
     string Pattern,
     string MatchType,
-    Guid CategoryId,
+    Guid? CategoryId,
     string CategoryName,
     string CategoryIcon,
     string CategoryColor,
