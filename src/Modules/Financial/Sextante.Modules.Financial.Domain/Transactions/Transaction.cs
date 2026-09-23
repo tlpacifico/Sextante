@@ -107,6 +107,31 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
             accountId, null, direction, TransactionKind.Regular, null,
             occurredAt, amount, description, tags, tenantId, exchangeRate, now, recurringRuleId);
 
+    /// <summary>
+    /// Perna de uma transferência entre contas do tenant. Sem categoria, sem
+    /// tags, sem regra recorrente. TransferId liga as duas pernas.
+    /// </summary>
+    public static Transaction CreateTransferLeg(
+        Guid accountId,
+        Guid transferId,
+        TransactionDirection direction,
+        DateTimeOffset occurredAt,
+        Money amount,
+        string? description,
+        TenantId tenantId,
+        ExchangeRateSnapshot? exchangeRate = null,
+        DateTimeOffset? now = null)
+    {
+        if (transferId == Guid.Empty)
+        {
+            throw new ArgumentException("TransferId obrigatório.", nameof(transferId));
+        }
+
+        return Build(
+            accountId, null, direction, TransactionKind.Transfer, transferId,
+            occurredAt, amount, description, null, tenantId, exchangeRate, now, null);
+    }
+
     public static TransactionDirection DirectionFor(CategoryKind kind)
         => kind == CategoryKind.Income ? TransactionDirection.Inflow : TransactionDirection.Outflow;
 
@@ -197,8 +222,50 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
         _tags.AddRange(NormalizeTags(tags));
     }
 
+    /// <summary>
+    /// Atualiza uma perna de transferência. Apenas AccountId, OccurredAt, Amount
+    /// e Description podem mudar. Direction, CategoryId, Kind e TransferId são
+    /// imutáveis.
+    /// </summary>
+    public void UpdateTransferLeg(
+        Guid accountId,
+        DateTimeOffset occurredAt,
+        Money amount,
+        string? description,
+        DateTimeOffset? now = null)
+    {
+        EnsureTransfer();
+
+        if (amount.Amount <= 0m)
+        {
+            throw new TransactionAmountMustBePositiveException();
+        }
+
+        var reference = now ?? DateTimeOffset.UtcNow;
+        if (occurredAt > reference.AddMinutes(1))
+        {
+            throw new TransactionInFutureException();
+        }
+
+        AccountId = accountId;
+        OccurredAt = occurredAt;
+        Amount = amount;
+        Description = NormalizeDescription(description);
+    }
+
     public void Archive()
     {
+        EnsureArchivable();
+        DeletedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    /// Arquiva (soft delete) uma perna de transferência. Use Archive() apenas
+    /// para transações regulares/acertos.
+    /// </summary>
+    public void ArchiveTransferLeg()
+    {
+        EnsureTransfer();
         DeletedAt = DateTimeOffset.UtcNow;
     }
 
@@ -221,11 +288,48 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
         Direction = DirectionFor(categoryKind);
     }
 
+    /// <summary>
+    /// Converte uma transação regular em perna de transferência. Limpa categoria,
+    /// regra de categorização e data da categorização. Direction/Amount/AccountId/
+    /// OccurredAt permanecem inalterados.
+    /// </summary>
+    public void ConvertToTransferLeg(Guid transferId)
+    {
+        if (transferId == Guid.Empty)
+        {
+            throw new ArgumentException("TransferId obrigatório.", nameof(transferId));
+        }
+
+        EnsureRegular();
+
+        Kind = TransactionKind.Transfer;
+        CategoryId = null;
+        TransferId = transferId;
+        CategorizationRuleId = null;
+        CategorizedAt = null;
+    }
+
     private void EnsureRegular()
     {
         if (Kind != TransactionKind.Regular)
         {
             throw new TransactionNotRegularException();
+        }
+    }
+
+    private void EnsureTransfer()
+    {
+        if (Kind != TransactionKind.Transfer)
+        {
+            throw new TransactionNotTransferLegException();
+        }
+    }
+
+    private void EnsureArchivable()
+    {
+        if (Kind == TransactionKind.Transfer)
+        {
+            throw new TransactionIsTransferLegException();
         }
     }
 

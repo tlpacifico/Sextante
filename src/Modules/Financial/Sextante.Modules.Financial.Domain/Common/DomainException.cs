@@ -45,6 +45,22 @@ public sealed class TransactionNotRegularException : FinancialDomainException
     }
 }
 
+public sealed class TransactionIsTransferLegException : FinancialDomainException
+{
+    public TransactionIsTransferLegException()
+        : base("Esta transação é uma perna de transferência; para editar ou apagar, use o endpoint de transferências (`/api/financial/transfers`).")
+    {
+    }
+}
+
+public sealed class TransactionNotTransferLegException : FinancialDomainException
+{
+    public TransactionNotTransferLegException()
+        : base("Esta operação só é válida para pernas de transferência.")
+    {
+    }
+}
+
 public sealed class TransactionInFutureException : FinancialDomainException
 {
     public TransactionInFutureException()
