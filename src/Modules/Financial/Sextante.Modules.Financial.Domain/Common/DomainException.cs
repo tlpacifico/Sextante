@@ -361,3 +361,75 @@ public sealed class AccountNotCreditCardException : FinancialDomainException
     {
     }
 }
+
+public sealed class InstallmentPlanDescriptionRequiredException : FinancialDomainException
+{
+    public InstallmentPlanDescriptionRequiredException()
+        : base("A descrição do plano é obrigatória (máx. 200 caracteres).")
+    {
+    }
+}
+
+public sealed class InstallmentPlanTotalMustBePositiveException : FinancialDomainException
+{
+    public InstallmentPlanTotalMustBePositiveException()
+        : base("O valor total tem de ser maior que zero.")
+    {
+    }
+}
+
+public sealed class InstallmentPlanCountOutOfRangeException : FinancialDomainException
+{
+    public InstallmentPlanCountOutOfRangeException()
+        : base("O número de prestações tem de estar entre 2 e 120.")
+    {
+    }
+}
+
+public sealed class InstallmentPlanAlreadyPaidOutOfRangeException : FinancialDomainException
+{
+    public InstallmentPlanAlreadyPaidOutOfRangeException()
+        : base("As prestações já pagas têm de ser menos do que o número de prestações.")
+    {
+    }
+}
+
+public sealed class InstallmentPlanAnnualRateOutOfRangeException : FinancialDomainException
+{
+    public InstallmentPlanAnnualRateOutOfRangeException()
+        : base("A TAN tem de estar entre 0 e 100 %.")
+    {
+    }
+}
+
+public sealed class InstallmentPlanCurrencyMismatchException : FinancialDomainException
+{
+    public InstallmentPlanCurrencyMismatchException()
+        : base("O valor total tem de estar na moeda do cartão.")
+    {
+    }
+}
+
+public sealed class InstallmentPlanRequiresCreditCardException : FinancialDomainException
+{
+    public InstallmentPlanRequiresCreditCardException()
+        : base("Os planos de prestações só existem em cartões de crédito.")
+    {
+    }
+}
+
+public sealed class InstallmentPlanPurchaseInvalidException : FinancialDomainException
+{
+    public InstallmentPlanPurchaseInvalidException()
+        : base("A compra tem de ser uma despesa desta conta de cartão.")
+    {
+    }
+}
+
+public sealed class InstallmentPlanPurchaseAlreadyLinkedException : FinancialDomainException
+{
+    public InstallmentPlanPurchaseAlreadyLinkedException()
+        : base("Esta compra já tem um plano de prestações.")
+    {
+    }
+}
