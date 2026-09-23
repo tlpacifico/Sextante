@@ -57,9 +57,10 @@ namespace Sextante.Modules.Financial.Infrastructure.Persistence.Migrations
     {
         public const string Sql = """
             -- Phase 6.5 §2.2 — contas existentes não tinham data do saldo inicial;
-            -- usa a data de criação da conta (requirements.md D6).
+            -- usa a data de criação da conta (requirements.md D6). Cast explícito
+            -- para UTC — não depender do timezone da sessão do Postgres.
             UPDATE financial.accounts
-               SET opening_balance_date = created_at::date;
+               SET opening_balance_date = (created_at AT TIME ZONE 'UTC')::date;
             """;
     }
 }
