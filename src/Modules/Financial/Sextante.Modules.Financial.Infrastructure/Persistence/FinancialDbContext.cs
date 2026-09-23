@@ -80,6 +80,25 @@ public sealed class FinancialDbContext : DbContext
             b.Property(a => a.OpeningBalanceDate)
                 .HasColumnName("opening_balance_date")
                 .IsRequired();
+            // Phase 6.5 grupo 5 — definições do cartão, nullable (só CreditCard).
+            b.OwnsOne(a => a.CreditCard, cc =>
+            {
+                cc.Property(c => c.CreditLimitAmount)
+                    .HasColumnName("credit_card_limit_amount")
+                    .HasPrecision(20, 8);
+                cc.Property(c => c.CreditLimitCurrency)
+                    .HasColumnName("credit_card_limit_currency")
+                    .HasMaxLength(3);
+                cc.Property(c => c.StatementClosingDay)
+                    .HasColumnName("credit_card_statement_closing_day")
+                    .HasColumnType("smallint");
+                cc.Property(c => c.PaymentDueDay)
+                    .HasColumnName("credit_card_payment_due_day")
+                    .HasColumnType("smallint");
+                cc.Property(c => c.PaymentAccountId)
+                    .HasColumnName("credit_card_payment_account_id");
+                cc.Ignore(c => c.CreditLimit);
+            });
             b.Property(a => a.CreatedAt).HasColumnName("created_at").IsRequired();
             b.Property(a => a.UpdatedAt).HasColumnName("updated_at").IsRequired();
             b.Property(a => a.DeletedAt).HasColumnName("deleted_at");
