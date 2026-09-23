@@ -27,6 +27,20 @@ Pelo mesmo motivo, a listagem (`date:'dd/MM/yyyy'` em hora local) e os
 filtros de intervalo de datas podem mostrar as linhas importadas e as
 manuais em dias diferentes, conforme o fuso.
 
+### Agravado no grupo 5 (vista do cartão)
+
+Revisão profunda do grupo 5: o mesmo desvio passa a **mover dinheiro entre
+extratos**, e já não só um saldo à data. Exemplo: fecho a 15, em Lisboa no
+verão. Uma compra manual datada de 16/09 fica guardada como
+`2026-09-15T23:00Z`. Entra no extrato já fechado ("Dívida no fecho" e
+"Gastos" do extrato anterior sobem) e aumenta o próximo pagamento
+previsto. Também não aparece na lista de movimentos do ciclo corrente, que
+começa a `16/09T00:00Z`. Ficheiros envolvidos: `CreditCardActivityQuery.cs`,
+`AccountHandlers.cs` (`GetCreditCardViewQuery`) e `credit-card.page.ts`.
+
+**Prioridade: resolver antes de usar dados reais do cartão** com compras
+introduzidas à mão.
+
 ## Proposta
 
 - Escolher uma convenção e documentá-la (candidato: ADR-014 ou um ADR

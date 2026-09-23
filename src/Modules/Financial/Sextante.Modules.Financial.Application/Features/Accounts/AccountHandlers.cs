@@ -316,8 +316,11 @@ public static class AccountHandlers
         var statement = CreditCardStatementCalculator.Calculate(
             settings, today, currentBalance.Amount, balanceAtPreviousClose.Amount, movements);
 
+        // Só mostra quem paga se ainda for uma conta válida para isso (não
+        // arquivada e não cartão) — revisão final do grupo 5.
         Guid? paymentAccountId = null;
-        if (settings.PaymentAccountId is { } id && await accounts.GetByIdAsync(id, cancellationToken) is not null)
+        if (settings.PaymentAccountId is { } id
+            && await accounts.GetByIdAsync(id, cancellationToken) is { Type: not AccountType.CreditCard })
         {
             paymentAccountId = id;
         }

@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
@@ -32,6 +32,26 @@ import {
 import { MoneyPipe } from '../../../core/format/money.pipe';
 import { FinancialStore } from '../state/financial.store';
 import { ReconcileAccountDialogComponent } from './reconcile-account.dialog';
+
+/**
+ * Definições do cartão: todas ou nenhuma. Um cartão sem definições é um
+ * estado normal (a página do cartão convida a configurar); preencher um dos
+ * campos obriga a preencher os outros dois.
+ */
+function creditCardSettingsAllOrNone(group: AbstractControl): ValidationErrors | null {
+  const value = group.value as {
+    type?: AccountType;
+    creditLimit?: number | null;
+    statementClosingDay?: number | null;
+    paymentDueDay?: number | null;
+  };
+  if (value.type !== 'CreditCard') {
+    return null;
+  }
+  const filled = [value.creditLimit, value.statementClosingDay, value.paymentDueDay]
+    .filter((v) => v !== null && v !== undefined).length;
+  return filled === 0 || filled === 3 ? null : { creditCardSettingsIncomplete: true };
+}
 
 @Component({
   selector: 'app-accounts-page',
@@ -334,12 +354,13 @@ export class AccountsPage implements OnInit {
     currency: ['EUR' as string, Validators.required],
     openingBalance: [0, [Validators.required, Validators.min(0)]],
     openingBalanceDate: [new Date(), Validators.required],
-    // Phase 6.5 grupo 5 — só obrigatórios quando o tipo é Cartão de crédito.
+    // Phase 6.5 grupo 5 — definições do cartão, opcionais: todas ou nenhuma
+    // (revisão final: cartões sem definições têm de continuar editáveis).
     creditLimit: [null as number | null],
     statementClosingDay: [null as number | null],
     paymentDueDay: [null as number | null],
     paymentAccountId: [null as string | null],
-  });
+  }, { validators: creditCardSettingsAllOrNone });
 
   /** Contas elegíveis para pagar o cartão: não cartões e não a própria. */
   protected readonly paymentAccountOptions = computed(() =>
@@ -403,7 +424,7 @@ export class AccountsPage implements OnInit {
       creditLimit: account.creditCard?.creditLimit.amount ?? null,
       statementClosingDay: account.creditCard?.statementClosingDay ?? null,
       paymentDueDay: account.creditCard?.paymentDueDay ?? null,
-      paymentAccountId: account.creditCard?.paymentAccountId ?? null,
+      paymentAccountId: this.eligiblePaymentAccountId(account.creditCard?.paymentAccountId ?? null),
     });
     this.dialogOpenSignal.set(true);
   }
@@ -466,9 +487,10 @@ export class AccountsPage implements OnInit {
   private applyCreditCardValidators(type: AccountType): void {
     const { creditLimit, statementClosingDay, paymentDueDay, paymentAccountId } = this.form.controls;
     if (type === 'CreditCard') {
-      creditLimit.setValidators([Validators.required, Validators.min(0.01)]);
-      statementClosingDay.setValidators([Validators.required, Validators.min(1), Validators.max(31)]);
-      paymentDueDay.setValidators([Validators.required, Validators.min(1), Validators.max(31)]);
+      // Obrigatoriedade conjunta no validador do formulário (tudo ou nada).
+      creditLimit.setValidators([Validators.min(0.01)]);
+      statementClosingDay.setValidators([Validators.min(1), Validators.max(31)]);
+      paymentDueDay.setValidators([Validators.min(1), Validators.max(31)]);
     } else {
       for (const control of [creditLimit, statementClosingDay, paymentDueDay, paymentAccountId]) {
         control.clearValidators();
@@ -478,6 +500,15 @@ export class AccountsPage implements OnInit {
     for (const control of [creditLimit, statementClosingDay, paymentDueDay]) {
       control.updateValueAndValidity({ emitEvent: false });
     }
+  }
+
+  /**
+   * Uma conta de pagamento arquivada (ou que passou a cartão) já não está
+   * nas opções: reenviá-la bloquearia qualquer edição com um 400 que o
+   * utilizador não consegue perceber — descarta-se.
+   */
+  private eligiblePaymentAccountId(id: string | null): string | null {
+    return id !== null && this.paymentAccountOptions().some((a) => a.id === id) ? id : null;
   }
 
   /** Só com o tipo Cartão e os três campos obrigatórios preenchidos. */

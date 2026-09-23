@@ -133,6 +133,26 @@ public sealed class CreditCardTests : IClassFixture<IdentityIntegrationFixture>
     }
 
     [Fact]
+    public async Task Credit_card_view_hides_payment_account_that_became_a_card()
+    {
+        // Revisão final do grupo 5: a conta de pagamento é uma soft reference;
+        // se deixar de ser elegível, a vista não a mostra como quem paga.
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "cc-view-payer");
+        var payerId = await CreateAccountAsync(client, Checking, 0m);
+        var cardId = await CreateAccountAsync(client, CreditCard, 0m, Settings(payerId));
+
+        var put = await client.PutAsJsonAsync($"/api/financial/accounts/{payerId}", new
+        {
+            name = "Agora é cartão",
+            type = CreditCard,
+        });
+        put.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var view = await client.GetFromJsonAsync<CreditCardViewRow>($"/api/financial/accounts/{cardId}/credit-card");
+        view!.PaymentAccountId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Credit_card_view_without_settings_returns_balance_only()
     {
         var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "cc-view-empty");

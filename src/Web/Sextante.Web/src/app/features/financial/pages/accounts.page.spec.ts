@@ -209,4 +209,68 @@ describe('AccountsPage', () => {
     const link = (fixture.nativeElement as HTMLElement).querySelector('a[href="/app/accounts/c1/credit-card"]');
     expect(link).toBeTruthy();
   });
+
+  it('lets a credit card without settings be edited and saved without filling them', async () => {
+    const fixture = TestBed.createComponent(AccountsPage);
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush([]));
+
+    const component = fixture.componentInstance as unknown as {
+      form: { valid: boolean; patchValue(value: Record<string, unknown>): void };
+      openEdit(account: unknown): void;
+      submit(): Promise<void>;
+    };
+    component.openEdit(cardAccount());
+    component.form.patchValue({ name: 'Cartão renomeado' });
+    expect(component.form.valid).toBeTrue();
+
+    const submitting = component.submit();
+    const req = httpMock.expectOne('/api/financial/accounts/c1');
+    expect(req.request.body.creditCard).toBeNull();
+    req.flush(cardAccount());
+    await fixture.whenStable();
+    httpMock.match('/api/financial/accounts').forEach((r) => r.flush([]));
+    await submitting;
+  });
+
+  it('requires all card settings once one of them is filled', () => {
+    const fixture = TestBed.createComponent(AccountsPage);
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush([]));
+
+    const component = fixture.componentInstance as unknown as {
+      form: { valid: boolean; patchValue(value: Record<string, unknown>): void };
+      openCreate(): void;
+    };
+    component.openCreate();
+    component.form.patchValue({ name: 'Cartão', type: 'CreditCard' });
+    expect(component.form.valid).toBeTrue();
+
+    component.form.patchValue({ creditLimit: 2000 });
+    expect(component.form.valid).toBeFalse();
+
+    component.form.patchValue({ statementClosingDay: 20, paymentDueDay: 10 });
+    expect(component.form.valid).toBeTrue();
+  });
+
+  it('drops a payment account that is no longer eligible when editing', () => {
+    const fixture = TestBed.createComponent(AccountsPage);
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush([]));
+
+    const component = fixture.componentInstance as unknown as {
+      form: { getRawValue(): { paymentAccountId: string | null } };
+      openEdit(account: unknown): void;
+    };
+    component.openEdit(cardAccount({
+      creditCard: {
+        creditLimit: { amount: 2000, currency: 'EUR' },
+        statementClosingDay: 20,
+        paymentDueDay: 10,
+        paymentAccountId: 'archived-account',
+      },
+    }));
+
+    expect(component.form.getRawValue().paymentAccountId).toBeNull();
+  });
 });
