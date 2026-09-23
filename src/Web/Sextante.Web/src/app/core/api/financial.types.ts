@@ -17,6 +17,8 @@ export interface AccountDto {
   type: AccountType;
   currency: string;
   openingBalance: Money;
+  openingBalanceDate: string;
+  currentBalance: Money;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +28,13 @@ export interface CreateAccountRequest {
   type: AccountType;
   currency?: string | null;
   openingBalanceAmount: number;
+  openingBalanceDate?: string | null;
+}
+
+export interface AccountBalanceResponse {
+  accountId: string;
+  balance: Money;
+  at: string;
 }
 
 export interface UpdateAccountRequest {

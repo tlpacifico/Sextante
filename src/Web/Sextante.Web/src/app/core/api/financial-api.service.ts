@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
+  AccountBalanceResponse,
   AccountDto,
   BudgetAlertDto,
   BudgetDto,
@@ -60,6 +61,16 @@ export class FinancialApiService {
   archiveAccount(id: string): Promise<void> {
     return firstValueFrom(
       this.http.delete<void>(`/api/financial/accounts/${id}`),
+    );
+  }
+
+  getAccountBalance(id: string, at?: string): Promise<AccountBalanceResponse> {
+    let params = new HttpParams();
+    if (at) {
+      params = params.set('at', at);
+    }
+    return firstValueFrom(
+      this.http.get<AccountBalanceResponse>(`/api/financial/accounts/${id}/balance`, { params }),
     );
   }
 

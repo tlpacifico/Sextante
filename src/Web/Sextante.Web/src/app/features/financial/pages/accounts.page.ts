@@ -13,6 +13,7 @@ import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
+import { DatePickerModule } from 'primeng/datepicker';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { TableModule } from 'primeng/table';
@@ -38,6 +39,7 @@ import { FinancialStore } from '../state/financial.store';
     ButtonModule,
     DialogModule,
     SelectModule,
+    DatePickerModule,
     InputNumberModule,
     InputTextModule,
     TableModule,
@@ -71,6 +73,7 @@ import { FinancialStore } from '../state/financial.store';
             <th>Nome</th>
             <th style="width: 12rem">Tipo</th>
             <th style="width: 12rem">Saldo inicial</th>
+            <th style="width: 12rem">Saldo atual</th>
             <th style="width: 9rem"></th>
           </tr>
         </ng-template>
@@ -85,6 +88,12 @@ import { FinancialStore } from '../state/financial.store';
               ></p-tag>
             </td>
             <td>{{ account.openingBalance | money }}</td>
+            <td [class.text-red-600]="account.currentBalance.amount < 0" [class.dark:text-red-400]="account.currentBalance.amount < 0">
+              @if (account.type === 'CreditCard' && account.currentBalance.amount < 0) {
+                <span class="text-xs text-[var(--p-text-muted-color)] mr-1">Dívida</span>
+              }
+              {{ account.currentBalance | money }}
+            </td>
             <td>
               <p-button
                 icon="pi pi-pencil"
@@ -105,7 +114,7 @@ import { FinancialStore } from '../state/financial.store';
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="4" class="text-center text-[var(--p-text-muted-color)]">
+            <td colspan="5" class="text-center text-[var(--p-text-muted-color)]">
               Sem contas. Clique "Nova conta" para começar.
             </td>
           </tr>
@@ -163,9 +172,19 @@ import { FinancialStore } from '../state/financial.store';
                 mode="currency"
                 [currency]="form.controls.currency.value || 'EUR'"
                 locale="pt-PT"
-                [min]="0"
+                [min]="form.controls.type.value === 'CreditCard' ? null : 0"
                 formControlName="openingBalance"
               ></p-inputNumber>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label for="account-balance-date">Data do saldo inicial</label>
+              <p-datepicker
+                inputId="account-balance-date"
+                formControlName="openingBalanceDate"
+                dateFormat="dd/mm/yy"
+                styleClass="w-full"
+              ></p-datepicker>
+              <small class="text-[var(--p-text-muted-color)]">Não pode ser alterada depois de criar a conta.</small>
             </div>
           }
           <div class="flex justify-end gap-2 pt-2">
@@ -226,9 +245,22 @@ export class AccountsPage implements OnInit {
     type: ['Checking' as AccountType, Validators.required],
     currency: ['EUR' as string, Validators.required],
     openingBalance: [0, [Validators.required, Validators.min(0)]],
+    openingBalanceDate: [new Date(), Validators.required],
   });
 
   async ngOnInit(): Promise<void> {
+    // CreditCard aceita saldo inicial negativo (dívida); os restantes tipos
+    // continuam a exigir >= 0 — reaplica o validador sempre que o tipo muda.
+    this.form.controls.type.valueChanges.subscribe((type) => {
+      const balanceControl = this.form.controls.openingBalance;
+      balanceControl.setValidators(
+        type === 'CreditCard'
+          ? [Validators.required]
+          : [Validators.required, Validators.min(0)],
+      );
+      balanceControl.updateValueAndValidity();
+    });
+
     try {
       await Promise.all([
         this.store.loadAccounts(),
@@ -253,6 +285,7 @@ export class AccountsPage implements OnInit {
       type: 'Checking',
       currency: defaultCurrency,
       openingBalance: 0,
+      openingBalanceDate: new Date(),
     });
     this.dialogOpenSignal.set(true);
   }
@@ -301,6 +334,7 @@ export class AccountsPage implements OnInit {
           type: value.type,
           currency: value.currency,
           openingBalanceAmount: value.openingBalance,
+          openingBalanceDate: value.openingBalanceDate.toISOString().slice(0, 10),
         });
         this.toast.add({ severity: 'success', summary: 'Conta criada' });
       }
