@@ -113,4 +113,51 @@ public sealed class AccountTests
         account.Archive();
         account.DeletedAt.Should().NotBeNull();
     }
+
+    [Fact]
+    public void Create_with_negative_opening_balance_and_credit_card_type_is_allowed()
+    {
+        var negative = new Money(-500m, "EUR");
+        var account = Account.Create("Cartão", AccountType.CreditCard, "EUR", negative, Tenant);
+        account.OpeningBalance.Amount.Should().Be(-500m);
+    }
+
+    [Fact]
+    public void Create_without_opening_balance_date_defaults_to_today()
+    {
+        var account = Account.Create("Conta", AccountType.Checking, "EUR", Eur100, Tenant);
+        account.OpeningBalanceDate.Should().Be(DateOnly.FromDateTime(DateTime.UtcNow));
+    }
+
+    [Fact]
+    public void Create_with_explicit_opening_balance_date_uses_it()
+    {
+        var date = new DateOnly(2026, 1, 15);
+        var account = Account.Create("Conta", AccountType.Checking, "EUR", Eur100, Tenant, date);
+        account.OpeningBalanceDate.Should().Be(date);
+    }
+
+    [Fact]
+    public void ChangeType_from_credit_card_to_other_with_negative_balance_throws()
+    {
+        var account = Account.Create("Cartão", AccountType.CreditCard, "EUR", new Money(-100m, "EUR"), Tenant);
+        var act = () => account.ChangeType(AccountType.Checking);
+        act.Should().Throw<AccountTypeChangeInvalidException>();
+    }
+
+    [Fact]
+    public void ChangeType_from_credit_card_to_other_with_nonnegative_balance_succeeds()
+    {
+        var account = Account.Create("Cartão", AccountType.CreditCard, "EUR", Eur100, Tenant);
+        account.ChangeType(AccountType.Checking);
+        account.Type.Should().Be(AccountType.Checking);
+    }
+
+    [Fact]
+    public void ChangeType_between_non_credit_card_types_is_always_allowed()
+    {
+        var account = Account.Create("Conta", AccountType.Checking, "EUR", Eur100, Tenant);
+        account.ChangeType(AccountType.Savings);
+        account.Type.Should().Be(AccountType.Savings);
+    }
 }

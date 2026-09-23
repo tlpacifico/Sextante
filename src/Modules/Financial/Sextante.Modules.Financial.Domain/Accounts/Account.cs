@@ -27,6 +27,7 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
     public AccountType Type { get; private set; }
     public string Currency { get; private set; }
     public Money OpeningBalance { get; private set; }
+    public DateOnly OpeningBalanceDate { get; private set; }
 
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
@@ -38,7 +39,8 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
         AccountType type,
         string currency,
         Money openingBalance,
-        TenantId tenantId)
+        TenantId tenantId,
+        DateOnly? openingBalanceDate = null)
     {
         var trimmed = ValidateName(name);
 
@@ -54,7 +56,7 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
             throw new AccountCurrencyMismatchException(currency, openingBalance.Currency);
         }
 
-        if (openingBalance.Amount < 0m)
+        if (openingBalance.Amount < 0m && type != AccountType.CreditCard)
         {
             throw new OpeningBalanceNegativeException();
         }
@@ -67,6 +69,7 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
             Type = type,
             Currency = currency,
             OpeningBalance = openingBalance,
+            OpeningBalanceDate = openingBalanceDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
         };
     }
 
@@ -90,6 +93,11 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
 
     public void ChangeType(AccountType newType)
     {
+        if (Type == AccountType.CreditCard && newType != AccountType.CreditCard && OpeningBalance.Amount < 0m)
+        {
+            throw new AccountTypeChangeInvalidException();
+        }
+
         Type = newType;
     }
 

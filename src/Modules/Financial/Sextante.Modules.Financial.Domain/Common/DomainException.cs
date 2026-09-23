@@ -77,6 +77,14 @@ public sealed class OpeningBalanceNegativeException : FinancialDomainException
     }
 }
 
+public sealed class AccountTypeChangeInvalidException : FinancialDomainException
+{
+    public AccountTypeChangeInvalidException()
+        : base("Não é possível mudar o tipo de uma conta com saldo inicial negativo para um tipo diferente de Cartão de crédito.")
+    {
+    }
+}
+
 public sealed class AccountCurrencyMismatchException : FinancialDomainException
 {
     public AccountCurrencyMismatchException(string accountCurrency, string openingBalanceCurrency)
