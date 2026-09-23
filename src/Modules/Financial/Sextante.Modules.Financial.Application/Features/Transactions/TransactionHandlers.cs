@@ -426,5 +426,8 @@ public static class TransactionHandlers
             transaction.ExchangeRateAt,
             transaction.RecurringRuleId,
             transaction.CreatedAt,
-            transaction.UpdatedAt);
+            transaction.UpdatedAt,
+            transaction.Direction,
+            transaction.Kind,
+            transaction.TransferId);
 }

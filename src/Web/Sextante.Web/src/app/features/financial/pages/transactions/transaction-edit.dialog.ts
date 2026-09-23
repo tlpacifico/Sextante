@@ -125,7 +125,7 @@ export class TransactionEditDialogComponent implements OnChanges, OnInit {
     this.form.patchValue({
       occurredAt: new Date(tx.occurredAt),
       accountId: tx.accountId,
-      categoryId: tx.categoryId,
+      categoryId: tx.categoryId ?? '',
       amount: tx.amount.amount,
       description: tx.description ?? '',
     });

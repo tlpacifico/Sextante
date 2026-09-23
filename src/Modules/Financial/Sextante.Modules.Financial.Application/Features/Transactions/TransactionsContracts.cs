@@ -15,7 +15,10 @@ public sealed record TransactionResponse(
     DateTimeOffset? ExchangeRateAt,
     Guid? RecurringRuleId,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    TransactionDirection Direction,
+    TransactionKind Kind,
+    Guid? TransferId);
 
 public sealed record CreateTransactionCommand(
     Guid AccountId,

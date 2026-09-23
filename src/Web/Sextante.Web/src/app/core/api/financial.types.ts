@@ -56,10 +56,15 @@ export interface UpdateCategoryRequest {
   colorHex: string;
 }
 
+/** Phase 6.5 — sentido do movimento; o sinal já não vem da categoria. */
+export type TransactionDirection = 'Inflow' | 'Outflow';
+export type TransactionKind = 'Regular' | 'Transfer' | 'Adjustment';
+
 export interface TransactionDto {
   id: string;
   accountId: string;
-  categoryId: string;
+  /** null em transferências, acertos e transações sem categoria. */
+  categoryId: string | null;
   occurredAt: string;
   amount: Money;
   description: string | null;
@@ -69,6 +74,9 @@ export interface TransactionDto {
   recurringRuleId?: string | null;
   createdAt: string;
   updatedAt: string;
+  direction: TransactionDirection;
+  kind: TransactionKind;
+  transferId?: string | null;
 }
 
 export interface CreateTransactionRequest {

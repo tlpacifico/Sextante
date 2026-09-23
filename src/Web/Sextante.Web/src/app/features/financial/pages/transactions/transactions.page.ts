@@ -345,19 +345,23 @@ export class TransactionsPage implements OnInit {
     return this.accounts().find(a => a.id === id)?.name ?? '—';
   }
 
-  getCategoryName(id: string): string {
+  getCategoryName(id: string | null): string {
+    if (id === null) {
+      return 'Sem categoria';
+    }
     return this.categories().find(c => c.id === id)?.name ?? '—';
   }
 
-  getCategoryIcon(id: string): string {
-    const cat = this.categories().find(c => c.id === id);
+  getCategoryIcon(id: string | null): string {
+    const cat = id === null ? undefined : this.categories().find(c => c.id === id);
     return cat?.iconName ? `pi pi-${cat.iconName}` : 'pi pi-tag';
   }
 
   isIncome(tx: TransactionDto): boolean {
-    const cat = this.categories().find(c => c.id === tx.categoryId);
-    return cat?.kind === 'Income';
+    // Phase 6.5 — a direção é da transação (também sem categoria).
+    return tx.direction === 'Inflow';
   }
+
 
   protected editTransaction(tx: TransactionDto): void {
     this.selectedTransaction.set(tx);

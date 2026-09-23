@@ -306,10 +306,10 @@ import { BudgetProgressCardComponent } from '../financial/pages/components/budge
               <td>{{ transaction.description ?? '—' }}</td>
               <td
                 class="text-right font-medium"
-                [class.text-emerald-600]="kindFor(transaction.categoryId) === 'Income'"
-                [class.dark:text-emerald-400]="kindFor(transaction.categoryId) === 'Income'"
-                [class.text-red-600]="kindFor(transaction.categoryId) === 'Expense'"
-                [class.dark:text-red-400]="kindFor(transaction.categoryId) === 'Expense'"
+                [class.text-emerald-600]="transaction.direction === 'Inflow'"
+                [class.dark:text-emerald-400]="transaction.direction === 'Inflow'"
+                [class.text-red-600]="transaction.direction === 'Outflow'"
+                [class.dark:text-red-400]="transaction.direction === 'Outflow'"
               >
                 {{ transaction.amount | money }}
               </td>
@@ -603,12 +603,11 @@ export class DashboardPage implements OnInit {
     return this.store.accounts().find((a) => a.id === id)?.name ?? '—';
   }
 
-  protected categoryFor(id: string): CategoryDto | null {
+  protected categoryFor(id: string | null): CategoryDto | null {
+    if (id === null) {
+      return null;
+    }
     return this.store.categories().find((c) => c.id === id) ?? null;
-  }
-
-  protected kindFor(id: string): 'Income' | 'Expense' | null {
-    return this.categoryFor(id)?.kind ?? null;
   }
 
   protected onChartKindChange(value: ChartKind): void {

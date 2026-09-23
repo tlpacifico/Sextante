@@ -56,6 +56,32 @@ public sealed class TransactionsCrudTests : IClassFixture<IdentityIntegrationFix
         summary.Net.Amount.Should().Be(70m);
     }
 
+    [Fact]
+    public async Task Response_exposes_direction_and_kind()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "tx-direction");
+        var accountId = await CreateAccount(client);
+        var income = await CreateCategory(client, kind: 1, name: "Salário");
+
+        var response = await client.PostAsJsonAsync("/api/financial/transactions", new
+        {
+            accountId,
+            categoryId = income,
+            occurredAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+            amount = 1500m,
+            currency = (string?)null,
+            description = "Vencimento",
+            tags = (string[]?)null,
+        });
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+
+        body.GetProperty("direction").GetString().Should().Be("Inflow");
+        body.GetProperty("kind").GetString().Should().Be("Regular");
+        body.GetProperty("transferId").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        body.GetProperty("categoryId").GetGuid().Should().Be(income);
+    }
+
     private static async Task<Guid> CreateAccount(HttpClient client)
     {
         var response = await client.PostAsJsonAsync("/api/financial/accounts", new
