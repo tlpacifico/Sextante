@@ -121,6 +121,39 @@ public sealed class BudgetWorkflowTests : IClassFixture<IdentityIntegrationFixtu
         alerts.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Reconciliation_adjustment_does_not_change_budget_progress()
+    {
+        // Phase 6.5 grupo 4 (validation.md passo 7) — um acerto de saída é
+        // uma transação sem categoria e Kind = Adjustment: não conta como
+        // despesa do orçamento nem cria alertas.
+        var (client, tenantId, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "bw-adjust");
+        var accountId = await CreateAccountAsync(client);
+        var categoryId = await CreateExpenseCategoryAsync(client, "Habitação");
+
+        var year = DateOnly.FromDateTime(DateTime.UtcNow).Year;
+        var month = DateOnly.FromDateTime(DateTime.UtcNow).Month;
+        var budget = await CreateBudgetAsync(client, categoryId, year, month, 500m, 80);
+
+        await CreateTransactionAsync(client, accountId, categoryId, 390m);
+        var before = await client.GetFromJsonAsync<ProgressRow>($"/api/financial/budgets/{budget.Id}/progress");
+
+        // Saldo calculado −390; real −590 → acerto de saída de 200 (se contasse, passaria os 100%).
+        var reconcile = await client.PostAsJsonAsync($"/api/financial/accounts/{accountId}/reconcile", new
+        {
+            date = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"),
+            actualBalance = -590m,
+        });
+        reconcile.EnsureSuccessStatusCode();
+        await DispatchForCategoryAsync(tenantId, categoryId, DateTimeOffset.UtcNow);
+
+        var after = await client.GetFromJsonAsync<ProgressRow>($"/api/financial/budgets/{budget.Id}/progress");
+        after!.SpentAmount.Should().Be(before!.SpentAmount).And.Be(390m);
+
+        var alerts = await client.GetFromJsonAsync<List<AlertRow>>("/api/financial/budgets/alerts/active");
+        alerts.Should().BeEmpty();
+    }
+
     private async Task DispatchForCategoryAsync(Guid tenantId, Guid categoryId, DateTimeOffset occurredAt)
     {
         // Invoca o handler via IMessageBus.InvokeAsync para correr o
@@ -207,4 +240,5 @@ public sealed class BudgetWorkflowTests : IClassFixture<IdentityIntegrationFixtu
     private sealed record IdRow(Guid Id);
     private sealed record BudgetRow(Guid Id, decimal LimitAmount, string LimitCurrency);
     private sealed record AlertRow(Guid Id, Guid BudgetId, int Threshold, bool Acknowledged);
+    private sealed record ProgressRow(decimal SpentAmount, decimal PercentUsed);
 }

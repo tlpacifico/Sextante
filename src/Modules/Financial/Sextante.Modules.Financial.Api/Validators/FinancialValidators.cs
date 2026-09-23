@@ -1,4 +1,5 @@
 using FluentValidation;
+using Sextante.Modules.Financial.Application.Features.Accounts;
 using Sextante.Modules.Financial.Application.Features.Budgets;
 using Sextante.Modules.Financial.Application.Features.CategorizationRules;
 using Sextante.Modules.Financial.Application.Features.ImportProfiles;
@@ -204,5 +205,14 @@ public sealed class ConvertToTransferValidator : AbstractValidator<ConvertToTran
     {
         RuleFor(c => c.TransactionId).NotEmpty();
         RuleFor(c => c.CounterpartAccountId).NotEmpty().WithMessage("Conta contraparte é obrigatória.");
+    }
+}
+
+public sealed class ReconcileAccountValidator : AbstractValidator<ReconcileAccountCommand>
+{
+    public ReconcileAccountValidator()
+    {
+        RuleFor(c => c.AccountId).NotEmpty();
+        RuleFor(c => c.Date).NotEmpty().WithMessage("Data é obrigatória.");
     }
 }

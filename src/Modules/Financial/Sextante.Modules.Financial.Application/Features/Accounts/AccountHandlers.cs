@@ -1,5 +1,10 @@
+using Sextante.Modules.Financial.Application.Common;
+using Sextante.Modules.Financial.Application.ExchangeRates;
+using Sextante.Modules.Financial.Application.Features.Transactions;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Common;
+using Sextante.Modules.Financial.Domain.Transactions;
+using Sextante.Modules.Financial.PublicApi.Events;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 using Sextante.SharedKernel;
 using Wolverine.Attributes;
@@ -135,6 +140,101 @@ public static class AccountHandlers
         // resto do módulo, em vez de forçar um saldo nulo com "!".
         var balance = await balances.GetBalanceAsync(query.AccountId, query.At, cancellationToken);
         return balance is null ? null : new AccountBalanceResponse(query.AccountId, query.At, balance);
+    }
+
+    /// <summary>
+    /// Phase 6.5 grupo 4 — acerto de saldo. Compara o saldo calculado à data
+    /// com o real indicado; se diferem, cria um único <c>Adjustment</c> pela
+    /// diferença (entrada se o real é maior, saída se menor), pelo que o
+    /// saldo à data passa a coincidir com o real.
+    /// </summary>
+    public static async Task<ReconcileAccountResponse?> Handle(
+        ReconcileAccountCommand command,
+        IAccountRepository accounts,
+        IAccountBalanceQuery balances,
+        ITransactionRepository transactions,
+        ITenantContext tenant,
+        ITenantCurrencyResolver currency,
+        IExchangeRateService exchangeRates,
+        IIntegrationEventPublisher events,
+        CancellationToken cancellationToken)
+    {
+        var account = await accounts.GetByIdAsync(command.AccountId, cancellationToken);
+        if (account is null)
+        {
+            return null;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var today = DateOnly.FromDateTime(now.UtcDateTime);
+        if (command.Date > today)
+        {
+            throw new ReconciliationDateInFutureException();
+        }
+
+        // Antes da data do saldo inicial o acerto seria ignorado pelo cálculo
+        // de saldo — não teria efeito.
+        if (command.Date < account.OpeningBalanceDate)
+        {
+            throw new ReconciliationBeforeOpeningBalanceException();
+        }
+
+        var calculated = await balances.GetBalanceAsync(account.Id, command.Date, cancellationToken);
+        if (calculated is null)
+        {
+            // Arquivada em concorrência — mesmo tratamento de GetAccountBalanceQuery.
+            return null;
+        }
+
+        var actual = new Money(command.ActualBalance, account.Currency);
+        var difference = command.ActualBalance - calculated.Amount;
+        if (difference == 0m)
+        {
+            return new ReconcileAccountResponse(
+                account.Id, command.Date, calculated, actual, new Money(0m, account.Currency), null);
+        }
+
+        // Último movimento do dia D ("depois de tudo o que aconteceu em D, o
+        // saldo era X"), nunca no futuro quando D é hoje.
+        var endOfDay = new DateTimeOffset(command.Date.ToDateTime(new TimeOnly(23, 59, 59), DateTimeKind.Utc));
+        var occurredAt = endOfDay < now ? endOfDay : now;
+
+        var primaryCurrency = await currency.GetPrimaryCurrencyAsync(cancellationToken);
+        var snapshot = await exchangeRates.ResolveAsync(
+            account.Currency, primaryCurrency, occurredAt, cancellationToken);
+
+        var adjustment = Transaction.CreateAdjustment(
+            account.Id,
+            difference > 0m ? TransactionDirection.Inflow : TransactionDirection.Outflow,
+            occurredAt,
+            new Money(Math.Abs(difference), account.Currency),
+            "Acerto de saldo",
+            tenant.TenantId,
+            snapshot,
+            now);
+
+        await transactions.AddAsync(adjustment, cancellationToken);
+        await transactions.SaveChangesAsync(cancellationToken);
+
+        await events.PublishAsync(
+            new TransactionCreatedIntegrationEvent(
+                adjustment.Id,
+                tenant.TenantId.Value,
+                adjustment.AccountId,
+                null,
+                adjustment.Amount.Amount,
+                adjustment.Amount.Currency,
+                adjustment.OccurredAt,
+                DateTimeOffset.UtcNow),
+            cancellationToken);
+
+        return new ReconcileAccountResponse(
+            account.Id,
+            command.Date,
+            calculated,
+            actual,
+            new Money(difference, account.Currency),
+            TransactionHandlers.ToResponse(adjustment));
     }
 
     private static AccountResponse ToResponse(Account account, Money currentBalance)

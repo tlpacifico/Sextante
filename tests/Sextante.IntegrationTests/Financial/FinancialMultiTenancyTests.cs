@@ -124,6 +124,37 @@ public sealed class FinancialMultiTenancyTests : IClassFixture<IdentityIntegrati
         ackA.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task Reconcile_account_of_other_tenant_returns_404_and_creates_nothing()
+    {
+        // Phase 6.5 grupo 4 — reconciliar a conta de outro tenant: 404 e
+        // nenhum acerto criado.
+        var (clientA, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtA-rec");
+        var (clientB, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtB-rec");
+
+        var accountResponse = await clientA.PostAsJsonAsync("/api/financial/accounts", new
+        {
+            name = "Conta A",
+            type = 0,
+            currency = "EUR",
+            openingBalanceAmount = 100m,
+        });
+        accountResponse.EnsureSuccessStatusCode();
+        var accountA = (await accountResponse.Content.ReadFromJsonAsync<IdRow>())!.Id;
+
+        var reconcile = await clientB.PostAsJsonAsync($"/api/financial/accounts/{accountA}/reconcile", new
+        {
+            date = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"),
+            actualBalance = 5m,
+        });
+        reconcile.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var pageA = await clientA.GetFromJsonAsync<TxPage>($"/api/financial/transactions?accountIds={accountA}");
+        pageA!.Items.Should().BeEmpty();
+        var pageB = await clientB.GetFromJsonAsync<TxPage>("/api/financial/transactions");
+        pageB!.Items.Should().BeEmpty();
+    }
+
     private static async Task<Guid> CreateCategoryAsync(HttpClient client, string name)
     {
         var response = await client.PostAsJsonAsync("/api/financial/categories", new
@@ -155,4 +186,6 @@ public sealed class FinancialMultiTenancyTests : IClassFixture<IdentityIntegrati
 
     private sealed record IdRow(Guid Id);
     private sealed record BudgetIdRow(Guid Id);
+    private sealed record TxItem(Guid Id);
+    private sealed record TxPage(IReadOnlyList<TxItem> Items, string? NextCursor);
 }

@@ -32,6 +32,37 @@ public static class AccountsEndpoints
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
+        // Phase 6.5 grupo 4 — acerto de saldo (reconciliação).
+        group.MapPost("{id:guid}/reconcile", async (Guid id, ReconcileAccountBody body, IMessageBus bus, CancellationToken ct) =>
+        {
+            try
+            {
+                var response = await bus.InvokeAsync<ReconcileAccountResponse?>(
+                    new ReconcileAccountCommand(id, body.Date, body.ActualBalance),
+                    ct);
+                return response is null ? Results.NotFound() : Results.Ok(response);
+            }
+            catch (FinancialDomainException ex)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["reconcile"] = [ex.Message],
+                    },
+                    detail: ex.Message,
+                    title: "Erros de validação",
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
+            catch (FluentValidation.ValidationException ex)
+            {
+                return Results.ValidationProblem(
+                    ex.Errors
+                        .GroupBy(e => e.PropertyName)
+                        .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray()),
+                    title: "Erros de validação");
+            }
+        });
+
         group.MapPost("", async (CreateAccountCommand command, IMessageBus bus, CancellationToken ct) =>
         {
             try
@@ -94,6 +125,8 @@ public static class AccountsEndpoints
 
         return routes;
     }
+
+    public sealed record ReconcileAccountBody(DateOnly Date, decimal ActualBalance);
 
     public sealed record UpdateAccountBody(string Name, Sextante.Modules.Financial.Domain.Accounts.AccountType Type);
 }
