@@ -426,6 +426,14 @@ public sealed class InstallmentPlanPurchaseInvalidException : FinancialDomainExc
     }
 }
 
+public sealed class InstallmentPlanPurchaseCurrencyMismatchException : FinancialDomainException
+{
+    public InstallmentPlanPurchaseCurrencyMismatchException()
+        : base("A compra está noutra moeda; os planos de prestações usam a moeda do cartão.")
+    {
+    }
+}
+
 public sealed class InstallmentPlanPurchaseAlreadyLinkedException : FinancialDomainException
 {
     public InstallmentPlanPurchaseAlreadyLinkedException()

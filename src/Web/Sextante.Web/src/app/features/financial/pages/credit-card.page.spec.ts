@@ -128,6 +128,7 @@ describe('CreditCardPage', () => {
         id: 'p1',
         accountId: 'a1',
         purchaseTransactionId: null,
+        purchaseDate: '2026-06-20',
         description: 'Portátil',
         totalAmount: money(600),
         installmentCount: 6,

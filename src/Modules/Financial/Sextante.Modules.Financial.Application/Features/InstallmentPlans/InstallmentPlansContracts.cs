@@ -5,10 +5,13 @@ namespace Sextante.Modules.Financial.Application.Features.InstallmentPlans;
 /// <summary>
 /// Plano de prestações (Phase 6.5 grupo 6). O total vem na moeda do cartão.
 /// <see cref="FirstInstallmentDate"/> é a data da prestação n.º 1.
+/// <see cref="PurchaseDate"/> só conta em planos manuais — num plano ligado
+/// vem sempre da transação de compra.
 /// </summary>
 public sealed record CreateInstallmentPlanCommand(
     Guid AccountId,
     Guid? PurchaseTransactionId,
+    DateOnly PurchaseDate,
     string Description,
     decimal TotalAmount,
     int InstallmentCount,
@@ -20,6 +23,7 @@ public sealed record CreateInstallmentPlanCommand(
 public sealed record UpdateInstallmentPlanCommand(
     Guid Id,
     Guid? PurchaseTransactionId,
+    DateOnly PurchaseDate,
     string Description,
     decimal TotalAmount,
     int InstallmentCount,
@@ -44,6 +48,7 @@ public sealed record InstallmentPlanResponse(
     Guid Id,
     Guid AccountId,
     Guid? PurchaseTransactionId,
+    DateOnly PurchaseDate,
     string Description,
     Money TotalAmount,
     int InstallmentCount,

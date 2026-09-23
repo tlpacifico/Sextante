@@ -262,6 +262,7 @@ public sealed class CreditCardTests : IClassFixture<IdentityIntegrationFixture>
         {
             accountId = cardId,
             purchaseTransactionId = (Guid?)null,
+            purchaseDate = previous.Start.ToString("yyyy-MM-dd"),
             description = "Portátil",
             totalAmount = 600m,
             installmentCount = 6,
@@ -275,6 +276,61 @@ public sealed class CreditCardTests : IClassFixture<IdentityIntegrationFixture>
 
         view!.PreviousClosingDebt!.Amount.Should().Be(1000m);
         view.UnbilledInstallmentsAtPreviousClose!.Amount.Should().Be(500m);
+        view.NextPaymentAmount!.Amount.Should().Be(500m);
+    }
+
+    [Fact]
+    public async Task Credit_card_view_ignores_plans_whose_purchase_is_not_in_the_closed_debt()
+    {
+        // Revisão profunda do grupo 6 (Crítico): compra feita depois do fecho
+        // não está na dívida do fecho — as suas prestações não se descontam.
+        // O mesmo para planos manuais com data de compra depois do fecho e
+        // para planos cuja compra ligada foi apagada.
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "cc-view-ip-after");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var current = CreditCardCalendar.CycleContaining(today, ClosingDay, DueDay);
+        var previous = CreditCardCalendar.Previous(current, ClosingDay, DueDay);
+
+        var cardId = await CreateAccountAsync(
+            client, CreditCard, -500m, openingBalanceDate: previous.Start.AddDays(-1),
+            creditCard: new { creditLimit = 5000m, statementClosingDay = ClosingDay, paymentDueDay = DueDay, paymentAccountId = (Guid?)null });
+        var expense = await CreateCategoryAsync(client, "Tecnologia", kind: 0);
+
+        async Task PostPlanAsync(Guid? purchaseId, DateOnly purchaseDate, DateOnly first)
+        {
+            var response = await client.PostAsJsonAsync("/api/financial/installment-plans", new
+            {
+                accountId = cardId,
+                purchaseTransactionId = purchaseId,
+                purchaseDate = purchaseDate.ToString("yyyy-MM-dd"),
+                description = "Compra",
+                totalAmount = 600m,
+                installmentCount = 6,
+                installmentsAlreadyPaid = 0,
+                firstInstallmentDate = first.ToString("yyyy-MM-dd"),
+                annualRate = (decimal?)null,
+            });
+            response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        }
+
+        // Compra ligada, no ciclo corrente (depois do fecho).
+        var recentPurchase = await CreateTransactionAsync(client, cardId, expense, 600m, DateTimeOffset.UtcNow.AddSeconds(-5));
+        await PostPlanAsync(recentPurchase, today, current.End.AddDays(1));
+
+        // Plano manual com data de compra depois do fecho.
+        await PostPlanAsync(null, current.Start, current.End.AddDays(1));
+
+        // Compra ligada, antes do fecho, mas apagada depois.
+        var deletedPurchase = await CreateTransactionAsync(
+            client, cardId, expense, 600m,
+            new DateTimeOffset(previous.Start.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc)));
+        await PostPlanAsync(deletedPurchase, previous.Start, previous.End.AddDays(1));
+        (await client.DeleteAsync($"/api/financial/transactions/{deletedPurchase}")).EnsureSuccessStatusCode();
+
+        var view = await client.GetFromJsonAsync<CreditCardViewRow>($"/api/financial/accounts/{cardId}/credit-card");
+
+        view!.PreviousClosingDebt!.Amount.Should().Be(500m);
+        view.UnbilledInstallmentsAtPreviousClose!.Amount.Should().Be(0m);
         view.NextPaymentAmount!.Amount.Should().Be(500m);
     }
 
@@ -319,7 +375,7 @@ public sealed class CreditCardTests : IClassFixture<IdentityIntegrationFixture>
         return (await response.Content.ReadFromJsonAsync<IdRow>())!.Id;
     }
 
-    private static async Task CreateTransactionAsync(
+    private static async Task<Guid> CreateTransactionAsync(
         HttpClient client, Guid accountId, Guid categoryId, decimal amount, DateTimeOffset occurredAt)
     {
         var response = await client.PostAsJsonAsync("/api/financial/transactions", new
@@ -333,6 +389,7 @@ public sealed class CreditCardTests : IClassFixture<IdentityIntegrationFixture>
             tags = (string[]?)null,
         });
         response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<IdRow>())!.Id;
     }
 
     private sealed record IdRow(Guid Id);

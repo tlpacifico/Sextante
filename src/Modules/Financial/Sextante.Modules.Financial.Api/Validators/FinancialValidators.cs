@@ -226,6 +226,7 @@ public sealed class CreateInstallmentPlanValidator : AbstractValidator<CreateIns
         RuleFor(c => c.AccountId).NotEmpty().WithMessage("Cartão é obrigatório.");
         RuleFor(c => c.Description).NotEmpty().MaximumLength(InstallmentPlan.DescriptionMaxLength)
             .WithMessage("A descrição do plano é obrigatória (máx. 200 caracteres).");
+        RuleFor(c => c.PurchaseDate).NotEmpty().WithMessage("A data da compra é obrigatória.");
         RuleFor(c => c.TotalAmount).GreaterThan(0m).WithMessage("O valor total tem de ser maior que zero.");
         RuleFor(c => c.InstallmentCount).InclusiveBetween(InstallmentPlan.MinInstallments, InstallmentPlan.MaxInstallments)
             .WithMessage("O número de prestações tem de estar entre 2 e 120.");
@@ -244,6 +245,7 @@ public sealed class UpdateInstallmentPlanValidator : AbstractValidator<UpdateIns
         RuleFor(c => c.Id).NotEmpty();
         RuleFor(c => c.Description).NotEmpty().MaximumLength(InstallmentPlan.DescriptionMaxLength)
             .WithMessage("A descrição do plano é obrigatória (máx. 200 caracteres).");
+        RuleFor(c => c.PurchaseDate).NotEmpty().WithMessage("A data da compra é obrigatória.");
         RuleFor(c => c.TotalAmount).GreaterThan(0m).WithMessage("O valor total tem de ser maior que zero.");
         RuleFor(c => c.InstallmentCount).InclusiveBetween(InstallmentPlan.MinInstallments, InstallmentPlan.MaxInstallments)
             .WithMessage("O número de prestações tem de estar entre 2 e 120.");

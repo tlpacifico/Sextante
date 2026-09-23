@@ -217,6 +217,7 @@ public sealed class FinancialMultiTenancyTests : IClassFixture<IdentityIntegrati
         {
             accountId,
             purchaseTransactionId = purchaseId,
+            purchaseDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"),
             description = "Plano",
             totalAmount = 600m,
             installmentCount = 6,

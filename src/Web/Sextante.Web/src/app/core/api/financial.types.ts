@@ -78,6 +78,8 @@ export interface InstallmentPlanDto {
   id: string;
   accountId: string;
   purchaseTransactionId: string | null;
+  /** Data da compra (YYYY-MM-DD); num plano ligado vem da transação. */
+  purchaseDate: string;
   description: string;
   totalAmount: Money;
   installmentCount: number;
@@ -98,6 +100,8 @@ export interface InstallmentPlanDto {
 
 export interface InstallmentPlanRequest {
   purchaseTransactionId: string | null;
+  /** Só conta em planos manuais; num plano ligado o backend usa a da compra. */
+  purchaseDate: string;
   description: string;
   totalAmount: number;
   installmentCount: number;

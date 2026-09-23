@@ -22,7 +22,7 @@ public sealed class InstallmentPlanTests
         decimal? annualRate = null,
         string currency = "EUR")
         => InstallmentPlan.Create(
-            Tenant, AccountId, null, description, new Money(total, currency),
+            Tenant, AccountId, null, D(first).AddMonths(-1), description, new Money(total, currency),
             count, alreadyPaid, D(first), annualRate);
 
     [Fact]
@@ -31,12 +31,13 @@ public sealed class InstallmentPlanTests
         var purchaseId = Guid.NewGuid();
 
         var plan = InstallmentPlan.Create(
-            Tenant, AccountId, purchaseId, "  Portátil  ", new Money(1200m, "EUR"), 12, 2, D("2026-04-15"), 5.5m);
+            Tenant, AccountId, purchaseId, D("2026-03-20"), "  Portátil  ", new Money(1200m, "EUR"), 12, 2, D("2026-04-15"), 5.5m);
 
         plan.Id.Should().NotBeEmpty();
         plan.TenantId.Should().Be(Tenant);
         plan.AccountId.Should().Be(AccountId);
         plan.PurchaseTransactionId.Should().Be(purchaseId);
+        plan.PurchaseDate.Should().Be(D("2026-03-20"));
         plan.Description.Should().Be("Portátil");
         plan.TotalAmount.Should().Be(new Money(1200m, "EUR"));
         plan.InstallmentCount.Should().Be(12);
@@ -106,7 +107,7 @@ public sealed class InstallmentPlanTests
     {
         var plan = Plan();
 
-        var act = () => plan.Update(null, "Portátil", new Money(1200m, "USD"), 12, 0, D("2026-04-15"), null);
+        var act = () => plan.Update(null, D("2026-03-20"), "Portátil", new Money(1200m, "USD"), 12, 0, D("2026-04-15"), null);
 
         act.Should().Throw<InstallmentPlanCurrencyMismatchException>();
     }
@@ -117,9 +118,10 @@ public sealed class InstallmentPlanTests
         var plan = Plan();
         var purchaseId = Guid.NewGuid();
 
-        plan.Update(purchaseId, "Telemóvel", new Money(600m, "EUR"), 6, 1, D("2026-05-01"), 3m);
+        plan.Update(purchaseId, D("2026-04-28"), "Telemóvel", new Money(600m, "EUR"), 6, 1, D("2026-05-01"), 3m);
 
         plan.PurchaseTransactionId.Should().Be(purchaseId);
+        plan.PurchaseDate.Should().Be(D("2026-04-28"));
         plan.Description.Should().Be("Telemóvel");
         plan.TotalAmount.Amount.Should().Be(600m);
         plan.InstallmentCount.Should().Be(6);

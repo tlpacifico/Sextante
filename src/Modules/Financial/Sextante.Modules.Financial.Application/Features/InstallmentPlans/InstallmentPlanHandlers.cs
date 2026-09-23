@@ -25,12 +25,14 @@ public static class InstallmentPlanHandlers
         CancellationToken cancellationToken)
     {
         var account = await LoadCardAsync(command.AccountId, accounts, cancellationToken);
-        await ValidatePurchaseAsync(command.PurchaseTransactionId, account.Id, null, plans, transactions, cancellationToken);
+        var purchase = await ValidatePurchaseAsync(
+            command.PurchaseTransactionId, account, null, plans, transactions, cancellationToken);
 
         var plan = InstallmentPlan.Create(
             tenant.TenantId,
             account.Id,
             command.PurchaseTransactionId,
+            PurchaseDateOf(purchase) ?? command.PurchaseDate,
             command.Description,
             new Money(command.TotalAmount, account.Currency),
             command.InstallmentCount,
@@ -57,10 +59,24 @@ public static class InstallmentPlanHandlers
             return null;
         }
 
-        await ValidatePurchaseAsync(command.PurchaseTransactionId, plan.AccountId, plan.Id, plans, transactions, cancellationToken);
+        // Só se valida uma ligação nova: se a compra já ligada foi apagada ou
+        // alterada, o plano continua editável (revisão profunda do grupo 6).
+        var purchaseDate = command.PurchaseDate;
+        if (command.PurchaseTransactionId != plan.PurchaseTransactionId)
+        {
+            var account = await LoadCardAsync(plan.AccountId, accounts, cancellationToken);
+            var purchase = await ValidatePurchaseAsync(
+                command.PurchaseTransactionId, account, plan.Id, plans, transactions, cancellationToken);
+            purchaseDate = PurchaseDateOf(purchase) ?? purchaseDate;
+        }
+        else if (plan.PurchaseTransactionId is not null)
+        {
+            purchaseDate = plan.PurchaseDate;
+        }
 
         plan.Update(
             command.PurchaseTransactionId,
+            purchaseDate,
             command.Description,
             new Money(command.TotalAmount, plan.TotalAmount.Currency),
             command.InstallmentCount,
@@ -120,6 +136,7 @@ public static class InstallmentPlanHandlers
             plan.Id,
             plan.AccountId,
             plan.PurchaseTransactionId,
+            plan.PurchaseDate,
             plan.Description,
             plan.TotalAmount,
             plan.InstallmentCount,
@@ -155,11 +172,11 @@ public static class InstallmentPlanHandlers
 
     /// <summary>
     /// A compra (se indicada) tem de ser uma despesa regular do mesmo cartão,
-    /// sem outro plano ativo.
+    /// na moeda do cartão, sem outro plano ativo.
     /// </summary>
-    private static async Task ValidatePurchaseAsync(
+    private static async Task<Transaction?> ValidatePurchaseAsync(
         Guid? purchaseTransactionId,
-        Guid accountId,
+        Account account,
         Guid? exceptPlanId,
         IInstallmentPlanRepository plans,
         ITransactionRepository transactions,
@@ -167,22 +184,37 @@ public static class InstallmentPlanHandlers
     {
         if (purchaseTransactionId is not { } id)
         {
-            return;
+            return null;
         }
 
         var purchase = await transactions.GetByIdAsync(id, cancellationToken)
             ?? throw new KeyNotFoundException($"Transação com ID '{id}' não encontrada.");
 
-        if (purchase.AccountId != accountId
-            || purchase.Kind != TransactionKind.Regular
-            || purchase.Direction != TransactionDirection.Outflow)
+        if (!IsPurchaseOf(purchase, account.Id))
         {
             throw new InstallmentPlanPurchaseInvalidException();
+        }
+
+        if (!string.Equals(purchase.Amount.Currency, account.Currency, StringComparison.Ordinal))
+        {
+            throw new InstallmentPlanPurchaseCurrencyMismatchException();
         }
 
         if (await plans.ExistsForPurchaseAsync(id, exceptPlanId, cancellationToken))
         {
             throw new InstallmentPlanPurchaseAlreadyLinkedException();
         }
+
+        return purchase;
     }
+
+    /// <summary>Despesa regular da conta — o que pode originar (e manter) um plano.</summary>
+    internal static bool IsPurchaseOf(Transaction transaction, Guid accountId)
+        => transaction.AccountId == accountId
+           && transaction.Kind == TransactionKind.Regular
+           && transaction.Direction == TransactionDirection.Outflow;
+
+    /// <summary>Data (UTC) da compra ligada — mesma convenção dos cortes de saldo.</summary>
+    internal static DateOnly? PurchaseDateOf(Transaction? purchase)
+        => purchase is null ? null : DateOnly.FromDateTime(purchase.OccurredAt.UtcDateTime);
 }

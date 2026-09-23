@@ -10,7 +10,9 @@ namespace Sextante.Modules.Financial.Domain.InstallmentPlans;
 /// ainda por faturar, que o próximo pagamento do cartão desconta.
 /// <see cref="FirstInstallmentDate"/> é a data da prestação n.º 1, mesmo em
 /// planos que começaram antes de usar a app; <see cref="InstallmentsAlreadyPaid"/>
-/// conta as pagas antes disso (ou antecipadamente).
+/// conta as pagas antes disso (ou antecipadamente). <see cref="PurchaseDate"/>
+/// diz se a compra já estava na dívida de um fecho — só então as prestações
+/// por faturar se descontam no próximo pagamento.
 /// </summary>
 public sealed class InstallmentPlan : ITenantOwned, IAuditable, IFinancialAggregate
 {
@@ -34,6 +36,12 @@ public sealed class InstallmentPlan : ITenantOwned, IAuditable, IFinancialAggreg
     /// <summary>Compra que originou o plano, se houver (soft reference, sem FK).</summary>
     public Guid? PurchaseTransactionId { get; private set; }
 
+    /// <summary>
+    /// Data da compra. Num plano ligado vem da transação (a Application
+    /// preenche-a); num plano manual é indicada pelo utilizador.
+    /// </summary>
+    public DateOnly PurchaseDate { get; private set; }
+
     public string Description { get; private set; }
     public Money TotalAmount { get; private set; }
     public int InstallmentCount { get; private set; }
@@ -52,6 +60,7 @@ public sealed class InstallmentPlan : ITenantOwned, IAuditable, IFinancialAggreg
         TenantId tenantId,
         Guid accountId,
         Guid? purchaseTransactionId,
+        DateOnly purchaseDate,
         string description,
         Money totalAmount,
         int installmentCount,
@@ -67,6 +76,7 @@ public sealed class InstallmentPlan : ITenantOwned, IAuditable, IFinancialAggreg
             TenantId = tenantId,
             AccountId = accountId,
             PurchaseTransactionId = purchaseTransactionId,
+            PurchaseDate = purchaseDate,
             Description = normalized,
             TotalAmount = totalAmount,
             InstallmentCount = installmentCount,
@@ -78,6 +88,7 @@ public sealed class InstallmentPlan : ITenantOwned, IAuditable, IFinancialAggreg
 
     public void Update(
         Guid? purchaseTransactionId,
+        DateOnly purchaseDate,
         string description,
         Money totalAmount,
         int installmentCount,
@@ -92,6 +103,7 @@ public sealed class InstallmentPlan : ITenantOwned, IAuditable, IFinancialAggreg
 
         Description = Validate(description, totalAmount, installmentCount, installmentsAlreadyPaid, annualRate);
         PurchaseTransactionId = purchaseTransactionId;
+        PurchaseDate = purchaseDate;
         TotalAmount = totalAmount;
         InstallmentCount = installmentCount;
         InstallmentsAlreadyPaid = installmentsAlreadyPaid;

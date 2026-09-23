@@ -51,6 +51,21 @@ import { InstallmentPlanDto, InstallmentPlanRequest, TransactionDto } from '../.
           }
         </div>
 
+        @if (!purchase && !plan?.purchaseTransactionId) {
+          <div class="flex flex-col gap-1">
+            <label for="ip-purchase-date" class="text-sm font-medium">Data da compra</label>
+            <p-datepicker
+              inputId="ip-purchase-date"
+              formControlName="purchaseDate"
+              dateFormat="dd/mm/yy"
+              [showIcon]="true"
+              [maxDate]="today"
+              appendTo="body"
+              styleClass="w-full" />
+            <small class="text-[var(--p-text-muted-color)]">Diz a partir de que extrato as prestações por faturar se descontam no pagamento.</small>
+          </div>
+        }
+
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1">
             <label for="ip-count" class="text-sm font-medium">N.º de prestações</label>
@@ -121,12 +136,14 @@ export class InstallmentPlanDialogComponent implements OnChanges {
   @Output() saved = new EventEmitter<void>();
 
   protected readonly submitting = signal(false);
+  protected readonly today = new Date();
 
   protected readonly form = this.fb.group({
     description: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(200)]),
     totalAmount: this.fb.control<number | null>(null, [Validators.required, Validators.min(0.01)]),
     installmentCount: this.fb.control<number | null>(null, [Validators.required, Validators.min(2), Validators.max(120)]),
     installmentsAlreadyPaid: this.fb.nonNullable.control(0, [Validators.required, Validators.min(0)]),
+    purchaseDate: this.fb.nonNullable.control(new Date(), Validators.required),
     firstInstallmentDate: this.fb.nonNullable.control(new Date(), Validators.required),
     annualRate: this.fb.control<number | null>(null, [Validators.min(0), Validators.max(100)]),
   });
@@ -143,6 +160,7 @@ export class InstallmentPlanDialogComponent implements OnChanges {
         totalAmount: this.plan.totalAmount.amount,
         installmentCount: this.plan.installmentCount,
         installmentsAlreadyPaid: this.plan.installmentsAlreadyPaid,
+        purchaseDate: this.parseLocalDate(this.plan.purchaseDate),
         firstInstallmentDate: this.parseLocalDate(this.plan.firstInstallmentDate),
         annualRate: this.plan.annualRate,
       });
@@ -156,6 +174,7 @@ export class InstallmentPlanDialogComponent implements OnChanges {
         totalAmount: this.purchase.amount.amount,
         installmentCount: null,
         installmentsAlreadyPaid: 0,
+        purchaseDate: new Date(purchaseDate.getFullYear(), purchaseDate.getMonth(), purchaseDate.getDate()),
         firstInstallmentDate: first,
         annualRate: null,
       });
@@ -166,6 +185,7 @@ export class InstallmentPlanDialogComponent implements OnChanges {
         totalAmount: null,
         installmentCount: null,
         installmentsAlreadyPaid: 0,
+        purchaseDate: new Date(),
         firstInstallmentDate: new Date(),
         annualRate: null,
       });
@@ -198,6 +218,7 @@ export class InstallmentPlanDialogComponent implements OnChanges {
       totalAmount: value.totalAmount,
       installmentCount: value.installmentCount,
       installmentsAlreadyPaid: value.installmentsAlreadyPaid,
+      purchaseDate: this.toDateString(value.purchaseDate),
       firstInstallmentDate: this.toDateString(value.firstInstallmentDate),
       annualRate: value.annualRate,
     };

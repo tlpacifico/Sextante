@@ -71,6 +71,7 @@ describe('InstallmentPlanDialogComponent', () => {
     expect(req.request.body).toEqual({
       accountId: 'card',
       purchaseTransactionId: 't1',
+      purchaseDate: '2026-09-10',
       description: 'Portátil',
       totalAmount: 600,
       installmentCount: 6,
@@ -92,6 +93,7 @@ describe('InstallmentPlanDialogComponent', () => {
       id: 'p1',
       accountId: 'card',
       purchaseTransactionId: null,
+      purchaseDate: '2026-03-20',
       description: 'Frigorífico',
       totalAmount: { amount: 1200, currency: 'EUR' },
       installmentCount: 12,
@@ -114,6 +116,7 @@ describe('InstallmentPlanDialogComponent', () => {
     const req = httpMock.expectOne('/api/financial/installment-plans/p1');
     expect(req.request.method).toBe('PUT');
     expect(req.request.body.firstInstallmentDate).toBe('2026-04-15');
+    expect(req.request.body.purchaseDate).toBe('2026-03-20');
     expect(req.request.body.installmentsAlreadyPaid).toBe(3);
     expect(req.request.body.annualRate).toBe(4.5);
     req.flush({});

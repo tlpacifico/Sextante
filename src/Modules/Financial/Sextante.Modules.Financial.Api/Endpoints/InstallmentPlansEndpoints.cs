@@ -56,6 +56,7 @@ public static class InstallmentPlansEndpoints
                     new UpdateInstallmentPlanCommand(
                         id,
                         body.PurchaseTransactionId,
+                        body.PurchaseDate,
                         body.Description,
                         body.TotalAmount,
                         body.InstallmentCount,
@@ -90,6 +91,7 @@ public static class InstallmentPlansEndpoints
 
     public sealed record UpdateInstallmentPlanBody(
         Guid? PurchaseTransactionId,
+        DateOnly PurchaseDate,
         string Description,
         decimal TotalAmount,
         int InstallmentCount,

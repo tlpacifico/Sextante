@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Npgsql;
 
 namespace Sextante.IntegrationTests.Financial;
 
@@ -119,6 +120,7 @@ public sealed class InstallmentPlansTests : IClassFixture<IdentityIntegrationFix
         var put = await client.PutAsJsonAsync($"/api/financial/installment-plans/{plan.Id}", new
         {
             purchaseTransactionId = (Guid?)null,
+            purchaseDate = Today.AddMonths(-2).ToString("yyyy-MM-dd"),
             description = "Frigorífico",
             totalAmount = 1200m,
             installmentCount = 12,
@@ -160,6 +162,76 @@ public sealed class InstallmentPlansTests : IClassFixture<IdentityIntegrationFix
     }
 
     [Fact]
+    public async Task Linked_plan_takes_purchase_date_from_the_transaction()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "ip-purchase-date");
+        var cardId = await CreateAccountAsync(client, CreditCard);
+        var expense = await CreateCategoryAsync(client, "Tecnologia", kind: 0);
+        var purchaseId = await CreateTransactionAsync(client, cardId, expense, 600m);
+
+        // A data enviada é ignorada: num plano ligado vem da compra.
+        var created = await PostPlanAsync(client, cardId, purchaseId, 600m, 6, 0, Today.AddMonths(5));
+
+        created.StatusCode.Should().Be(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        (await created.Content.ReadFromJsonAsync<PlanRow>())!.PurchaseDate
+            .Should().Be(DateOnly.FromDateTime(DateTimeOffset.UtcNow.AddMinutes(-5).UtcDateTime));
+    }
+
+    [Fact]
+    public async Task Plan_with_deleted_purchase_stays_editable()
+    {
+        // Revisão profunda do grupo 6: a compra ligada foi apagada → o PUT com
+        // a mesma ligação dava 404 e o plano ficava impossível de editar.
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "ip-deleted-purchase");
+        var cardId = await CreateAccountAsync(client, CreditCard);
+        var expense = await CreateCategoryAsync(client, "Tecnologia", kind: 0);
+        var purchaseId = await CreateTransactionAsync(client, cardId, expense, 600m);
+        var created = await PostPlanAsync(client, cardId, purchaseId, 600m, 6, 0, Today);
+        var plan = (await created.Content.ReadFromJsonAsync<PlanRow>())!;
+
+        (await client.DeleteAsync($"/api/financial/transactions/{purchaseId}")).EnsureSuccessStatusCode();
+
+        var put = await client.PutAsJsonAsync($"/api/financial/installment-plans/{plan.Id}", new
+        {
+            purchaseTransactionId = purchaseId,
+            purchaseDate = plan.PurchaseDate.ToString("yyyy-MM-dd"),
+            description = "Portátil (renomeado)",
+            totalAmount = 600m,
+            installmentCount = 6,
+            installmentsAlreadyPaid = 0,
+            firstInstallmentDate = plan.FirstInstallmentDate.ToString("yyyy-MM-dd"),
+            annualRate = (decimal?)null,
+        });
+
+        put.StatusCode.Should().Be(HttpStatusCode.OK, await put.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Purchase_in_other_currency_is_rejected()
+    {
+        // Revisão profunda do grupo 6: 100 USD num cartão EUR virava 100 EUR.
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "ip-fx");
+        var cardId = await CreateAccountAsync(client, CreditCard);
+        var expense = await CreateCategoryAsync(client, "Viagens", kind: 0);
+        await SeedExchangeRateAsync("EUR", "USD", 1.10m);
+        var response = await client.PostAsJsonAsync("/api/financial/transactions", new
+        {
+            accountId = cardId,
+            categoryId = expense,
+            occurredAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+            amount = 100m,
+            currency = "USD",
+            description = "Hotel",
+            tags = (string[]?)null,
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        var usdPurchase = (await response.Content.ReadFromJsonAsync<IdRow>())!.Id;
+
+        (await PostPlanAsync(client, cardId, usdPurchase, 100m, 2, 0, Today))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task List_filters_by_account()
     {
         var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "ip-list");
@@ -182,6 +254,7 @@ public sealed class InstallmentPlansTests : IClassFixture<IdentityIntegrationFix
         {
             accountId,
             purchaseTransactionId,
+            purchaseDate = firstInstallmentDate.AddMonths(-1).ToString("yyyy-MM-dd"),
             description,
             totalAmount,
             installmentCount,
@@ -239,6 +312,28 @@ public sealed class InstallmentPlansTests : IClassFixture<IdentityIntegrationFix
         return (await response.Content.ReadFromJsonAsync<IdRow>())!.Id;
     }
 
+    private async Task SeedExchangeRateAsync(string from, string to, decimal rate)
+    {
+        await using var superConn = _fixture.OpenSuperuserConnection();
+        await using var seedCmd = new NpgsqlCommand(
+            """
+            INSERT INTO shared."exchange_rates"
+              ("id", "rate_date", "from_currency", "to_currency", "rate", "source",
+               "created_at", "updated_at", "version")
+            VALUES
+              (@id, @rateDate, @from, @to, @rate, 'manual',
+               now(), now(), 1)
+            ON CONFLICT ("rate_date", "from_currency", "to_currency") DO NOTHING
+            """,
+            superConn);
+        seedCmd.Parameters.AddWithValue("id", Guid.NewGuid());
+        seedCmd.Parameters.AddWithValue("rateDate", DateOnly.FromDateTime(DateTime.UtcNow));
+        seedCmd.Parameters.AddWithValue("from", from);
+        seedCmd.Parameters.AddWithValue("to", to);
+        seedCmd.Parameters.AddWithValue("rate", rate);
+        await seedCmd.ExecuteNonQueryAsync();
+    }
+
     private sealed record IdRow(Guid Id);
 
     private sealed record MoneyValue(decimal Amount, string Currency);
@@ -249,6 +344,7 @@ public sealed class InstallmentPlansTests : IClassFixture<IdentityIntegrationFix
         Guid Id,
         Guid AccountId,
         Guid? PurchaseTransactionId,
+        DateOnly PurchaseDate,
         string Description,
         MoneyValue TotalAmount,
         int InstallmentCount,

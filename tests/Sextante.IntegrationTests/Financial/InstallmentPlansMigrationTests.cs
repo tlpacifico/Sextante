@@ -125,9 +125,9 @@ public sealed class InstallmentPlansMigrationTests : IClassFixture<IdentityInteg
         var id = Guid.NewGuid();
         await using var cmd = new NpgsqlCommand(
             "INSERT INTO financial.installment_plans " +
-            "(id, tenant_id, account_id, purchase_transaction_id, description, total_amount, total_currency, " +
+            "(id, tenant_id, account_id, purchase_transaction_id, purchase_date, description, total_amount, total_currency, " +
             "installment_count, installments_already_paid, first_installment_date, annual_rate, created_at, updated_at, version) " +
-            "VALUES (@id, @t, @a, @p, 'Plano', 600, 'EUR', 6, 0, CURRENT_DATE, NULL, now(), now(), 1)",
+            "VALUES (@id, @t, @a, @p, CURRENT_DATE, 'Plano', 600, 'EUR', 6, 0, CURRENT_DATE, NULL, now(), now(), 1)",
             conn);
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("t", tenantId);

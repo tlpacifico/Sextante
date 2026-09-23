@@ -442,6 +442,7 @@ public sealed class FinancialDbContext : DbContext
                 .IsRequired();
             cfg.Property(p => p.AccountId).HasColumnName("account_id").HasColumnType("uuid").IsRequired();
             cfg.Property(p => p.PurchaseTransactionId).HasColumnName("purchase_transaction_id").HasColumnType("uuid");
+            cfg.Property(p => p.PurchaseDate).HasColumnName("purchase_date").IsRequired();
             cfg.Property(p => p.Description)
                 .HasColumnName("description")
                 .HasMaxLength(InstallmentPlan.DescriptionMaxLength)

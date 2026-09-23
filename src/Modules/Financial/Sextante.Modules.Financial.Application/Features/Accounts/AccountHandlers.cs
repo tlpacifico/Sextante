@@ -1,5 +1,6 @@
 using Sextante.Modules.Financial.Application.Common;
 using Sextante.Modules.Financial.Application.ExchangeRates;
+using Sextante.Modules.Financial.Application.Features.InstallmentPlans;
 using Sextante.Modules.Financial.Application.Features.Transactions;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Common;
@@ -272,6 +273,7 @@ public static class AccountHandlers
         IAccountBalanceQuery balances,
         ICreditCardActivityQuery activity,
         IInstallmentPlanRepository installmentPlans,
+        ITransactionRepository transactions,
         CancellationToken cancellationToken)
     {
         var account = await accounts.GetByIdAsync(query.AccountId, cancellationToken);
@@ -315,9 +317,10 @@ public static class AccountHandlers
         var movements = await activity.GetMovementsAsync(
             account.Id, previousCycle.Start, currentCycle.End, cancellationToken);
 
-        // Grupo 6 — prestações ainda por faturar no último fecho.
-        var plans = await installmentPlans.ListAsync(account.Id, cancellationToken);
-        var unbilledAtPreviousClose = plans.Sum(p => p.UnbilledAfter(previousCycle.End));
+        // Grupo 6 — prestações ainda por faturar no último fecho, só de
+        // compras que já estavam na dívida desse fecho (revisão profunda).
+        var unbilledAtPreviousClose = await UnbilledInstallmentsAtAsync(
+            account.Id, previousCycle.End, installmentPlans, transactions, cancellationToken);
 
         var statement = CreditCardStatementCalculator.Calculate(
             settings, today, currentBalance.Amount, balanceAtPreviousClose.Amount, movements, unbilledAtPreviousClose);
@@ -351,6 +354,44 @@ public static class AccountHandlers
             InCurrency(statement.NextPaymentAmount),
             paymentAccountId,
             InCurrency(statement.UnbilledInstallmentsAtPreviousClose));
+    }
+
+    /// <summary>
+    /// Soma das prestações por faturar a <paramref name="close"/> dos planos
+    /// cuja compra já estava na dívida nesse fecho: compra até ao fecho, e —
+    /// num plano ligado — compra ainda existente como despesa do cartão (a data
+    /// vem da transação). Uma compra apagada, movida ou convertida já não está
+    /// na dívida, logo o plano não desconta.
+    /// </summary>
+    private static async Task<decimal> UnbilledInstallmentsAtAsync(
+        Guid accountId,
+        DateOnly close,
+        IInstallmentPlanRepository installmentPlans,
+        ITransactionRepository transactions,
+        CancellationToken cancellationToken)
+    {
+        var total = 0m;
+        foreach (var plan in await installmentPlans.ListAsync(accountId, cancellationToken))
+        {
+            var purchaseDate = plan.PurchaseDate;
+            if (plan.PurchaseTransactionId is { } purchaseId)
+            {
+                var purchase = await transactions.GetByIdAsync(purchaseId, cancellationToken);
+                if (purchase is null || !InstallmentPlanHandlers.IsPurchaseOf(purchase, accountId))
+                {
+                    continue;
+                }
+
+                purchaseDate = InstallmentPlanHandlers.PurchaseDateOf(purchase)!.Value;
+            }
+
+            if (purchaseDate <= close)
+            {
+                total += plan.UnbilledAfter(close);
+            }
+        }
+
+        return total;
     }
 
     /// <summary>
