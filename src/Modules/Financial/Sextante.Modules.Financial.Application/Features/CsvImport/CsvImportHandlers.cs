@@ -4,6 +4,7 @@ using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.Common;
 using Sextante.Modules.Financial.Application.CsvImport;
 using Sextante.Modules.Financial.Application.ExchangeRates;
+using Sextante.Modules.Financial.Application.Features.Transfers;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Common;
@@ -31,6 +32,7 @@ public static class CsvImportHandlers
         ICategoryRepository categoryRepo,
         IDuplicateDetector duplicateDetector,
         ICategorizationRuleEngine ruleEngine,
+        ITransferCounterpartQuery transferQuery,
         ICsvParser csvParser,
         ITenantContext tenant,
         CancellationToken ct)
@@ -76,6 +78,7 @@ public static class CsvImportHandlers
             await categoryRepo.ListAsync(ct),
             duplicateDetector,
             ruleEngine,
+            transferQuery,
             tenant.TenantId,
             ct);
 
@@ -107,6 +110,7 @@ public static class CsvImportHandlers
         ICategoryRepository categoryRepo,
         IDuplicateDetector duplicateDetector,
         ICategorizationRuleEngine ruleEngine,
+        ITransferCounterpartQuery transferQuery,
         ITenantContext tenant,
         CancellationToken ct)
     {
@@ -132,6 +136,7 @@ public static class CsvImportHandlers
             await categoryRepo.ListAsync(ct),
             duplicateDetector,
             ruleEngine,
+            transferQuery,
             tenant.TenantId,
             ct);
 
@@ -158,6 +163,7 @@ public static class CsvImportHandlers
         ITransactionRepository txRepo,
         ICategoryRepository categoryRepo,
         ICategorizationRuleEngine ruleEngine,
+        ITransferCounterpartQuery transferQuery,
         IExchangeRateService exchangeRateService,
         ITenantCurrencyResolver currencyResolver,
         IIntegrationEventPublisher events,
@@ -193,21 +199,33 @@ public static class CsvImportHandlers
         var categories = await categoryRepo.ListAsync(ct);
         var categoriesById = categories.ToDictionary(c => c.Id);
 
+        var accountsById = accounts.ToDictionary(a => a.Id);
         var includeSet = new HashSet<Guid>(command.IncludeDuplicates);
-        var candidates = previewRows
-            .Where(r => r.Error is null && (!r.IsDuplicate || includeSet.Contains(r.DuplicateTransactionId ?? Guid.Empty)))
-            .ToList();
 
         var autoCategorized = 0;
         var manualCount = 0;
         var errorRows = 0;
         var skippedBeforeOpeningBalance = 0;
+        var imported = 0;
+        var transfersCreated = 0;
+        var transfersLinked = 0;
+        var transfersAlreadyRecorded = 0;
+        var updated = new List<Transaction>();
 
         // Parse de novo com as definições do lote; a exclusão "antes do saldo
-        // inicial" usa a OpeningBalanceDate atual da conta (R5).
-        var toImport = new List<(ParsedImportRow Row, Account Account)>();
-        foreach (var previewRow in candidates)
+        // inicial" usa a OpeningBalanceDate atual da conta (R5). Linhas
+        // "já registadas" (Q1) não se importam, mas corrigem a data da perna.
+        var items = new List<ConfirmItem>();
+        foreach (var previewRow in previewRows)
         {
+            if (previewRow.Error is not null) continue;
+
+            var forced = previewRow.IsDuplicate
+                && includeSet.Contains(previewRow.DuplicateTransactionId ?? Guid.Empty);
+            var alreadyRecorded = previewRow.IsDuplicate && !forced
+                && previewRow.TransferStatus == nameof(ImportTransferStatus.AlreadyRecorded);
+            if (previewRow.IsDuplicate && !forced && !alreadyRecorded) continue;
+
             var row = ImportRowParser.Parse(previewRow.Values, resolver, settings, out _);
             var account = row is null ? null : ImportRowParser.ResolveAccount(row, batchAccount, accounts, out _);
             if (row is null || account is null)
@@ -216,35 +234,73 @@ public static class CsvImportHandlers
                 continue;
             }
 
-            if (row.Date < account.OpeningBalanceDate && !command.IncludeBeforeOpeningBalance)
+            if (!alreadyRecorded && row.Date < account.OpeningBalanceDate && !command.IncludeBeforeOpeningBalance)
             {
                 skippedBeforeOpeningBalance++;
                 continue;
             }
 
-            toImport.Add((row, account));
+            items.Add(new ConfirmItem(previewRow, row, account, forced, alreadyRecorded));
         }
 
         // Uma só passagem do motor de regras (R1): o resultado decide a
-        // categoria; a direção vem sempre do sinal.
-        var ruleInputs = toImport
+        // categoria ou a transferência; a direção vem sempre do sinal.
+        var ruleInputs = items
             .Select(item => new TransactionToCategorize(Guid.CreateVersion7(), item.Row.Description ?? string.Empty))
             .ToList();
         var ruleResults = await ruleEngine.ApplyAsync(ruleInputs, tenant.TenantId, ct);
+        var claimed = new HashSet<Guid>();
 
-        for (var i = 0; i < toImport.Count; i++)
+        for (var i = 0; i < items.Count; i++)
         {
-            var (row, account) = toImport[i];
+            var (previewRow, row, account, forced, alreadyRecorded) = items[i];
             var ruleResult = i < ruleResults.Count ? ruleResults[i] : null;
-
             var currency = row.Currency ?? account.Currency;
+            var occurredAt = new DateTimeOffset(row.Date, TimeOnly.MinValue, TimeSpan.Zero);
+
+            ImportTransferResolution? resolution = null;
+            Account? target = null;
+            if (ruleResult?.TargetAccountId is { } targetId)
+            {
+                accountsById.TryGetValue(targetId, out target);
+                resolution = await ImportTransferResolver.ResolveAsync(
+                    account, target, row.Direction, row.AbsAmount, currency, row.Date, transferQuery, claimed, ct);
+            }
+
+            if (alreadyRecorded)
+            {
+                // Q1 — só se a perna continua a ser a mesma que o preview mostrou.
+                if (resolution is { Status: ImportTransferStatus.AlreadyRecorded, TransactionId: { } legId }
+                    && legId == previewRow.DuplicateTransactionId
+                    && await txRepo.GetByIdAsync(legId, ct) is { } leg)
+                {
+                    if (DateOnly.FromDateTime(leg.OccurredAt.UtcDateTime) != row.Date)
+                    {
+                        leg.UpdateTransferLeg(leg.AccountId, occurredAt, leg.Amount, leg.Description);
+                        txRepo.Update(leg);
+                        updated.Add(leg);
+                    }
+
+                    transfersAlreadyRecorded++;
+                }
+
+                continue;
+            }
+
+            // Duplicado incluído à força: é uma transferência nova (Q1).
+            if (forced && resolution?.Status == ImportTransferStatus.AlreadyRecorded)
+            {
+                resolution = target!.Currency == currency
+                    ? new ImportTransferResolution(ImportTransferStatus.CreateCounterpart, null)
+                    : new ImportTransferResolution(ImportTransferStatus.CurrencyMismatch, null);
+            }
+
             ExchangeRateSnapshot? exchangeRate = null;
             if (!string.Equals(currency, primaryCurrency, StringComparison.Ordinal))
             {
                 try
                 {
-                    exchangeRate = await exchangeRateService.ResolveAsync(
-                        currency, primaryCurrency, new DateTimeOffset(row.Date, TimeOnly.MinValue, TimeSpan.Zero), ct);
+                    exchangeRate = await exchangeRateService.ResolveAsync(currency, primaryCurrency, occurredAt, ct);
                 }
                 catch
                 {
@@ -254,36 +310,75 @@ public static class CsvImportHandlers
                 }
             }
 
-            Category? category = null;
-            var fromRule = false;
-            if (ruleResult?.NewCategoryId is { } ruleCategoryId
-                && categoriesById.TryGetValue(ruleCategoryId, out var ruleCategory)
-                && Transaction.DirectionFor(ruleCategory.Kind) == row.Direction)
-            {
-                category = ruleCategory;
-                fromRule = true;
-            }
-            else
-            {
-                // Phase 5.5 — sem regra aplicável: primeira categoria do tipo do sinal.
-                var kind = row.Direction == TransactionDirection.Inflow ? CategoryKind.Income : CategoryKind.Expense;
-                category = categories.FirstOrDefault(c => c.Kind == kind);
-            }
-
-            if (category is null)
-            {
-                errorRows++;
-                continue;
-            }
+            var money = new Money(row.AbsAmount, currency);
 
             try
             {
+                if (resolution is { Status: ImportTransferStatus.CreateCounterpart or ImportTransferStatus.LinkExisting })
+                {
+                    // R4 — perna nesta conta + contraperna (nova ou existente), no mesmo SaveChanges.
+                    var transferId = GuidV7.NewId();
+                    var leg = Transaction.CreateTransferLeg(
+                        account.Id, transferId, row.Direction, occurredAt, money, row.Description,
+                        tenant.TenantId, exchangeRate);
+                    leg.MarkCategorizedByRule(ruleResult!.MatchedRuleId!.Value);
+
+                    if (resolution.Status == ImportTransferStatus.LinkExisting)
+                    {
+                        var counterpart = await txRepo.GetByIdAsync(resolution.TransactionId!.Value, ct)
+                            ?? throw new TransferCounterpartAlreadyLinkedException();
+                        counterpart.ConvertToTransferLeg(transferId);
+                        txRepo.Update(counterpart);
+                        updated.Add(counterpart);
+                        transfersLinked++;
+                    }
+                    else
+                    {
+                        var opposite = row.Direction == TransactionDirection.Outflow
+                            ? TransactionDirection.Inflow
+                            : TransactionDirection.Outflow;
+                        var counterpartLeg = Transaction.CreateTransferLeg(
+                            target!.Id, transferId, opposite, occurredAt, new Money(row.AbsAmount, target.Currency),
+                            row.Description, tenant.TenantId, exchangeRate);
+                        await txRepo.AddAsync(counterpartLeg, ct);
+                        created.Add(counterpartLeg);
+                        transfersCreated++;
+                    }
+
+                    await txRepo.AddAsync(leg, ct);
+                    created.Add(leg);
+                    imported++;
+                    continue;
+                }
+
+                Category? category = null;
+                var fromRule = false;
+                if (ruleResult?.NewCategoryId is { } ruleCategoryId
+                    && categoriesById.TryGetValue(ruleCategoryId, out var ruleCategory)
+                    && Transaction.DirectionFor(ruleCategory.Kind) == row.Direction)
+                {
+                    category = ruleCategory;
+                    fromRule = true;
+                }
+                else
+                {
+                    // Phase 5.5 — sem regra aplicável: primeira categoria do tipo do sinal.
+                    var kind = row.Direction == TransactionDirection.Inflow ? CategoryKind.Income : CategoryKind.Expense;
+                    category = categories.FirstOrDefault(c => c.Kind == kind);
+                }
+
+                if (category is null)
+                {
+                    errorRows++;
+                    continue;
+                }
+
                 var tx = Transaction.CreateRegular(
                     account.Id,
                     category.Id,
                     category.Kind,
-                    new DateTimeOffset(row.Date, TimeOnly.MinValue, TimeSpan.Zero),
-                    new Money(row.AbsAmount, currency),
+                    occurredAt,
+                    money,
                     row.Description,
                     null,
                     tenant.TenantId,
@@ -301,6 +396,7 @@ public static class CsvImportHandlers
 
                 await txRepo.AddAsync(tx, ct);
                 created.Add(tx);
+                imported++;
             }
             catch (FinancialDomainException)
             {
@@ -310,12 +406,13 @@ public static class CsvImportHandlers
 
         await txRepo.SaveChangesAsync(ct);
 
-        batch.Complete(created.Count, autoCategorized, manualCount);
+        batch.Complete(imported, autoCategorized, manualCount);
         batchRepo.Update(batch);
         await batchRepo.SaveChangesAsync(ct);
 
         // Phase 6.5 §0.5 — orçamentos e alertas (Phase 5b) só reagem a
         // eventos; o import tem de os publicar como qualquer outra criação.
+        // Pernas de transferência vão com CategoryId nulo (D10).
         foreach (var tx in created)
         {
             await events.PublishAsync(
@@ -331,14 +428,32 @@ public static class CsvImportHandlers
                 ct);
         }
 
+        foreach (var tx in updated)
+        {
+            await events.PublishAsync(
+                new TransactionUpdatedIntegrationEvent(
+                    tx.Id,
+                    tenant.TenantId.Value,
+                    tx.AccountId,
+                    tx.CategoryId,
+                    tx.Amount.Amount,
+                    tx.Amount.Currency,
+                    tx.OccurredAt,
+                    DateTimeOffset.UtcNow),
+                ct);
+        }
+
         return new ImportConfirmResponse(
             batch.Id,
-            created.Count,
+            imported,
             autoCategorized,
             manualCount,
             errorRows,
             batch.Status.ToString(),
-            skippedBeforeOpeningBalance);
+            skippedBeforeOpeningBalance,
+            transfersCreated,
+            transfersLinked,
+            transfersAlreadyRecorded);
     }
 
     public static async Task<IReadOnlyList<ImportBatchResponse>> Handle(
@@ -369,6 +484,13 @@ public static class CsvImportHandlers
         return await accountRepo.GetByIdAsync(batch.AccountId.Value, ct)
             ?? throw new ImportAccountRequiredException();
     }
+
+    private sealed record ConfirmItem(
+        PreviewRowDto PreviewRow,
+        ParsedImportRow Row,
+        Account Account,
+        bool Forced,
+        bool AlreadyRecorded);
 
     private static List<string> RowErrors(IReadOnlyList<PreviewRowDto> rows)
         => rows

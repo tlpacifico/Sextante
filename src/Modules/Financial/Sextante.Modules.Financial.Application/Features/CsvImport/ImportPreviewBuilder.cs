@@ -1,5 +1,6 @@
 using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.CsvImport;
+using Sextante.Modules.Financial.Application.Features.Transfers;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Transactions;
@@ -10,8 +11,9 @@ namespace Sextante.Modules.Financial.Application.Features.CsvImport;
 /// <summary>
 /// Phase 6.5 grupo 7 — um só cálculo do preview para o upload e para o
 /// UpdatePreview: parse, conta da linha, "antes do saldo inicial",
-/// duplicados por conta e regras (a categoria só se sugere se o tipo
-/// casar com a direção do sinal, R1).
+/// duplicados por conta e regras: a categoria só se sugere se o tipo casar
+/// com a direção do sinal (R1); regras de transferência resolvem a
+/// contraperna (R2).
 /// </summary>
 public static class ImportPreviewBuilder
 {
@@ -24,6 +26,7 @@ public static class ImportPreviewBuilder
         IReadOnlyList<Category> categories,
         IDuplicateDetector duplicateDetector,
         ICategorizationRuleEngine ruleEngine,
+        ITransferCounterpartQuery transferQuery,
         TenantId tenantId,
         CancellationToken ct)
     {
@@ -86,13 +89,46 @@ public static class ImportPreviewBuilder
 
         var results = await ruleEngine.ApplyAsync(ruleCandidates.Select(c => c.Tx).ToList(), tenantId, ct);
         var byId = categories.ToDictionary(c => c.Id);
+        var accountsById = accounts.ToDictionary(a => a.Id);
+        var claimed = new HashSet<Guid>();
         for (var k = 0; k < ruleCandidates.Count && k < results.Count; k++)
         {
             var result = results[k];
             var rowIndex = ruleCandidates[k].RowIndex;
+            var (row, account) = parsed[rowIndex]!.Value;
+
+            if (result.TargetAccountId is { } targetId)
+            {
+                // R6 — duplicado "normal" não passa pela resolução.
+                if (rows[rowIndex].IsDuplicate) continue;
+
+                accountsById.TryGetValue(targetId, out var target);
+                var resolution = await ImportTransferResolver.ResolveAsync(
+                    account, target, row.Direction, row.AbsAmount, row.Currency ?? account.Currency, row.Date,
+                    transferQuery, claimed, ct);
+
+                rows[rowIndex] = rows[rowIndex] with
+                {
+                    TransferStatus = resolution.Status.ToString(),
+                    TransferTargetAccountId = targetId,
+                    TransferTargetAccountName = target?.Name,
+                    TransferCounterpartTransactionId = resolution.TransactionId,
+                };
+                if (resolution.Status == ImportTransferStatus.AlreadyRecorded)
+                {
+                    rows[rowIndex] = rows[rowIndex] with
+                    {
+                        IsDuplicate = true,
+                        DuplicateTransactionId = resolution.TransactionId,
+                    };
+                }
+
+                continue;
+            }
+
             if (result.NewCategoryId is not { } categoryId
                 || !byId.TryGetValue(categoryId, out var category)
-                || Transaction.DirectionFor(category.Kind) != parsed[rowIndex]!.Value.Row.Direction)
+                || Transaction.DirectionFor(category.Kind) != row.Direction)
             {
                 continue;
             }

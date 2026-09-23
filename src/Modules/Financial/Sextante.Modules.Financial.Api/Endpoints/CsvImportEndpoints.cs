@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.CsvImport;
 using Sextante.Modules.Financial.Application.Features.CsvImport;
+using Sextante.Modules.Financial.Application.Features.Transfers;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Common;
@@ -30,6 +31,7 @@ public static class CsvImportEndpoints
             ICategoryRepository categoryRepo,
             IDuplicateDetector duplicateDetector,
             ICategorizationRuleEngine ruleEngine,
+            ITransferCounterpartQuery transferQuery,
             ICsvParser csvParser,
             ITenantContext tenant,
             CancellationToken ct) =>
@@ -56,7 +58,7 @@ public static class CsvImportEndpoints
                 using var stream = file.OpenReadStream();
                 var response = await CsvImportHandlers.Handle(
                     stream, file.FileName, importProfileId, accountId,
-                    profileRepo, batchRepo, accountRepo, categoryRepo, duplicateDetector, ruleEngine, csvParser, tenant, ct);
+                    profileRepo, batchRepo, accountRepo, categoryRepo, duplicateDetector, ruleEngine, transferQuery, csvParser, tenant, ct);
                 return Results.Ok(response);
             }
             catch (FinancialDomainException ex)

@@ -37,6 +37,8 @@
   <ItemGroup>
     <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Data\Import\example-activo-bank.csv" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Data\Import\activo-conta-sintetico.csv" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Data\Import\activo-cartao-sintetico.csv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
