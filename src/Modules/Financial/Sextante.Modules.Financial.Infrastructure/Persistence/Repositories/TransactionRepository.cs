@@ -144,6 +144,26 @@ public sealed class TransactionRepository : ITransactionRepository
                 (x, c) => new { x.Transaction, x.AccountName, CategoryName = c == null ? null : c.Name })
             .OrderByDescending(x => x.Transaction.OccurredAt)
             .ThenByDescending(x => x.Transaction.Id)
+            .ToListAsync(cancellationToken);
+
+        // Grupo 3 — conta contraparte das transferências: reaproveita
+        // GetCounterpartAccountIdsAsync (1 query, sem N+1) em vez de mais um
+        // join na projeção acima; o export não é paginado, por isso duas
+        // idas extra à BD (contraparte + nomes) são aceitáveis.
+        var transferIds = rows
+            .Where(x => x.Transaction.Kind == TransactionKind.Transfer)
+            .Select(x => x.Transaction.Id)
+            .ToList();
+        var counterpartAccountIds = transferIds.Count > 0
+            ? await GetCounterpartAccountIdsAsync(transferIds, cancellationToken)
+            : new Dictionary<Guid, Guid>();
+        var counterpartAccountNames = counterpartAccountIds.Count > 0
+            ? await _db.Accounts
+                .Where(a => counterpartAccountIds.Values.Contains(a.Id))
+                .ToDictionaryAsync(a => a.Id, a => a.Name, cancellationToken)
+            : new Dictionary<Guid, string>();
+
+        return rows
             .Select(x => new TransactionExportDataRow(
                 x.Transaction.OccurredAt,
                 x.AccountName,
@@ -155,10 +175,12 @@ public sealed class TransactionRepository : ITransactionRepository
                 x.Transaction.Amount.Currency,
                 x.Transaction.ExchangeRateToPrimary,
                 x.Transaction.CategorizationRuleId,
-                x.Transaction.RecurringRuleId))
-            .ToListAsync(cancellationToken);
-
-        return rows;
+                x.Transaction.RecurringRuleId,
+                counterpartAccountIds.TryGetValue(x.Transaction.Id, out var counterpartAccountId)
+                    && counterpartAccountNames.TryGetValue(counterpartAccountId, out var counterpartAccountName)
+                    ? counterpartAccountName
+                    : null))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<TransactionByCategoryRow>> GetByCategoryAsync(

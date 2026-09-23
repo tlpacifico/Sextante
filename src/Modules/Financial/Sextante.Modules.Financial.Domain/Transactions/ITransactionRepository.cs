@@ -95,7 +95,8 @@ public sealed record TransactionExportDataRow(
     string Currency,
     decimal? ExchangeRateToPrimary,
     Guid? CategorizationRuleId,
-    Guid? RecurringRuleId);
+    Guid? RecurringRuleId,
+    string? CounterpartAccountName);
 
 public sealed record TransactionByCategoryRow(
     Guid CategoryId,

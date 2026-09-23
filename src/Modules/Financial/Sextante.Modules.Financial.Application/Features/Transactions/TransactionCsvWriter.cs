@@ -12,7 +12,7 @@ namespace Sextante.Modules.Financial.Application.Features.Transactions;
 public static class TransactionCsvWriter
 {
     public const string Header =
-        "Data;Conta;Categoria;Tipo;Descrição;Valor;Moeda;Câmbio;ValorConvertido;MoedaPrincipal;Origem";
+        "Data;Conta;Categoria;Tipo;Descrição;Valor;Moeda;Câmbio;ValorConvertido;MoedaPrincipal;Origem;Conta contraparte";
 
     private const char Separator = ';';
     private const string LineBreak = "\r\n";
@@ -62,6 +62,8 @@ public static class TransactionCsvWriter
                 .Append(Escape(row.PrimaryCurrency))
                 .Append(Separator)
                 .Append(Escape(row.Origin))
+                .Append(Separator)
+                .Append(Escape(row.CounterpartAccountName))
                 .Append(LineBreak);
         }
 

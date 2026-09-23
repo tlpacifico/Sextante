@@ -86,6 +86,8 @@ export interface TransactionDto {
   direction: TransactionDirection;
   kind: TransactionKind;
   transferId?: string | null;
+  /** Phase 6.5 grupo 3 — conta da outra perna; null fora de transferências. */
+  counterpartAccountId: string | null;
 }
 
 export interface CreateTransactionRequest {
@@ -122,6 +124,29 @@ export interface TransactionFilter {
 export interface TransactionsPageResponse {
   items: TransactionDto[];
   nextCursor: string | null;
+}
+
+// --- Transfers (Phase 6.5 grupo 3) ---
+export interface CreateTransferRequest {
+  fromAccountId: string;
+  toAccountId: string;
+  occurredAt: string;
+  amountOut: number;
+  amountIn?: number | null;
+  description?: string | null;
+}
+
+export interface UpdateTransferRequest extends CreateTransferRequest {}
+
+export interface ConvertToTransferRequest {
+  counterpartAccountId: string;
+  counterpartTransactionId?: string | null;
+}
+
+export interface TransferResponseDto {
+  transferId: string;
+  outLeg: TransactionDto;
+  inLeg: TransactionDto;
 }
 
 export interface CurrencyTotals {

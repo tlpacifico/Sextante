@@ -24,9 +24,9 @@ public sealed class TransactionCsvWriterTests
         var lines = csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
 
         lines[0].Should().Be(
-            "Data;Conta;Categoria;Tipo;Descrição;Valor;Moeda;Câmbio;ValorConvertido;MoedaPrincipal;Origem");
+            "Data;Conta;Categoria;Tipo;Descrição;Valor;Moeda;Câmbio;ValorConvertido;MoedaPrincipal;Origem;Conta contraparte");
         lines[1].Should().Be(
-            "2026-08-14;Conta Corrente;Alimentação;Despesa;Supermercado;1234,50;EUR;;1234,50;EUR;Manual");
+            "2026-08-14;Conta Corrente;Alimentação;Despesa;Supermercado;1234,50;EUR;;1234,50;EUR;Manual;");
     }
 
     [Fact]
@@ -73,5 +73,6 @@ public sealed class TransactionCsvWriterTests
             currency,
             rate,
             "EUR",
-            "Manual");
+            "Manual",
+            "");
 }

@@ -12,13 +12,17 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 import { DialogModule } from 'primeng/dialog';
 import { SkeletonModule } from 'primeng/skeleton';
 import { ToastModule } from 'primeng/toast';
-import { MessageService } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { FinancialApiService } from '../../../../core/api/financial-api.service';
 import { TransactionDto } from '../../../../core/api/financial.types';
+import { TransferEditSeed } from './transfer.dialog';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header/page-header.component';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state/empty-state.component';
 import { TransactionEditDialogComponent } from './transaction-edit.dialog';
 import { RecategorizeDialogComponent } from './recategorize.dialog';
+import { TransferDialogComponent } from './transfer.dialog';
+import { MarkAsTransferDialogComponent } from './mark-as-transfer.dialog';
 
 @Component({
   selector: 'app-transactions-page',
@@ -37,12 +41,16 @@ import { RecategorizeDialogComponent } from './recategorize.dialog';
     DialogModule,
     SkeletonModule,
     ToastModule,
+    ConfirmDialogModule,
     PageHeaderComponent,
     EmptyStateComponent,
     TransactionEditDialogComponent,
     RecategorizeDialogComponent,
+    TransferDialogComponent,
+    MarkAsTransferDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [ConfirmationService],
   template: `
     <sxt-page-header title="Transações" description="Gere todas as suas transações. Filtre, edite e recategorize." />
 
@@ -113,14 +121,22 @@ import { RecategorizeDialogComponent } from './recategorize.dialog';
       <span class="text-sm text-neutral-500">
         {{ transactions().length }} transação(ões)
       </span>
-      <p-button
-        label="Exportar CSV"
-        icon="pi pi-download"
-        severity="secondary"
-        [outlined]="true"
-        [loading]="exporting()"
-        [disabled]="transactions().length === 0"
-        (click)="exportCsv()" />
+      <div class="flex items-center gap-2">
+        <p-button
+          label="Nova transferência"
+          icon="pi pi-arrow-right-arrow-left"
+          severity="secondary"
+          [outlined]="true"
+          (click)="openNewTransfer()" />
+        <p-button
+          label="Exportar CSV"
+          icon="pi pi-download"
+          severity="secondary"
+          [outlined]="true"
+          [loading]="exporting()"
+          [disabled]="transactions().length === 0"
+          (click)="exportCsv()" />
+      </div>
     </div>
 
     <!-- Bulk actions -->
@@ -133,6 +149,14 @@ import { RecategorizeDialogComponent } from './recategorize.dialog';
           severity="secondary"
           size="small"
           (click)="openRecategorize()" />
+        @if (selectedIds().length === 1 && selected()[0].kind === 'Regular') {
+          <p-button
+            label="Marcar como transferência"
+            icon="pi pi-arrow-right-arrow-left"
+            severity="secondary"
+            size="small"
+            (click)="openMarkAsTransfer(selected()[0])" />
+        }
       </div>
     }
 
@@ -182,30 +206,58 @@ import { RecategorizeDialogComponent } from './recategorize.dialog';
               <td>{{ tx.occurredAt | date:'dd/MM/yyyy' }}</td>
               <td class="text-sm">{{ getAccountName(tx.accountId) }}</td>
               <td>
-                <span class="inline-flex items-center gap-1 text-sm">
-                  <i [class]="getCategoryIcon(tx.categoryId)" class="text-xs"></i>
-                  {{ getCategoryName(tx.categoryId) }}
-                </span>
+                @if (tx.kind === 'Transfer') {
+                  <span class="inline-flex items-center gap-1 text-sm">
+                    <i class="pi pi-arrow-right-arrow-left text-xs"></i>
+                    Transferência
+                  </span>
+                } @else {
+                  <span class="inline-flex items-center gap-1 text-sm">
+                    <i [class]="getCategoryIcon(tx.categoryId)" class="text-xs"></i>
+                    {{ getCategoryName(tx.categoryId) }}
+                  </span>
+                }
               </td>
-              <td class="text-sm max-w-[200px] truncate">{{ tx.description || '—' }}</td>
+              <td class="text-sm max-w-[200px] truncate">
+                @if (tx.kind === 'Transfer') {
+                  {{ transferFlowLabel(tx) }}
+                } @else {
+                  {{ tx.description || '—' }}
+                }
+              </td>
               <td>
                 <span [class]="isIncome(tx) ? 'text-success font-medium' : 'text-danger font-medium'">
                   {{ isIncome(tx) ? '+' : '−' }}{{ tx.amount.amount | number:'1.2-2' }} {{ tx.amount.currency }}
                 </span>
               </td>
               <td>
-                <p-button
-                  icon="pi pi-pencil"
-                  severity="secondary"
-                  [text]="true"
-                  size="small"
-                  (click)="editTransaction(tx)" />
-                <p-button
-                  icon="pi pi-trash"
-                  severity="danger"
-                  [text]="true"
-                  size="small"
-                  (click)="archiveTransaction(tx)" />
+                @if (tx.kind === 'Transfer') {
+                  <p-button
+                    icon="pi pi-pencil"
+                    severity="secondary"
+                    [text]="true"
+                    size="small"
+                    (click)="openEditTransfer(tx)" />
+                  <p-button
+                    icon="pi pi-trash"
+                    severity="danger"
+                    [text]="true"
+                    size="small"
+                    (click)="confirmDeleteTransfer(tx)" />
+                } @else {
+                  <p-button
+                    icon="pi pi-pencil"
+                    severity="secondary"
+                    [text]="true"
+                    size="small"
+                    (click)="editTransaction(tx)" />
+                  <p-button
+                    icon="pi pi-trash"
+                    severity="danger"
+                    [text]="true"
+                    size="small"
+                    (click)="archiveTransaction(tx)" />
+                }
               </td>
             </tr>
           </ng-template>
@@ -225,22 +277,43 @@ import { RecategorizeDialogComponent } from './recategorize.dialog';
       [categories]="categories()"
       (close)="recategorizeDialogVisible.set(false)"
       (saved)="onRecategorized()" />
+
+    <app-transfer-dialog
+      [visible]="transferDialogVisible()"
+      [accounts]="accounts()"
+      [editing]="editingTransfer()"
+      (close)="transferDialogVisible.set(false)"
+      (saved)="onTransferSaved()" />
+
+    <app-mark-as-transfer-dialog
+      [visible]="markAsTransferDialogVisible()"
+      [transaction]="markAsTransferSource()"
+      [accounts]="accounts()"
+      (close)="markAsTransferDialogVisible.set(false)"
+      (saved)="onMarkAsTransferSaved()" />
+
+    <p-confirmDialog></p-confirmDialog>
   `,
 })
 export class TransactionsPage implements OnInit {
   private readonly api = inject(FinancialApiService);
   private readonly fb = inject(FormBuilder);
   private readonly messages = inject(MessageService);
+  private readonly confirm = inject(ConfirmationService);
 
   protected readonly loading = signal(true);
   protected readonly transactions = signal<TransactionDto[]>([]);
-  protected readonly accounts = signal<{ id: string; name: string }[]>([]);
+  protected readonly accounts = signal<{ id: string; name: string; currency: string }[]>([]);
   protected readonly categories = signal<{ id: string; name: string; iconName: string; colorHex: string; kind: string }[]>([]);
   protected readonly selected = signal<TransactionDto[]>([]);
   protected readonly selectedTransaction = signal<TransactionDto | null>(null);
   protected readonly editDialogVisible = signal(false);
   protected readonly recategorizeDialogVisible = signal(false);
   protected readonly exporting = signal(false);
+  protected readonly transferDialogVisible = signal(false);
+  protected readonly editingTransfer = signal<TransferEditSeed | null>(null);
+  protected readonly markAsTransferDialogVisible = signal(false);
+  protected readonly markAsTransferSource = signal<TransactionDto | null>(null);
 
   protected readonly kindOptions = [
     { label: 'Todos', value: null },
@@ -274,7 +347,7 @@ export class TransactionsPage implements OnInit {
         this.api.listAccounts(),
         this.api.listCategories(),
       ]);
-      this.accounts.set(accs.map(a => ({ id: a.id, name: a.name })));
+      this.accounts.set(accs.map(a => ({ id: a.id, name: a.name, currency: a.currency })));
       this.categories.set(cats.map(c => ({
         id: c.id,
         name: c.name,
@@ -391,6 +464,69 @@ export class TransactionsPage implements OnInit {
   }
 
   protected onRecategorized(): void {
+    this.selected.set([]);
+    this.loadTransactions();
+  }
+
+  protected transferFlowLabel(tx: TransactionDto): string {
+    const counterpartName = tx.counterpartAccountId ? this.getAccountName(tx.counterpartAccountId) : '—';
+    const ownName = this.getAccountName(tx.accountId);
+    return tx.direction === 'Outflow'
+      ? `${ownName} → ${counterpartName}`
+      : `${counterpartName} → ${ownName}`;
+  }
+
+  protected openNewTransfer(): void {
+    this.editingTransfer.set(null);
+    this.transferDialogVisible.set(true);
+  }
+
+  protected openEditTransfer(tx: TransactionDto): void {
+    const isOut = tx.direction === 'Outflow';
+    this.editingTransfer.set({
+      transferId: tx.transferId!,
+      fromAccountId: isOut ? tx.accountId : (tx.counterpartAccountId ?? ''),
+      toAccountId: isOut ? (tx.counterpartAccountId ?? '') : tx.accountId,
+      occurredAt: tx.occurredAt,
+      amountOut: tx.amount.amount,
+      amountIn: tx.amount.amount,
+      description: tx.description,
+    });
+    this.transferDialogVisible.set(true);
+  }
+
+  protected confirmDeleteTransfer(tx: TransactionDto): void {
+    this.confirm.confirm({
+      message: 'Apagar esta transferência? As duas pernas são removidas.',
+      header: 'Apagar transferência',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'Apagar',
+      rejectLabel: 'Cancelar',
+      accept: () => void this.deleteTransfer(tx),
+    });
+  }
+
+  private async deleteTransfer(tx: TransactionDto): Promise<void> {
+    if (!tx.transferId) return;
+    try {
+      await this.api.deleteTransfer(tx.transferId);
+      this.messages.add({ severity: 'success', summary: 'Apagada', detail: 'Transferência apagada.', life: 3000 });
+      this.loadTransactions();
+    } catch {
+      this.messages.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao apagar transferência.', life: 3000 });
+    }
+  }
+
+  protected onTransferSaved(): void {
+    this.loadTransactions();
+  }
+
+  protected openMarkAsTransfer(tx: TransactionDto): void {
+    this.markAsTransferSource.set(tx);
+    this.markAsTransferDialogVisible.set(true);
+  }
+
+  protected onMarkAsTransferSaved(): void {
     this.selected.set([]);
     this.loadTransactions();
   }

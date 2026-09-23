@@ -213,7 +213,15 @@ public static class TransactionHandlers
         var transaction = await repository.GetByIdAsync(query.Id, cancellationToken);
         if (transaction is null)
             throw new KeyNotFoundException($"Transaction with ID '{query.Id}' not found.");
-        return ToResponse(transaction);
+
+        Guid? counterpartAccountId = null;
+        if (transaction.Kind == TransactionKind.Transfer)
+        {
+            var counterparts = await repository.GetCounterpartAccountIdsAsync([transaction.Id], cancellationToken);
+            counterpartAccountId = counterparts.TryGetValue(transaction.Id, out var counterpartId) ? counterpartId : null;
+        }
+
+        return ToResponse(transaction, counterpartAccountId);
     }
 
     public static async Task<TransactionsPageResponse> Handle(
@@ -239,9 +247,22 @@ public static class TransactionHandlers
             query.AmountMax);
 
         var page = await repository.ListAsync(filter, cancellationToken);
+
+        // Grupo 3 R7 — contraparte de cada perna de transferência da página,
+        // uma query em lote (nunca uma por linha).
+        var transferIds = page.Items
+            .Where(t => t.Kind == TransactionKind.Transfer)
+            .Select(t => t.Id)
+            .ToList();
+        var counterparts = transferIds.Count > 0
+            ? await repository.GetCounterpartAccountIdsAsync(transferIds, cancellationToken)
+            : new Dictionary<Guid, Guid>();
+
         var nextCursor = page.NextCursor is null ? null : Cursor.Encode(page.NextCursor);
         return new TransactionsPageResponse(
-            page.Items.Select(ToResponse).ToList(),
+            page.Items
+                .Select(t => ToResponse(t, counterparts.TryGetValue(t.Id, out var counterpartId) ? counterpartId : null))
+                .ToList(),
             nextCursor);
     }
 
@@ -280,7 +301,8 @@ public static class TransactionHandlers
             r.Currency,
             r.ExchangeRateToPrimary,
             primaryCurrency,
-            DescribeOrigin(r))));
+            DescribeOrigin(r),
+            r.CounterpartAccountName ?? string.Empty)));
 
         var fileName = $"transacoes-{DateTimeOffset.UtcNow:yyyyMMdd}.csv";
         return new ExportTransactionsResponse(fileName, csv);
@@ -415,7 +437,7 @@ public static class TransactionHandlers
 
     // internal (não private) — Phase 6.5 grupo 3: TransferHandlers reaproveita
     // este mapeamento para cada perna, mesmo assembly.
-    internal static TransactionResponse ToResponse(Transaction transaction)
+    internal static TransactionResponse ToResponse(Transaction transaction, Guid? counterpartAccountId = null)
         => new(
             transaction.Id,
             transaction.AccountId,
@@ -431,5 +453,6 @@ public static class TransactionHandlers
             transaction.UpdatedAt,
             transaction.Direction,
             transaction.Kind,
-            transaction.TransferId);
+            transaction.TransferId,
+            counterpartAccountId);
 }

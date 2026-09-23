@@ -37,6 +37,7 @@ import {
 import { MoneyPipe } from '../../core/format/money.pipe';
 import { FinancialStore, ChartKind } from '../financial/state/financial.store';
 import { BudgetProgressCardComponent } from '../financial/pages/components/budget-progress-card.component';
+import { TransferDialogComponent } from '../financial/pages/transactions/transfer.dialog';
 
 @Component({
   selector: 'app-dashboard-page',
@@ -64,6 +65,7 @@ import { BudgetProgressCardComponent } from '../financial/pages/components/budge
     DatePipe,
     RouterLink,
     BudgetProgressCardComponent,
+    TransferDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [MessageService, ConfirmationService],
@@ -71,11 +73,20 @@ import { BudgetProgressCardComponent } from '../financial/pages/components/budge
     <div class="max-w-6xl mx-auto flex flex-col gap-6">
       <header class="flex items-center justify-between flex-wrap gap-2">
         <h1 class="text-xl md:text-2xl font-semibold">Dashboard</h1>
-        <p-button
-          label="Nova transação"
-          icon="pi pi-plus"
-          (onClick)="openCreate()"
-        ></p-button>
+        <div class="flex items-center gap-2">
+          <p-button
+            label="Nova transferência"
+            icon="pi pi-arrow-right-arrow-left"
+            severity="secondary"
+            [outlined]="true"
+            (onClick)="openNewTransfer()"
+          ></p-button>
+          <p-button
+            label="Nova transação"
+            icon="pi pi-plus"
+            (onClick)="openCreate()"
+          ></p-button>
+        </div>
       </header>
 
       <p-card>
@@ -291,7 +302,14 @@ import { BudgetProgressCardComponent } from '../financial/pages/components/budge
               <td>{{ transaction.occurredAt | date: 'dd/MM/yyyy' }}</td>
               <td>{{ accountName(transaction.accountId) }}</td>
               <td>
-                @if (categoryFor(transaction.categoryId); as cat) {
+                @if (transaction.kind === 'Transfer') {
+                  <span class="inline-flex items-center gap-2 text-[var(--p-text-muted-color)]">
+                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-surface-100 dark:bg-surface-800">
+                      <i class="pi pi-arrow-right-arrow-left"></i>
+                    </span>
+                    <span>Transferência</span>
+                  </span>
+                } @else if (categoryFor(transaction.categoryId); as cat) {
                   <span class="inline-flex items-center gap-2">
                     <span
                       class="inline-flex items-center justify-center w-6 h-6 rounded-full"
@@ -310,7 +328,13 @@ import { BudgetProgressCardComponent } from '../financial/pages/components/budge
                   </span>
                 }
               </td>
-              <td>{{ transaction.description ?? '—' }}</td>
+              <td>
+                @if (transaction.kind === 'Transfer') {
+                  {{ transferFlowLabel(transaction) }}
+                } @else {
+                  {{ transaction.description ?? '—' }}
+                }
+              </td>
               <td
                 class="text-right font-medium"
                 [class.text-emerald-600]="transaction.direction === 'Inflow'"
@@ -452,6 +476,13 @@ import { BudgetProgressCardComponent } from '../financial/pages/components/budge
         </form>
       </p-dialog>
 
+      <app-transfer-dialog
+        [visible]="transferDialogVisible()"
+        [accounts]="transferAccounts()"
+        [editing]="null"
+        (close)="transferDialogVisible.set(false)"
+        (saved)="onTransferSaved()" />
+
       <p-confirmDialog></p-confirmDialog>
       <p-toast></p-toast>
     </div>
@@ -465,6 +496,11 @@ export class DashboardPage implements OnInit {
   private readonly confirm = inject(ConfirmationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+
+  protected readonly transferDialogVisible = signal(false);
+  protected readonly transferAccounts = computed(() =>
+    this.store.accounts().map(a => ({ id: a.id, name: a.name, currency: a.currency })),
+  );
 
   protected readonly recurringRuleId = signal<string | null>(null);
 
@@ -608,6 +644,24 @@ export class DashboardPage implements OnInit {
 
   protected accountName(id: string): string {
     return this.store.accounts().find((a) => a.id === id)?.name ?? '—';
+  }
+
+  protected transferFlowLabel(transaction: TransactionDto): string {
+    const counterpartName = transaction.counterpartAccountId
+      ? this.accountName(transaction.counterpartAccountId)
+      : '—';
+    const ownName = this.accountName(transaction.accountId);
+    return transaction.direction === 'Outflow'
+      ? `${ownName} → ${counterpartName}`
+      : `${counterpartName} → ${ownName}`;
+  }
+
+  protected openNewTransfer(): void {
+    this.transferDialogVisible.set(true);
+  }
+
+  protected async onTransferSaved(): Promise<void> {
+    await this.store.refreshDashboard();
   }
 
   protected categoryFor(id: string | null): CategoryDto | null {

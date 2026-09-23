@@ -280,6 +280,29 @@ public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
     }
 
     [Fact]
+    public async Task Transfer_legs_expose_counterpart_account_id_and_regular_transactions_expose_null()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-counterpart");
+        var fromId = await CreateAccountAsync(client);
+        var toId = await CreateAccountAsync(client);
+        var created = await CreateTransferAsync(client, fromId, toId, 100m, null, "com contraparte");
+        var transfer = await created.Content.ReadFromJsonAsync<TransferRow>();
+
+        var outLegDetail = await client.GetFromJsonAsync<TransactionRow>($"/api/financial/transactions/{transfer!.OutLeg.Id}");
+        var inLegDetail = await client.GetFromJsonAsync<TransactionRow>($"/api/financial/transactions/{transfer.InLeg.Id}");
+        outLegDetail!.CounterpartAccountId.Should().Be(toId);
+        inLegDetail!.CounterpartAccountId.Should().Be(fromId);
+
+        var page = await client.GetFromJsonAsync<TxPageWithCounterpart>($"/api/financial/transactions?accountIds={fromId}");
+        page!.Items.Should().ContainSingle(t => t.Id == transfer.OutLeg.Id).Which.CounterpartAccountId.Should().Be(toId);
+
+        var category = await CreateCategoryAsync(client, "Diversos", kind: 0);
+        var regularId = await CreateTransactionAsync(client, fromId, category, 10m, "regular");
+        var regularDetail = await client.GetFromJsonAsync<TransactionRow>($"/api/financial/transactions/{regularId}");
+        regularDetail!.CounterpartAccountId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Reading_or_deleting_another_tenants_transfer_returns_404()
     {
         var (clientA, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-tenant-read-a");
@@ -380,11 +403,16 @@ public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
         string? Description,
         string Direction,
         string Kind,
-        Guid? TransferId);
+        Guid? TransferId,
+        Guid? CounterpartAccountId);
 
     private sealed record TransferRow(Guid TransferId, TransactionRow OutLeg, TransactionRow InLeg);
 
     private sealed record TxItem(Guid Id, Guid AccountId);
 
     private sealed record TxPage(IReadOnlyList<TxItem> Items, string? NextCursor);
+
+    private sealed record TxItemWithCounterpart(Guid Id, Guid AccountId, Guid? CounterpartAccountId);
+
+    private sealed record TxPageWithCounterpart(IReadOnlyList<TxItemWithCounterpart> Items, string? NextCursor);
 }

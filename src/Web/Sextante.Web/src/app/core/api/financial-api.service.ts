@@ -10,6 +10,7 @@ import {
   CategorizationRuleDto,
   CategoryDto,
   ConfirmImportResponse,
+  ConvertToTransferRequest,
   CreateAccountRequest,
   CreateBudgetRequest,
   CreateCategorizationRuleRequest,
@@ -17,6 +18,7 @@ import {
   CreateImportProfileRequest,
   CreateRecurringRuleRequest,
   CreateTransactionRequest,
+  CreateTransferRequest,
   ImportBatchDto,
   ImportProfileDto,
   ReapplyRulesRequest,
@@ -28,6 +30,7 @@ import {
   TransactionFilter,
   TransactionSummaryResponse,
   TransactionsPageResponse,
+  TransferResponseDto,
   UpdateAccountRequest,
   UpdateBudgetRequest,
   UpdateCategorizationRuleRequest,
@@ -36,6 +39,7 @@ import {
   UpdatePreviewRequest,
   UpdateRecurringRuleRequest,
   UpdateTransactionRequest,
+  UpdateTransferRequest,
   UploadCsvResponse,
 } from './financial.types';
 
@@ -223,6 +227,30 @@ export class FinancialApiService {
       this.http.patch<{ updatedCount: number }>(
         '/api/financial/transactions/recategorize',
         { ids, categoryId },
+      ),
+    );
+  }
+
+  // Transfers (Phase 6.5 grupo 3) --------------------------------------------
+  createTransfer(req: CreateTransferRequest): Promise<TransferResponseDto> {
+    return firstValueFrom(this.http.post<TransferResponseDto>('/api/financial/transfers', req));
+  }
+
+  updateTransfer(transferId: string, req: UpdateTransferRequest): Promise<TransferResponseDto> {
+    return firstValueFrom(
+      this.http.put<TransferResponseDto>(`/api/financial/transfers/${transferId}`, req),
+    );
+  }
+
+  deleteTransfer(transferId: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/financial/transfers/${transferId}`));
+  }
+
+  convertToTransfer(transactionId: string, req: ConvertToTransferRequest): Promise<TransferResponseDto> {
+    return firstValueFrom(
+      this.http.post<TransferResponseDto>(
+        `/api/financial/transactions/${transactionId}/convert-to-transfer`,
+        req,
       ),
     );
   }

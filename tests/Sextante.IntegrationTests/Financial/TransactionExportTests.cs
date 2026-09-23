@@ -74,11 +74,42 @@ public sealed class TransactionExportTests : IClassFixture<IdentityIntegrationFi
         csvB.Should().NotContain("42,00");
     }
 
-    private static async Task<Guid> CreateAccount(HttpClient client)
+    [Fact]
+    public async Task Export_labels_transfer_pair_with_type_and_counterpart_account_name()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "export-xfer");
+        var fromId = await CreateAccount(client, "Conta Origem");
+        var toId = await CreateAccount(client, "Conta Destino");
+
+        var transferResponse = await client.PostAsJsonAsync("/api/financial/transfers", new
+        {
+            fromAccountId = fromId,
+            toAccountId = toId,
+            occurredAt = DateTimeOffset.UtcNow.AddMinutes(-1),
+            amountOut = 75m,
+            amountIn = (decimal?)null,
+            description = "movimento",
+        });
+        transferResponse.EnsureSuccessStatusCode();
+
+        var csv = await client.GetStringAsync("/api/financial/transactions/export");
+        var lines = csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+
+        lines.Should().HaveCount(3, "cabeçalho + as duas pernas");
+        lines[0].Should().EndWith("Conta contraparte");
+
+        var outLegLine = lines.Should().ContainSingle(l => l.Contains("Conta Origem;") && l.Contains("Transferência")).Subject;
+        outLegLine.Should().EndWith("Conta Destino");
+
+        var inLegLine = lines.Should().ContainSingle(l => l.Contains("Conta Destino;") && l.Contains("Transferência")).Subject;
+        inLegLine.Should().EndWith("Conta Origem");
+    }
+
+    private static async Task<Guid> CreateAccount(HttpClient client, string name = "Conta Corrente")
     {
         var response = await client.PostAsJsonAsync("/api/financial/accounts", new
         {
-            name = "Conta Corrente",
+            name,
             type = 0,
             openingBalanceAmount = 0m,
         });

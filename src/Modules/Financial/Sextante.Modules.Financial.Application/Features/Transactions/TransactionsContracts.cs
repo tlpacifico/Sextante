@@ -18,7 +18,8 @@ public sealed record TransactionResponse(
     DateTimeOffset UpdatedAt,
     TransactionDirection Direction,
     TransactionKind Kind,
-    Guid? TransferId);
+    Guid? TransferId,
+    Guid? CounterpartAccountId);
 
 public sealed record CreateTransactionCommand(
     Guid AccountId,
@@ -97,7 +98,8 @@ public sealed record TransactionExportRow(
     string Currency,
     decimal? ExchangeRateToPrimary,
     string PrimaryCurrency,
-    string Origin);
+    string Origin,
+    string CounterpartAccountName);
 
 public sealed record ExportTransactionsResponse(
     string FileName,
