@@ -57,7 +57,7 @@
 18. Import publica `TransactionCreatedIntegrationEvent`; alertas de
     orçamento disparam para transações importadas.
 19. Totais incluem transações de categorias arquivadas.
-20. Arquivar conta com transações ativas → 409.
+20. Arquivar conta com transações ativas → 400 (ValidationProblem PT-PT).
 
 ### Qualidade
 

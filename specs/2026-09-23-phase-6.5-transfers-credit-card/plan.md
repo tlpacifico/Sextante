@@ -55,7 +55,8 @@ substituir `"EUR"` hardcoded (:349) pela moeda primária do tenant.
 `TransactionHandlers.cs:125-140`: publicar evento de update (ou novo
 evento interno) para os orçamentos recalcularem.
 `AccountHandlers.cs:62-77`: recusar arquivar conta com transações
-ativas (`CountActiveTransactionsAsync`) → ProblemDetails 409 PT-PT.
+ativas (`CountActiveTransactionsAsync`) → ValidationProblem 400 PT-PT
+(mesma convenção de `CategoriesEndpoints` para violações de regras de domínio).
 
 ---
 
@@ -177,7 +178,7 @@ ativas (`CountActiveTransactionsAsync`) → ProblemDetails 409 PT-PT.
   CounterpartTransactionId?)`: converte uma `Regular` em perna; liga a
   uma transação existente (valor compatível, direção oposta, sem
   `TransferId`, convertida também) ou cria a contraperna.
-- `ArchiveTransaction`/`UpdateTransaction` sobre uma perna → 409 com
+- `ArchiveTransaction`/`UpdateTransaction` sobre uma perna → 400 (ValidationProblem) com
   mensagem a apontar para o endpoint de transferências.
 
 ### 3.2 Endpoints
