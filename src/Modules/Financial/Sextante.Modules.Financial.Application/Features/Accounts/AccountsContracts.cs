@@ -10,13 +10,16 @@ public sealed record AccountResponse(
     string Currency,
     Money OpeningBalance,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    DateOnly OpeningBalanceDate,
+    Money CurrentBalance);
 
 public sealed record CreateAccountCommand(
     string Name,
     AccountType Type,
     string? Currency,
-    decimal OpeningBalanceAmount);
+    decimal OpeningBalanceAmount,
+    DateOnly? OpeningBalanceDate = null);
 
 public sealed record UpdateAccountCommand(
     Guid Id,
@@ -28,3 +31,7 @@ public sealed record ArchiveAccountCommand(Guid Id);
 public sealed record GetAccountByIdQuery(Guid Id);
 
 public sealed record ListAccountsQuery();
+
+public sealed record GetAccountBalanceQuery(Guid AccountId, DateOnly? At);
+
+public sealed record AccountBalanceResponse(Guid AccountId, DateOnly? At, Money Balance);

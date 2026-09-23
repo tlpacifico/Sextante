@@ -32,17 +32,21 @@ public static class AccountHandlers
             command.Type,
             requestedCurrency,
             new Money(command.OpeningBalanceAmount, requestedCurrency),
-            tenant.TenantId);
+            tenant.TenantId,
+            command.OpeningBalanceDate);
 
         await repository.AddAsync(account, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
 
-        return ToResponse(account);
+        // Conta acabada de criar não tem transações — o saldo atual é o
+        // próprio saldo inicial, sem precisar de consultar a query de saldo.
+        return ToResponse(account, account.OpeningBalance);
     }
 
     public static async Task<AccountResponse?> Handle(
         UpdateAccountCommand command,
         IAccountRepository repository,
+        IAccountBalanceQuery balances,
         CancellationToken cancellationToken)
     {
         var account = await repository.GetByIdAsync(command.Id, cancellationToken);
@@ -56,7 +60,9 @@ public static class AccountHandlers
         repository.Update(account);
         await repository.SaveChangesAsync(cancellationToken);
 
-        return ToResponse(account);
+        var currentBalance = await balances.GetBalanceAsync(account.Id, null, cancellationToken)
+            ?? account.OpeningBalance;
+        return ToResponse(account, currentBalance);
     }
 
     public static async Task<bool> Handle(
@@ -82,22 +88,53 @@ public static class AccountHandlers
     public static async Task<AccountResponse?> Handle(
         GetAccountByIdQuery query,
         IAccountRepository repository,
+        IAccountBalanceQuery balances,
         CancellationToken cancellationToken)
     {
         var account = await repository.GetByIdAsync(query.Id, cancellationToken);
-        return account is null ? null : ToResponse(account);
+        if (account is null)
+        {
+            return null;
+        }
+
+        var currentBalance = await balances.GetBalanceAsync(account.Id, null, cancellationToken)
+            ?? account.OpeningBalance;
+        return ToResponse(account, currentBalance);
     }
 
     public static async Task<IReadOnlyList<AccountResponse>> Handle(
         ListAccountsQuery query,
         IAccountRepository repository,
+        IAccountBalanceQuery balances,
         CancellationToken cancellationToken)
     {
         var accounts = await repository.ListAsync(cancellationToken);
-        return accounts.Select(ToResponse).ToList();
+        var currentBalances = await balances.GetCurrentBalancesAsync(cancellationToken);
+
+        return accounts
+            .Select(a => ToResponse(
+                a,
+                currentBalances.TryGetValue(a.Id, out var balance) ? balance : a.OpeningBalance))
+            .ToList();
     }
 
-    private static AccountResponse ToResponse(Account account)
+    public static async Task<AccountBalanceResponse?> Handle(
+        GetAccountBalanceQuery query,
+        IAccountRepository accounts,
+        IAccountBalanceQuery balances,
+        CancellationToken cancellationToken)
+    {
+        var account = await accounts.GetByIdAsync(query.AccountId, cancellationToken);
+        if (account is null)
+        {
+            return null;
+        }
+
+        var balance = await balances.GetBalanceAsync(query.AccountId, query.At, cancellationToken);
+        return new AccountBalanceResponse(query.AccountId, query.At, balance!);
+    }
+
+    private static AccountResponse ToResponse(Account account, Money currentBalance)
         => new(
             account.Id,
             account.Name,
@@ -105,5 +142,7 @@ public static class AccountHandlers
             account.Currency,
             account.OpeningBalance,
             account.CreatedAt,
-            account.UpdatedAt);
+            account.UpdatedAt,
+            account.OpeningBalanceDate,
+            currentBalance);
 }

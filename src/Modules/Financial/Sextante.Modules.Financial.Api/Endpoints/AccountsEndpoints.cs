@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Sextante.Modules.Financial.Application.Features.Accounts;
 using Sextante.Modules.Financial.Domain.Common;
@@ -23,6 +24,12 @@ public static class AccountsEndpoints
         {
             var account = await bus.InvokeAsync<AccountResponse?>(new GetAccountByIdQuery(id), ct);
             return account is null ? Results.NotFound() : Results.Ok(account);
+        });
+
+        group.MapGet("{id:guid}/balance", async (Guid id, [FromQuery] DateOnly? at, IMessageBus bus, CancellationToken ct) =>
+        {
+            var response = await bus.InvokeAsync<AccountBalanceResponse?>(new GetAccountBalanceQuery(id, at), ct);
+            return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
         group.MapPost("", async (CreateAccountCommand command, IMessageBus bus, CancellationToken ct) =>

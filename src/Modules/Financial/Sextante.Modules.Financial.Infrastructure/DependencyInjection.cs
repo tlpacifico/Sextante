@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Sextante.Infrastructure.Jobs;
+using Sextante.Modules.Financial.Application.Features.Accounts;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Budgets;
 using Sextante.Modules.Financial.Domain.Categories;
@@ -15,6 +16,7 @@ using Sextante.Modules.Financial.Application.Features.Budgets;
 using Sextante.Modules.Financial.Application.Features.Budgets.Alerts;
 using Sextante.Modules.Financial.Application.Features.RecurringRules;
 using Sextante.Modules.Financial.Application.Features.RecurringRules.Materialization;
+using Sextante.Modules.Financial.Infrastructure.Accounts;
 using Sextante.Modules.Financial.Infrastructure.Budgets;
 using Sextante.Modules.Financial.Domain.CategorizationRules;
 using Sextante.Modules.Financial.Domain.ImportProfiles;
@@ -63,6 +65,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<IAccountBalanceQuery, AccountBalanceQuery>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<ITransactionRepository, TransactionRepository>();
         services.AddScoped<IRecurringRuleRepository, RecurringRuleRepository>();
