@@ -18,6 +18,17 @@ public sealed class CategoryHasActiveTransactionsException : FinancialDomainExce
     public int ActiveCount { get; }
 }
 
+public sealed class AccountHasActiveTransactionsException : FinancialDomainException
+{
+    public AccountHasActiveTransactionsException(int activeCount)
+        : base($"Não é possível arquivar uma conta com {activeCount} transações ativas.")
+    {
+        ActiveCount = activeCount;
+    }
+
+    public int ActiveCount { get; }
+}
+
 public sealed class TransactionAmountMustBePositiveException : FinancialDomainException
 {
     public TransactionAmountMustBePositiveException()

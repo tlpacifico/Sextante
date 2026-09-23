@@ -125,6 +125,8 @@ public static class TransactionHandlers
     public static async Task<bool> Handle(
         ArchiveTransactionCommand command,
         ITransactionRepository repository,
+        ITenantContext tenant,
+        IIntegrationEventPublisher events,
         CancellationToken cancellationToken)
     {
         var transaction = await repository.GetByIdAsync(command.Id, cancellationToken);
@@ -136,6 +138,21 @@ public static class TransactionHandlers
         transaction.Archive();
         repository.Update(transaction);
         await repository.SaveChangesAsync(cancellationToken);
+
+        // Phase 6.5 §0.6 — o progresso dos orçamentos exclui transações
+        // apagadas; o evento faz o subscriber recalcular.
+        await events.PublishAsync(
+            new TransactionUpdatedIntegrationEvent(
+                transaction.Id,
+                tenant.TenantId.Value,
+                transaction.AccountId,
+                transaction.CategoryId == Guid.Empty ? null : transaction.CategoryId,
+                transaction.Amount.Amount,
+                transaction.Amount.Currency,
+                transaction.OccurredAt,
+                DateTimeOffset.UtcNow),
+            cancellationToken);
+
         return true;
     }
 

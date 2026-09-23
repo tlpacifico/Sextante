@@ -75,6 +75,19 @@ public sealed class Account : ITenantOwned, IAuditable, IFinancialAggregate
         Name = ValidateName(newName);
     }
 
+    /// <summary>
+    /// Conta com transações ativas não arquiva — o saldo e o histórico
+    /// deixariam de ser explicáveis.
+    /// </summary>
+    /// <exception cref="AccountHasActiveTransactionsException"/>
+    public void EnsureCanArchive(int activeTransactionCount)
+    {
+        if (activeTransactionCount > 0)
+        {
+            throw new AccountHasActiveTransactionsException(activeTransactionCount);
+        }
+    }
+
     public void ChangeType(AccountType newType)
     {
         Type = newType;

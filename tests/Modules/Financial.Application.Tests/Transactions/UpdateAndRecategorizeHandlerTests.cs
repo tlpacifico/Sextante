@@ -113,6 +113,23 @@ public sealed class UpdateAndRecategorizeHandlerTests
             tags: null,
             tenantId: Tenant);
 
+    [Fact]
+    public async Task Archive_publishes_updated_event_so_budgets_recalculate()
+    {
+        var existing = NewTransaction();
+        var repo = new InMemoryRepo(existing);
+        var publisher = new StubIntegrationEventPublisher();
+
+        var archived = await TransactionHandlers.Handle(
+            new ArchiveTransactionCommand(existing.Id),
+            repo, new StubTenantContext(Tenant), publisher, CancellationToken.None);
+
+        archived.Should().BeTrue();
+        existing.DeletedAt.Should().NotBeNull();
+        publisher.Published.OfType<TransactionUpdatedIntegrationEvent>()
+            .Should().ContainSingle(e => e.TransactionId == existing.Id);
+    }
+
     private sealed class StubTenantContext : ITenantContext
     {
         public StubTenantContext(TenantId tenantId) => TenantId = tenantId;

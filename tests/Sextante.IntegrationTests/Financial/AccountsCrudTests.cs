@@ -56,5 +56,48 @@ public sealed class AccountsCrudTests : IClassFixture<IdentityIntegrationFixture
         finalList.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Archiving_an_account_with_active_transactions_is_rejected()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "acc-arch");
+
+        var createResponse = await client.PostAsJsonAsync("/api/financial/accounts", new
+        {
+            name = "Conta com movimentos",
+            type = 0,
+            openingBalanceAmount = 0m,
+        });
+        var account = await createResponse.Content.ReadFromJsonAsync<AccountRow>();
+
+        var categoryResponse = await client.PostAsJsonAsync("/api/financial/categories", new
+        {
+            name = "Supermercado",
+            kind = 0,
+            iconName = "pi-tag",
+            colorHex = "#64748B",
+        });
+        var category = await categoryResponse.Content.ReadFromJsonAsync<IdRow>();
+
+        var txResponse = await client.PostAsJsonAsync("/api/financial/transactions", new
+        {
+            accountId = account!.Id,
+            categoryId = category!.Id,
+            occurredAt = DateTimeOffset.UtcNow.AddMinutes(-1),
+            amount = 12m,
+            currency = (string?)null,
+            description = "compra",
+            tags = (string[]?)null,
+        });
+        txResponse.EnsureSuccessStatusCode();
+
+        var deleteResponse = await client.DeleteAsync($"/api/financial/accounts/{account.Id}");
+
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await deleteResponse.Content.ReadAsStringAsync()).Should().Contain("transações ativas");
+        (await client.GetAsync($"/api/financial/accounts/{account.Id}")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private sealed record IdRow(Guid Id);
+
     private sealed record AccountRow(Guid Id, string Name, string Type);
 }

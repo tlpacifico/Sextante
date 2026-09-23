@@ -54,8 +54,22 @@ public static class AccountsEndpoints
 
         group.MapDelete("{id:guid}", async (Guid id, IMessageBus bus, CancellationToken ct) =>
         {
-            var archived = await bus.InvokeAsync<bool>(new ArchiveAccountCommand(id), ct);
-            return archived ? Results.NoContent() : Results.NotFound();
+            try
+            {
+                var archived = await bus.InvokeAsync<bool>(new ArchiveAccountCommand(id), ct);
+                return archived ? Results.NoContent() : Results.NotFound();
+            }
+            catch (AccountHasActiveTransactionsException ex)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["account"] = ["Não é possível arquivar uma conta com transações ativas."],
+                    },
+                    detail: ex.Message,
+                    title: "Erros de validação",
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
         });
 
         return routes;

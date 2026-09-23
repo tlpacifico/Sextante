@@ -11,6 +11,24 @@ public sealed class AccountTests
     private static readonly Money Eur100 = new(100m, "EUR");
 
     [Fact]
+    public void EnsureCanArchive_throws_when_account_has_active_transactions()
+    {
+        var account = Account.Create("Conta", AccountType.Checking, "EUR", Eur100, Tenant);
+
+        var act = () => account.EnsureCanArchive(3);
+
+        act.Should().Throw<AccountHasActiveTransactionsException>().Which.ActiveCount.Should().Be(3);
+    }
+
+    [Fact]
+    public void EnsureCanArchive_passes_without_transactions()
+    {
+        var account = Account.Create("Conta", AccountType.Checking, "EUR", Eur100, Tenant);
+
+        account.Invoking(a => a.EnsureCanArchive(0)).Should().NotThrow();
+    }
+
+    [Fact]
     public void Create_rejects_empty_name()
     {
         var act = () => Account.Create("", AccountType.Checking, "EUR", Eur100, Tenant);

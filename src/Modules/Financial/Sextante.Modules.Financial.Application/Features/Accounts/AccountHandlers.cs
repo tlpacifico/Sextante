@@ -70,6 +70,9 @@ public static class AccountHandlers
             return false;
         }
 
+        var activeCount = await repository.CountActiveTransactionsAsync(account.Id, cancellationToken);
+        account.EnsureCanArchive(activeCount);
+
         account.Archive();
         repository.Update(account);
         await repository.SaveChangesAsync(cancellationToken);

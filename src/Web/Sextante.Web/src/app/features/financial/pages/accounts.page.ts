@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
@@ -321,12 +322,12 @@ export class AccountsPage implements OnInit {
       await this.api.archiveAccount(id);
       this.toast.add({ severity: 'success', summary: 'Conta arquivada' });
       await this.store.loadAccounts();
-    } catch {
-      this.toast.add({
-        severity: 'error',
-        summary: 'Erro',
-        detail: 'Não foi possível arquivar a conta.',
-      });
+    } catch (err) {
+      // 400 = conta com transações ativas (regra de domínio, Phase 6.5).
+      const detail = err instanceof HttpErrorResponse && err.status === 400
+        ? 'Não é possível arquivar uma conta com transações ativas.'
+        : 'Não foi possível arquivar a conta.';
+      this.toast.add({ severity: 'error', summary: 'Erro', detail });
     }
   }
 }
