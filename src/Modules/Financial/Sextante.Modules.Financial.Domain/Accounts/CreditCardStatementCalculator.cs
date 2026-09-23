@@ -22,14 +22,16 @@ public sealed record CreditCardStatement(
     decimal CurrentDebt,
     decimal Available,
     DateOnly NextPaymentDueDate,
-    decimal NextPaymentAmount);
+    decimal NextPaymentAmount,
+    decimal UnbilledInstallmentsAtPreviousClose);
 
 /// <summary>
-/// Extrato calculado de um cartão (Phase 6.5 grupo 5), sem nada persistido:
-/// dívida = −saldo (nunca negativa), disponível = limite + saldo (negativo
-/// se passou o limite), próximo pagamento = dívida no último fecho menos os
-/// pagamentos recebidos desde esse fecho (nunca negativo). As prestações
-/// (grupo 6) ainda não entram.
+/// Extrato calculado de um cartão (Phase 6.5 grupos 5 e 6), sem nada
+/// persistido: dívida = −saldo (nunca negativa), disponível = limite + saldo
+/// (negativo se passou o limite), próximo pagamento = dívida no último fecho
+/// menos as prestações ainda por faturar nesse fecho (estão na dívida, mas
+/// ainda não se pagam) menos os pagamentos recebidos desde o fecho — nunca
+/// negativo.
 /// </summary>
 public static class CreditCardStatementCalculator
 {
@@ -38,7 +40,8 @@ public static class CreditCardStatementCalculator
         DateOnly today,
         decimal currentBalance,
         decimal balanceAtPreviousClose,
-        IReadOnlyCollection<CreditCardMovement> movements)
+        IReadOnlyCollection<CreditCardMovement> movements,
+        decimal unbilledInstallmentsAtPreviousClose)
     {
         var closingDay = settings.StatementClosingDay;
         var dueDay = settings.PaymentDueDay;
@@ -55,7 +58,8 @@ public static class CreditCardStatementCalculator
             Debt(currentBalance),
             settings.CreditLimitAmount + currentBalance,
             previous.Cycle.PaymentDueDate,
-            Math.Max(0m, previousClosingDebt - current.PaymentsReceived));
+            Math.Max(0m, previousClosingDebt - unbilledInstallmentsAtPreviousClose - current.PaymentsReceived),
+            unbilledInstallmentsAtPreviousClose);
     }
 
     private static decimal Debt(decimal balance) => Math.Max(0m, -balance);

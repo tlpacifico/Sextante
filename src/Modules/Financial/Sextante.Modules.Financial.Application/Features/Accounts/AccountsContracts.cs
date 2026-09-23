@@ -91,7 +91,8 @@ public sealed record CreditCardCycleResponse(
 /// Vista do cartão (Phase 6.5 grupo 5). Sem definições, só
 /// <see cref="CurrentBalance"/> e <see cref="CurrentDebt"/> vêm preenchidos.
 /// <see cref="PaymentAccountId"/> é <c>null</c> se a conta de pagamento já
-/// não existir.
+/// não existir. <see cref="UnbilledInstallmentsAtPreviousClose"/> (grupo 6)
+/// é o que o próximo pagamento já desconta de prestações por faturar.
 /// </summary>
 public sealed record CreditCardViewResponse(
     Guid AccountId,
@@ -104,4 +105,5 @@ public sealed record CreditCardViewResponse(
     Money? PreviousClosingDebt,
     DateOnly? NextPaymentDueDate,
     Money? NextPaymentAmount,
-    Guid? PaymentAccountId);
+    Guid? PaymentAccountId,
+    Money? UnbilledInstallmentsAtPreviousClose = null);

@@ -244,6 +244,40 @@ public sealed class CreditCardTests : IClassFixture<IdentityIntegrationFixture>
         view.PaymentAccountId.Should().Be(checkingId);
     }
 
+    [Fact]
+    public async Task Credit_card_view_discounts_unbilled_installments()
+    {
+        // Grupo 6 — plano de 600 em 6 com a 1.ª no fecho anterior: 5 × 100
+        // ainda por faturar nesse fecho; próximo pagamento = 1 000 − 500.
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "cc-view-ip");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var current = CreditCardCalendar.CycleContaining(today, ClosingDay, DueDay);
+        var previous = CreditCardCalendar.Previous(current, ClosingDay, DueDay);
+
+        var cardId = await CreateAccountAsync(
+            client, CreditCard, -1000m, openingBalanceDate: previous.Start.AddDays(-1),
+            creditCard: new { creditLimit = 2000m, statementClosingDay = ClosingDay, paymentDueDay = DueDay, paymentAccountId = (Guid?)null });
+
+        var plan = await client.PostAsJsonAsync("/api/financial/installment-plans", new
+        {
+            accountId = cardId,
+            purchaseTransactionId = (Guid?)null,
+            description = "Portátil",
+            totalAmount = 600m,
+            installmentCount = 6,
+            installmentsAlreadyPaid = 0,
+            firstInstallmentDate = previous.End.ToString("yyyy-MM-dd"),
+            annualRate = (decimal?)null,
+        });
+        plan.StatusCode.Should().Be(HttpStatusCode.Created, await plan.Content.ReadAsStringAsync());
+
+        var view = await client.GetFromJsonAsync<CreditCardViewRow>($"/api/financial/accounts/{cardId}/credit-card");
+
+        view!.PreviousClosingDebt!.Amount.Should().Be(1000m);
+        view.UnbilledInstallmentsAtPreviousClose!.Amount.Should().Be(500m);
+        view.NextPaymentAmount!.Amount.Should().Be(500m);
+    }
+
     private static object Settings(Guid? paymentAccountId) => new
     {
         creditLimit = 2000m,
@@ -322,5 +356,6 @@ public sealed class CreditCardTests : IClassFixture<IdentityIntegrationFixture>
         MoneyValue? PreviousClosingDebt,
         DateOnly? NextPaymentDueDate,
         MoneyValue? NextPaymentAmount,
-        Guid? PaymentAccountId);
+        Guid? PaymentAccountId,
+        MoneyValue? UnbilledInstallmentsAtPreviousClose);
 }

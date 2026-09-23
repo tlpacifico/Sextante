@@ -3,6 +3,7 @@ using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Application.Features.Transactions;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Common;
+using Sextante.Modules.Financial.Domain.InstallmentPlans;
 using Sextante.Modules.Financial.Domain.Transactions;
 using Sextante.Modules.Financial.PublicApi.Events;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
@@ -270,6 +271,7 @@ public static class AccountHandlers
         IAccountRepository accounts,
         IAccountBalanceQuery balances,
         ICreditCardActivityQuery activity,
+        IInstallmentPlanRepository installmentPlans,
         CancellationToken cancellationToken)
     {
         var account = await accounts.GetByIdAsync(query.AccountId, cancellationToken);
@@ -313,8 +315,12 @@ public static class AccountHandlers
         var movements = await activity.GetMovementsAsync(
             account.Id, previousCycle.Start, currentCycle.End, cancellationToken);
 
+        // Grupo 6 — prestações ainda por faturar no último fecho.
+        var plans = await installmentPlans.ListAsync(account.Id, cancellationToken);
+        var unbilledAtPreviousClose = plans.Sum(p => p.UnbilledAfter(previousCycle.End));
+
         var statement = CreditCardStatementCalculator.Calculate(
-            settings, today, currentBalance.Amount, balanceAtPreviousClose.Amount, movements);
+            settings, today, currentBalance.Amount, balanceAtPreviousClose.Amount, movements, unbilledAtPreviousClose);
 
         // Só mostra quem paga se ainda for uma conta válida para isso (não
         // arquivada e não cartão) — revisão final do grupo 5.
@@ -343,7 +349,8 @@ public static class AccountHandlers
             InCurrency(statement.PreviousClosingDebt),
             statement.NextPaymentDueDate,
             InCurrency(statement.NextPaymentAmount),
-            paymentAccountId);
+            paymentAccountId,
+            InCurrency(statement.UnbilledInstallmentsAtPreviousClose));
     }
 
     /// <summary>

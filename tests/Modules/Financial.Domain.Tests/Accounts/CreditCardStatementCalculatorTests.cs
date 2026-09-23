@@ -28,7 +28,12 @@ public sealed class CreditCardStatementCalculatorTests
 
     private static CreditCardStatement Calc(
         decimal currentBalance = 0m, decimal balanceAtPreviousClose = 0m, params CreditCardMovement[] movements)
-        => CreditCardStatementCalculator.Calculate(Settings(), Today, currentBalance, balanceAtPreviousClose, movements);
+        => CalcWithInstallments(currentBalance, balanceAtPreviousClose, 0m, movements);
+
+    private static CreditCardStatement CalcWithInstallments(
+        decimal currentBalance, decimal balanceAtPreviousClose, decimal unbilled, params CreditCardMovement[] movements)
+        => CreditCardStatementCalculator.Calculate(
+            Settings(), Today, currentBalance, balanceAtPreviousClose, movements, unbilled);
 
     [Fact]
     public void Cycles_follow_the_calendar()
@@ -103,6 +108,25 @@ public sealed class CreditCardStatementCalculatorTests
             M("2026-09-22", TransactionKind.Transfer, TransactionDirection.Inflow, 500m));
 
         statement.NextPaymentAmount.Should().Be(0m);
+    }
+
+    [Fact]
+    public void Next_payment_discounts_unbilled_installments()
+    {
+        // Grupo 6 — as prestações futuras estão na dívida do fecho mas ainda
+        // não se pagam: 1 000 − 400 por faturar − 100 já pagos = 500.
+        var statement = CalcWithInstallments(-900m, -1000m, 400m,
+            M("2026-09-22", TransactionKind.Transfer, TransactionDirection.Inflow, 100m));
+
+        statement.UnbilledInstallmentsAtPreviousClose.Should().Be(400m);
+        statement.NextPaymentAmount.Should().Be(500m);
+        statement.PreviousClosingDebt.Should().Be(1000m);
+    }
+
+    [Fact]
+    public void Next_payment_with_installments_never_negative()
+    {
+        CalcWithInstallments(-300m, -300m, 400m).NextPaymentAmount.Should().Be(0m);
     }
 
     [Fact]
