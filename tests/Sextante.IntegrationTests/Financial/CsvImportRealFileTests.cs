@@ -56,6 +56,9 @@ public class CsvImportRealFileTests : IClassFixture<IdentityIntegrationFixture>,
             type = 0, // Checking
             currency = (string?)null,
             openingBalanceAmount = 0m,
+            // Phase 6.5 grupo 7 — o extrato começa em 2025-09; linhas
+            // anteriores ao saldo inicial seriam excluídas por defeito.
+            openingBalanceDate = "2025-01-01",
         });
         accountResponse.EnsureSuccessStatusCode();
         var account = await accountResponse.Content.ReadFromJsonAsync<JsonElement>();
@@ -183,7 +186,7 @@ public class CsvImportRealFileTests : IClassFixture<IdentityIntegrationFixture>,
         formData.Add(fileContent, "file", "example-activo-bank.csv");
 
         var uploadResponse = await _client.PostAsync(
-            $"/api/financial/imports/upload?importProfileId={profileId}",
+            $"/api/financial/imports/upload?importProfileId={profileId}&accountId={accountId}",
             formData);
         uploadResponse.EnsureSuccessStatusCode();
         var uploadResult = await uploadResponse.Content.ReadFromJsonAsync<JsonElement>();
@@ -297,7 +300,7 @@ public class CsvImportRealFileTests : IClassFixture<IdentityIntegrationFixture>,
         formData2.Add(fileContent2, "file", "example-activo-bank.csv");
 
         var upload2Response = await _client.PostAsync(
-            $"/api/financial/imports/upload?importProfileId={profileId}",
+            $"/api/financial/imports/upload?importProfileId={profileId}&accountId={accountId}",
             formData2);
         upload2Response.EnsureSuccessStatusCode();
         var upload2Result = await upload2Response.Content.ReadFromJsonAsync<JsonElement>();

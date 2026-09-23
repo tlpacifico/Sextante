@@ -24,14 +24,24 @@ public static class CsvImportHandlers
         Stream csvStream,
         string fileName,
         Guid? importProfileId,
+        Guid? accountId,
         IImportProfileRepository profileRepo,
         IImportBatchRepository batchRepo,
+        IAccountRepository accountRepo,
+        ICategoryRepository categoryRepo,
         IDuplicateDetector duplicateDetector,
         ICategorizationRuleEngine ruleEngine,
         ICsvParser csvParser,
         ITenantContext tenant,
         CancellationToken ct)
     {
+        // Phase 6.5 grupo 7 (Q2) — a conta de destino é obrigatória; conta de
+        // outro tenant não existe para este (filtro global), mesma resposta.
+        if (accountId is null)
+            throw new ImportAccountRequiredException();
+        var account = await accountRepo.GetByIdAsync(accountId.Value, ct)
+            ?? throw new ImportAccountRequiredException();
+
         ImportProfile? profile = null;
         if (importProfileId is not null)
             profile = await profileRepo.GetByIdAsync(importProfileId.Value, ct);
@@ -44,130 +54,37 @@ public static class CsvImportHandlers
 
         var parseResult = csvParser.Parse(csvStream, options, ct);
 
-        var batch = ImportBatch.StartParsing(fileName, tenant.TenantId, importProfileId);
+        var batch = ImportBatch.StartParsing(fileName, tenant.TenantId, importProfileId, account.Id);
 
-        var resolver = new CsvColumnResolver(parseResult.Headers, profile);
+        var settings = new ImportParseSettings(
+            profile is { ColumnMappings.Count: > 0 }
+                ? profile.ColumnMappings
+                    .Select(m => new ColumnMappingInput(m.CsvColumnName, m.TransactionField.ToString()))
+                    .ToList()
+                : null,
+            profile?.DateFormat,
+            profile?.DecimalSeparator);
+        var headers = parseResult.Headers.ToList();
+        var resolver = ImportRowParser.ResolverFor(headers, settings, profile);
 
-        var errors = new List<string>();
-        var previewRowsResponse = new List<PreviewRowDto>();
-
-        for (int i = 0; i < parseResult.Rows.Count; i++)
-        {
-            var row = parseResult.Rows[i];
-            var rawValues = row.ToList();
-
-            // Extract date
-            DateOnly? date = null;
-            string? dateError = null;
-            if (resolver.TryGetDate(rawValues, out var dateStr))
-            {
-                if (!TryParseDate(dateStr, profile?.DateFormat, out var d))
-                    dateError = $"Data inválida: '{dateStr}'";
-                else
-                    date = d;
-            }
-
-            // Extract amount
-            decimal? amount = null;
-            string? amountError = null;
-            if (resolver.TryGetAmount(rawValues, profile?.DecimalSeparator, out var parsedAmount))
-                amount = parsedAmount;
-
-            // Extract description
-            var description = resolver.TryGetDescription(rawValues, out var desc) ? desc : null;
-
-            // Extract currency
-            var currency = resolver.TryGetCurrency(rawValues, out var cur) ? cur : null;
-
-            // Extract account name
-            var accountName = resolver.TryGetAccount(rawValues, out var acc) ? acc : null;
-
-            // Extract credit/debit indicator
-            var indicator = resolver.TryGetCreditDebitIndicator(rawValues, out var ind) ? ind : null;
-
-            var error = dateError ?? amountError;
-            if (error is not null)
-                errors.Add($"Linha {i + 1}: {error}");
-
-            previewRowsResponse.Add(new PreviewRowDto(
-                i,
-                rawValues,
-                false,
-                null,
-                null,
-                null,
-                false,
-                error));
-        }
-
-        // Detect duplicates — build a parsed-tx list keyed by the preview row index
-        // so the detector can return per-row matches we can correlate back.
-        var parsedTx = new List<ParsedTransaction>();
-        for (int i = 0; i < previewRowsResponse.Count; i++)
-        {
-            if (previewRowsResponse[i].Error is not null) continue;
-            var vals = previewRowsResponse[i].Values.ToList();
-            if (!resolver.TryGetDate(vals, out var dStr) || !TryParseDate(dStr, profile?.DateFormat, out var d))
-                continue;
-            if (!resolver.TryGetAmount(vals, profile?.DecimalSeparator, out var amt) || amt == 0)
-                continue;
-            var curr = resolver.TryGetCurrency(vals, out var c) ? c : "EUR";
-            var desc = resolver.TryGetDescription(vals, out var descr) ? descr : string.Empty;
-            // Storage stores Math.Abs(amount) (sign carried by category kind),
-            // so duplicate detection must compare on the absolute value too.
-            parsedTx.Add(new ParsedTransaction(i, d, Math.Abs(amt), curr, desc));
-        }
-
-        var duplicateMatches = await duplicateDetector.FindPotentialDuplicatesAsync(parsedTx, tenant.TenantId, ct);
-        foreach (var match in duplicateMatches)
-        {
-            if (match.RowIndex < 0 || match.RowIndex >= previewRowsResponse.Count) continue;
-            var p = previewRowsResponse[match.RowIndex];
-            previewRowsResponse[match.RowIndex] = new PreviewRowDto(
-                p.RowIndex,
-                p.Values,
-                true,
-                match.ExistingTransactionId,
-                p.SuggestedCategoryName,
-                p.SuggestedCategoryId,
-                p.IsAutoCategorized,
-                p.Error);
-        }
-
-        // Apply categorization rules — pair each candidate with its preview row index
-        // so results bind back unambiguously even when some rows have blank descriptions.
-        var ruleCandidates = new List<(int RowIndex, TransactionToCategorize Tx)>();
-        for (int i = 0; i < previewRowsResponse.Count; i++)
-        {
-            if (previewRowsResponse[i].Error is not null) continue;
-            var vals = previewRowsResponse[i].Values.ToList();
-            if (!resolver.TryGetDescription(vals, out var desc) || string.IsNullOrWhiteSpace(desc)) continue;
-            ruleCandidates.Add((i, new TransactionToCategorize(Guid.CreateVersion7(), desc)));
-        }
-
-        var ruleResults = await ruleEngine.ApplyAsync(
-            ruleCandidates.Select(c => c.Tx).ToList(),
+        var rows = await ImportPreviewBuilder.BuildAsync(
+            parseResult.Rows.Select(r => (IReadOnlyList<string>)r.ToList()).ToList(),
+            resolver,
+            settings,
+            account,
+            await accountRepo.ListAsync(ct),
+            await categoryRepo.ListAsync(ct),
+            duplicateDetector,
+            ruleEngine,
             tenant.TenantId,
             ct);
 
-        for (int k = 0; k < ruleCandidates.Count && k < ruleResults.Count; k++)
-        {
-            var result = ruleResults[k];
-            if (result.NewCategoryId is null) continue;
-            var rowIdx = ruleCandidates[k].RowIndex;
-            var p = previewRowsResponse[rowIdx];
-            previewRowsResponse[rowIdx] = new PreviewRowDto(
-                p.RowIndex, p.Values, p.IsDuplicate, p.DuplicateTransactionId,
-                "—", result.NewCategoryId, true, p.Error);
-        }
-
-        var wrapper = new PreviewWrapper(parseResult.Headers.ToList(), previewRowsResponse);
-        var previewJson = JsonSerializer.Serialize(wrapper);
+        var previewJson = JsonSerializer.Serialize(new PreviewWrapper(headers, rows, settings));
         batch.SetPreview(
             parseResult.TotalRowCount,
             previewJson,
             parseResult.Truncated,
-            previewRowsResponse.Count(r => r.Error is not null));
+            rows.Count(r => r.Error is not null));
 
         await batchRepo.AddAsync(batch, ct);
         await batchRepo.SaveChangesAsync(ct);
@@ -175,18 +92,20 @@ public static class CsvImportHandlers
         return new UploadCsvResponse(
             batch.Id,
             parseResult.Headers,
-            previewRowsResponse,
+            rows,
             parseResult.TotalRowCount,
             parseResult.Truncated,
             profile?.Delimiter ?? ";",
             profile?.HasHeaderRow ?? true,
-            errors);
+            RowErrors(rows));
     }
 
     public static async Task<UploadCsvResponse?> Handle(
         UpdatePreviewCommand command,
         IImportBatchRepository batchRepo,
-        ICsvParser csvParser,
+        IAccountRepository accountRepo,
+        ICategoryRepository categoryRepo,
+        IDuplicateDetector duplicateDetector,
         ICategorizationRuleEngine ruleEngine,
         ITenantContext tenant,
         CancellationToken ct)
@@ -194,58 +113,41 @@ public static class CsvImportHandlers
         var batch = await batchRepo.GetByIdAsync(command.BatchId, ct);
         if (batch is null) return null;
 
+        var account = await GetBatchAccountAsync(batch, accountRepo, ct);
+
         var previewWrapper = JsonSerializer.Deserialize<PreviewWrapper>(batch.ParsedPreviewJson);
-        var previewRows = previewWrapper?.Rows?.ToList() ?? new List<PreviewRowDto>();
+        var storedRows = previewWrapper?.Rows ?? new List<PreviewRowDto>();
         var storedHeaders = previewWrapper?.Headers ?? new List<string>();
 
-        var resolver = new CsvColumnResolver(storedHeaders, command.ColumnMappings);
+        // Q3 — as definições escolhidas no passo 2 passam a ser as do lote.
+        var settings = new ImportParseSettings(command.ColumnMappings, command.DateFormat, command.DecimalSeparator);
+        var resolver = ImportRowParser.ResolverFor(storedHeaders, settings, profile: null);
 
-        var ruleCandidates = new List<(int Index, TransactionToCategorize Tx)>();
-        for (int i = 0; i < previewRows.Count; i++)
-        {
-            if (previewRows[i].Error is not null) continue;
-            var vals = previewRows[i].Values.ToList();
-            if (!resolver.TryGetDescription(vals, out var desc) || string.IsNullOrWhiteSpace(desc)) continue;
-            ruleCandidates.Add((i, new TransactionToCategorize(Guid.CreateVersion7(), desc)));
-        }
-
-        var ruleResults = await ruleEngine.ApplyAsync(
-            ruleCandidates.Select(c => c.Tx).ToList(),
+        var rows = await ImportPreviewBuilder.BuildAsync(
+            storedRows.Select(r => r.Values).ToList(),
+            resolver,
+            settings,
+            account,
+            await accountRepo.ListAsync(ct),
+            await categoryRepo.ListAsync(ct),
+            duplicateDetector,
+            ruleEngine,
             tenant.TenantId,
             ct);
 
-        for (int k = 0; k < ruleCandidates.Count && k < ruleResults.Count; k++)
-        {
-            var result = ruleResults[k];
-            if (result.NewCategoryId is null) continue;
-            var rowIdx = ruleCandidates[k].Index;
-            var preview = previewRows[rowIdx];
-            previewRows[rowIdx] = new PreviewRowDto(
-                preview.RowIndex,
-                preview.Values,
-                preview.IsDuplicate,
-                preview.DuplicateTransactionId,
-                "—",
-                result.NewCategoryId,
-                true,
-                preview.Error);
-        }
-
-        var updWrapper = new PreviewWrapper(storedHeaders, previewRows);
-        var previewJson = JsonSerializer.Serialize(updWrapper);
-        batch.ParsedPreviewJson = previewJson;
+        batch.ParsedPreviewJson = JsonSerializer.Serialize(new PreviewWrapper(storedHeaders, rows, settings));
         batchRepo.Update(batch);
         await batchRepo.SaveChangesAsync(ct);
 
         return new UploadCsvResponse(
             batch.Id,
-            new List<string>(),
-            previewRows,
+            storedHeaders,
+            rows,
             batch.TotalRows,
             batch.PreviewTruncated,
             ";",
             true,
-            new List<string>());
+            RowErrors(rows));
     }
 
     public static async Task<ImportConfirmResponse> Handle(
@@ -266,6 +168,7 @@ public static class CsvImportHandlers
         if (batch is null)
             throw new InvalidOperationException("Lote de importação não encontrado.");
 
+        var batchAccount = await GetBatchAccountAsync(batch, accountRepo, ct);
         var primaryCurrency = await currencyResolver.GetPrimaryCurrencyAsync(ct);
         var created = new List<Transaction>();
 
@@ -276,169 +179,130 @@ public static class CsvImportHandlers
         var previewRows = previewWrapper?.Rows ?? new List<PreviewRowDto>();
         var csvHeaders = previewWrapper?.Headers ?? new List<string>();
 
-        // Load profile for column mappings
         ImportProfile? profile = null;
         if (batch.ImportProfileId is not null)
             profile = await profileRepo.GetByIdAsync(batch.ImportProfileId.Value, ct);
 
-        // Build column resolver from profile or auto-detect
-        var resolver = new CsvColumnResolver(csvHeaders, profile);
+        // Q3 — mesmas definições do preview; lotes antigos sem definições
+        // gravadas continuam com perfil/auto-deteção.
+        var settings = previewWrapper?.Settings
+            ?? new ImportParseSettings(null, profile?.DateFormat, profile?.DecimalSeparator);
+        var resolver = ImportRowParser.ResolverFor(csvHeaders, previewWrapper?.Settings, profile);
 
-        // Pre-load accounts for lookup
         var accounts = await accountRepo.ListAsync(ct);
         var categories = await categoryRepo.ListAsync(ct);
-        var kinds = categories.ToDictionary(c => c.Id, c => c.Kind);
+        var categoriesById = categories.ToDictionary(c => c.Id);
 
         var includeSet = new HashSet<Guid>(command.IncludeDuplicates);
-        var rowsToImport = previewRows
+        var candidates = previewRows
             .Where(r => r.Error is null && (!r.IsDuplicate || includeSet.Contains(r.DuplicateTransactionId ?? Guid.Empty)))
             .ToList();
 
         var autoCategorized = 0;
         var manualCount = 0;
         var errorRows = 0;
-        var imported = 0;
+        var skippedBeforeOpeningBalance = 0;
 
-        foreach (var row in rowsToImport)
+        // Parse de novo com as definições do lote; a exclusão "antes do saldo
+        // inicial" usa a OpeningBalanceDate atual da conta (R5).
+        var toImport = new List<(ParsedImportRow Row, Account Account)>();
+        foreach (var previewRow in candidates)
         {
+            var row = ImportRowParser.Parse(previewRow.Values, resolver, settings, out _);
+            var account = row is null ? null : ImportRowParser.ResolveAccount(row, batchAccount, accounts, out _);
+            if (row is null || account is null)
+            {
+                errorRows++;
+                continue;
+            }
+
+            if (row.Date < account.OpeningBalanceDate && !command.IncludeBeforeOpeningBalance)
+            {
+                skippedBeforeOpeningBalance++;
+                continue;
+            }
+
+            toImport.Add((row, account));
+        }
+
+        // Uma só passagem do motor de regras (R1): o resultado decide a
+        // categoria; a direção vem sempre do sinal.
+        var ruleInputs = toImport
+            .Select(item => new TransactionToCategorize(Guid.CreateVersion7(), item.Row.Description ?? string.Empty))
+            .ToList();
+        var ruleResults = await ruleEngine.ApplyAsync(ruleInputs, tenant.TenantId, ct);
+
+        for (var i = 0; i < toImport.Count; i++)
+        {
+            var (row, account) = toImport[i];
+            var ruleResult = i < ruleResults.Count ? ruleResults[i] : null;
+
+            var currency = row.Currency ?? account.Currency;
+            ExchangeRateSnapshot? exchangeRate = null;
+            if (!string.Equals(currency, primaryCurrency, StringComparison.Ordinal))
+            {
+                try
+                {
+                    exchangeRate = await exchangeRateService.ResolveAsync(
+                        currency, primaryCurrency, new DateTimeOffset(row.Date, TimeOnly.MinValue, TimeSpan.Zero), ct);
+                }
+                catch
+                {
+                    // Câmbio indisponível: linha com erro.
+                    errorRows++;
+                    continue;
+                }
+            }
+
+            Category? category = null;
+            var fromRule = false;
+            if (ruleResult?.NewCategoryId is { } ruleCategoryId
+                && categoriesById.TryGetValue(ruleCategoryId, out var ruleCategory)
+                && Transaction.DirectionFor(ruleCategory.Kind) == row.Direction)
+            {
+                category = ruleCategory;
+                fromRule = true;
+            }
+            else
+            {
+                // Phase 5.5 — sem regra aplicável: primeira categoria do tipo do sinal.
+                var kind = row.Direction == TransactionDirection.Inflow ? CategoryKind.Income : CategoryKind.Expense;
+                category = categories.FirstOrDefault(c => c.Kind == kind);
+            }
+
+            if (category is null)
+            {
+                errorRows++;
+                continue;
+            }
+
             try
             {
-                var values = row.Values.ToList();
-
-                // Resolve account: by mapped column or default
-                Account? account = null;
-                if (resolver.TryGetAccount(values, out var accountName) && !string.IsNullOrWhiteSpace(accountName))
-                {
-                    account = accounts.FirstOrDefault(a =>
-                        string.Equals(a.Name.Trim(), accountName.Trim(), StringComparison.OrdinalIgnoreCase));
-                    if (account is null)
-                        throw new AccountNotFoundForImportException(accountName);
-                }
-                else
-                {
-                    account = accounts.FirstOrDefault();
-                    if (account is null)
-                        throw new AccountNotFoundForImportException("default");
-                }
-
-                // Parse date using profile's DateFormat
-                DateOnly date;
-                if (!resolver.TryGetDate(values, out var dateStr) || !TryParseDate(dateStr, profile?.DateFormat, out date))
-                {
-                    errorRows++;
-                    continue;
-                }
-
-                // Parse amount using profile's DecimalSeparator
-                if (!resolver.TryGetAmount(values, profile?.DecimalSeparator, out var parsedAmount) || parsedAmount == 0)
-                {
-                    errorRows++;
-                    continue;
-                }
-
-                // Check credit/debit indicator
-                var indicator = resolver.TryGetCreditDebitIndicator(values, out var ind) ? ind?.Trim().ToUpperInvariant() : null;
-                var finalAmount = parsedAmount;
-                if (indicator == "DEBIT" || indicator == "D")
-                    finalAmount = -Math.Abs(parsedAmount);
-
-                // Make positive for Transaction.Create (it requires positive); mark as expense/income via category
-                var absAmount = Math.Abs(finalAmount);
-
-                // Determine currency from mapping or account
-                var currency = account.Currency;
-                if (resolver.TryGetCurrency(values, out var mappedCurrency) && !string.IsNullOrWhiteSpace(mappedCurrency))
-                    currency = mappedCurrency;
-
-                // Get description
-                var description = resolver.TryGetDescription(values, out var desc) ? desc : null;
-
-                // Resolve exchange rate if needed
-                ExchangeRateSnapshot? exchangeRate = null;
-                if (!string.Equals(currency, primaryCurrency, StringComparison.Ordinal))
-                {
-                    try
-                    {
-                        var resolved = await exchangeRateService.ResolveAsync(
-                            currency, primaryCurrency, new DateTimeOffset(date, TimeOnly.MinValue, TimeSpan.Zero), ct);
-                        if (resolved is not null)
-                            exchangeRate = resolved;
-                    }
-                    catch
-                    {
-                        // Exchange rate unavailable - skip with error
-                        errorRows++;
-                        continue;
-                    }
-                }
-
-                var money = new Money(absAmount, currency);
-
-                // Category: use suggested (from preview) or infer from amount sign
-                var categoryId = row.SuggestedCategoryId;
-                // Sugestão para uma categoria entretanto arquivada: cai na
-                // inferência pelo sinal, como se não houvesse sugestão.
-                if (categoryId is not null && !kinds.ContainsKey(categoryId.Value))
-                {
-                    categoryId = null;
-                }
-
-                if (categoryId is null)
-                {
-                    // Phase 5.5 — inferir tipo pelo sinal do valor:
-                    // parsedAmount > 0 → receita; parsedAmount < 0 → despesa.
-                    // Credit/debit indicator já é considerado acima via finalAmount.
-                    var isIncome = finalAmount > 0;
-                    var firstMatchingKind = categories.FirstOrDefault(c =>
-                        c.Kind == (isIncome ? CategoryKind.Income : CategoryKind.Expense));
-                    if (firstMatchingKind is not null)
-                    {
-                        categoryId = firstMatchingKind.Id;
-                        manualCount++;
-                    }
-                    else
-                    {
-                        errorRows++;
-                        continue;
-                    }
-                }
-                else
-                {
-                    autoCategorized++;
-                }
-
                 var tx = Transaction.CreateRegular(
                     account.Id,
-                    categoryId.Value,
-                    kinds[categoryId.Value],
-                    new DateTimeOffset(date, TimeOnly.MinValue, TimeSpan.Zero),
-                    money,
-                    description,
+                    category.Id,
+                    category.Kind,
+                    new DateTimeOffset(row.Date, TimeOnly.MinValue, TimeSpan.Zero),
+                    new Money(row.AbsAmount, currency),
+                    row.Description,
                     null,
                     tenant.TenantId,
                     exchangeRate);
 
-                // Run rule engine for audit trail
-                var toCategorize = new List<TransactionToCategorize> { new(tx.Id, description ?? string.Empty) };
-                var ruleResults = await ruleEngine.ApplyAsync(toCategorize, tenant.TenantId, ct);
-                var ruleResult = ruleResults.FirstOrDefault();
-                if (ruleResult?.MatchedRuleId is not null)
+                if (fromRule)
                 {
-                    tx.MarkCategorizedByRule(ruleResult.MatchedRuleId.Value);
-                    if (ruleResult.NewCategoryId is not null
-                        && kinds.TryGetValue(ruleResult.NewCategoryId.Value, out var ruleKind))
-                        tx.SetCategory(ruleResult.NewCategoryId.Value, ruleKind);
+                    tx.MarkCategorizedByRule(ruleResult!.MatchedRuleId!.Value);
+                    autoCategorized++;
+                }
+                else
+                {
+                    manualCount++;
                 }
 
                 await txRepo.AddAsync(tx, ct);
                 created.Add(tx);
-                imported++;
             }
             catch (FinancialDomainException)
-            {
-                errorRows++;
-            }
-            catch
             {
                 errorRows++;
             }
@@ -446,7 +310,7 @@ public static class CsvImportHandlers
 
         await txRepo.SaveChangesAsync(ct);
 
-        batch.Complete(imported, autoCategorized, manualCount);
+        batch.Complete(created.Count, autoCategorized, manualCount);
         batchRepo.Update(batch);
         await batchRepo.SaveChangesAsync(ct);
 
@@ -469,11 +333,12 @@ public static class CsvImportHandlers
 
         return new ImportConfirmResponse(
             batch.Id,
-            imported,
+            created.Count,
             autoCategorized,
             manualCount,
             errorRows,
-            batch.Status.ToString());
+            batch.Status.ToString(),
+            skippedBeforeOpeningBalance);
     }
 
     public static async Task<IReadOnlyList<ImportBatchResponse>> Handle(
@@ -494,27 +359,22 @@ public static class CsvImportHandlers
             b.CreatedAt.ToString("O"))).ToList();
     }
 
-    // --- Parsing helpers ---
-
-    private static bool TryParseDate(string? dateStr, string? dateFormat, out DateOnly date)
+    /// <summary>R10 — lotes anteriores ao grupo 7 não têm conta de destino.</summary>
+    private static async Task<Account> GetBatchAccountAsync(
+        ImportBatch batch, IAccountRepository accountRepo, CancellationToken ct)
     {
-        date = default;
-        if (string.IsNullOrWhiteSpace(dateStr)) return false;
+        if (batch.AccountId is null)
+            throw new ImportBatchWithoutAccountException();
 
-        var format = dateFormat ?? "dd-MM-yyyy";
-
-        if (DateOnly.TryParseExact(dateStr.Trim(), format, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
-            return true;
-
-        if (DateOnly.TryParse(dateStr.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
-            return true;
-
-        if (DateOnly.TryParse(dateStr.Trim(), new CultureInfo("pt-PT"), DateTimeStyles.None, out date))
-            return true;
-
-        return false;
+        return await accountRepo.GetByIdAsync(batch.AccountId.Value, ct)
+            ?? throw new ImportAccountRequiredException();
     }
 
+    private static List<string> RowErrors(IReadOnlyList<PreviewRowDto> rows)
+        => rows
+            .Where(r => r.Error is not null)
+            .Select(r => $"Linha {r.RowIndex + 1}: {r.Error}")
+            .ToList();
 }
 
 /// <summary>
@@ -679,7 +539,14 @@ public static class DictionaryExtensions
     }
 }
 
-public sealed record PreviewWrapper(IReadOnlyList<string> Headers, IReadOnlyList<PreviewRowDto> Rows);
+/// <summary>
+/// JSON gravado no lote. <see cref="Settings"/> (Phase 6.5 grupo 7, Q3) é
+/// <c>null</c> em lotes antigos.
+/// </summary>
+public sealed record PreviewWrapper(
+    IReadOnlyList<string> Headers,
+    IReadOnlyList<PreviewRowDto> Rows,
+    ImportParseSettings? Settings = null);
 
 public sealed record ImportConfirmResponse(
     Guid BatchId,
@@ -687,4 +554,8 @@ public sealed record ImportConfirmResponse(
     int AutoCategorized,
     int ManualCount,
     int ErrorRows,
-    string Status);
+    string Status,
+    int SkippedBeforeOpeningBalance = 0,
+    int TransfersCreated = 0,
+    int TransfersLinked = 0,
+    int TransfersAlreadyRecorded = 0);

@@ -27,7 +27,7 @@ public sealed class CsvImportEventsTests : IClassFixture<IdentityIntegrationFixt
     public async Task Imported_transaction_triggers_budget_alert()
     {
         var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "imp-evt");
-        await CreateAccountAsync(client, "EUR");
+        var accountId = await CreateAccountAsync(client, "EUR");
         var categoryId = await CreateCategoryAsync(client, "Supermercado");
         await CreateRuleAsync(client, "CONTINENTE", categoryId);
 
@@ -44,7 +44,7 @@ public sealed class CsvImportEventsTests : IClassFixture<IdentityIntegrationFixt
         });
         budget.EnsureSuccessStatusCode();
 
-        await ImportSingleRowAsync(client, today, "COMPRA CONTINENTE LISBOA", "-90,00");
+        await ImportSingleRowAsync(client, accountId, today, "COMPRA CONTINENTE LISBOA", "-90,00");
 
         // O subscriber de orçamentos corre de forma assíncrona (outbox).
         List<JsonElement>? alerts = null;
@@ -83,10 +83,10 @@ public sealed class CsvImportEventsTests : IClassFixture<IdentityIntegrationFixt
             await scope.ServiceProvider.GetRequiredService<EcbSnapshotJob>().RunAsync(CancellationToken.None);
         }
 
-        await CreateAccountAsync(client, "EUR");
+        var accountId = await CreateAccountAsync(client, "EUR");
         await CreateCategoryAsync(client, "Supermercado");
 
-        await ImportSingleRowAsync(client, DateOnly.FromDateTime(DateTime.UtcNow), "COMPRA LIDL", "-10,00");
+        await ImportSingleRowAsync(client, accountId, DateOnly.FromDateTime(DateTime.UtcNow), "COMPRA LIDL", "-10,00");
 
         var list = await client.GetFromJsonAsync<JsonElement>("/api/financial/transactions");
         var tx = list.GetProperty("items").EnumerateArray().Single();
@@ -95,7 +95,8 @@ public sealed class CsvImportEventsTests : IClassFixture<IdentityIntegrationFixt
             .Should().BeApproximately(6.00m, 0.0001m, "EUR→BRL vem do snapshot ECB do dia");
     }
 
-    private static async Task ImportSingleRowAsync(HttpClient client, DateOnly date, string description, string amount)
+    private static async Task ImportSingleRowAsync(
+        HttpClient client, Guid accountId, DateOnly date, string description, string amount)
     {
         var profileResponse = await client.PostAsJsonAsync("/api/financial/import-profiles", new
         {
@@ -122,7 +123,7 @@ public sealed class CsvImportEventsTests : IClassFixture<IdentityIntegrationFixt
         file.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
         form.Add(file, "file", "extrato.csv");
 
-        var upload = await client.PostAsync($"/api/financial/imports/upload?importProfileId={profileId}", form);
+        var upload = await client.PostAsync($"/api/financial/imports/upload?importProfileId={profileId}&accountId={accountId}", form);
         upload.EnsureSuccessStatusCode();
         var batchId = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("batchId").GetString();
 

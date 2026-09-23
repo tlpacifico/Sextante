@@ -15,7 +15,8 @@ public sealed record ParsedTransaction(
     DateOnly Date,
     decimal Amount,
     string Currency,
-    string Description);
+    string Description,
+    Guid AccountId);
 
 public sealed record DuplicateMatch(
     int RowIndex,

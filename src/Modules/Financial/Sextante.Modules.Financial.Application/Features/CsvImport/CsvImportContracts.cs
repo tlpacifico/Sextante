@@ -10,6 +10,10 @@ public sealed record UploadCsvResponse(
     bool DetectedHasHeader,
     IReadOnlyList<string> Errors);
 
+/// <summary>
+/// Campos da Phase 6.5 (grupo 7) no fim e com default: o JSON de lotes já
+/// gravados continua a deserializar (R9).
+/// </summary>
 public sealed record PreviewRowDto(
     int RowIndex,
     IReadOnlyList<string> Values,
@@ -18,7 +22,13 @@ public sealed record PreviewRowDto(
     string? SuggestedCategoryName,
     Guid? SuggestedCategoryId,
     bool IsAutoCategorized,
-    string? Error);
+    string? Error,
+    Guid? AccountId = null,
+    bool IsBeforeOpeningBalance = false,
+    string? TransferStatus = null,
+    Guid? TransferTargetAccountId = null,
+    string? TransferTargetAccountName = null,
+    Guid? TransferCounterpartTransactionId = null);
 
 public sealed record UpdatePreviewCommand(
     Guid BatchId,
@@ -33,9 +43,20 @@ public sealed record ColumnMappingInput(
     string CsvColumnName,
     string? TransactionField);
 
+/// <summary>
+/// Phase 6.5 grupo 7 (Q3) — definições efetivas com que o preview foi
+/// calculado, gravadas no lote para o confirm usar as mesmas.
+/// <see cref="ColumnMappings"/> <c>null</c> = perfil/auto-deteção.
+/// </summary>
+public sealed record ImportParseSettings(
+    IReadOnlyList<ColumnMappingInput>? ColumnMappings,
+    string? DateFormat,
+    string? DecimalSeparator);
+
 public sealed record ConfirmImportCommand(
     Guid BatchId,
-    IReadOnlyList<Guid> IncludeDuplicates);
+    IReadOnlyList<Guid> IncludeDuplicates,
+    bool IncludeBeforeOpeningBalance = false);
 
 public sealed record ListImportBatchesQuery();
 

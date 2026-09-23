@@ -182,6 +182,16 @@ public sealed class CategorizationRuleDuplicatePriorityException : FinancialDoma
     public CategorizationRuleDuplicatePriorityException(int priority) : base($"Já existe uma regra com prioridade {priority}. Ajuste as prioridades.") { }
 }
 
+// Import (Phase 6.5 grupo 7)
+public sealed class ImportAccountRequiredException : FinancialDomainException
+{
+    public ImportAccountRequiredException() : base("Escolha a conta de destino da importação.") { }
+}
+public sealed class ImportBatchWithoutAccountException : FinancialDomainException
+{
+    public ImportBatchWithoutAccountException() : base("Este lote não tem conta de destino. Carregue o ficheiro de novo.") { }
+}
+
 // Import profile exceptions
 public sealed class ImportProfileNameRequiredException : FinancialDomainException
 {

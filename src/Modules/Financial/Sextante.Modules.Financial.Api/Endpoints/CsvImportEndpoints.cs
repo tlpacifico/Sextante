@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Routing;
 using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.CsvImport;
 using Sextante.Modules.Financial.Application.Features.CsvImport;
+using Sextante.Modules.Financial.Domain.Accounts;
+using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Financial.Domain.ImportBatches;
 using Sextante.Modules.Financial.Domain.ImportProfiles;
@@ -21,8 +23,11 @@ public static class CsvImportEndpoints
         group.MapPost("/upload", async (
             IFormFile file,
             Guid? importProfileId,
+            Guid? accountId,
             IImportProfileRepository profileRepo,
             IImportBatchRepository batchRepo,
+            IAccountRepository accountRepo,
+            ICategoryRepository categoryRepo,
             IDuplicateDetector duplicateDetector,
             ICategorizationRuleEngine ruleEngine,
             ICsvParser csvParser,
@@ -50,8 +55,8 @@ public static class CsvImportEndpoints
             {
                 using var stream = file.OpenReadStream();
                 var response = await CsvImportHandlers.Handle(
-                    stream, file.FileName, importProfileId,
-                    profileRepo, batchRepo, duplicateDetector, ruleEngine, csvParser, tenant, ct);
+                    stream, file.FileName, importProfileId, accountId,
+                    profileRepo, batchRepo, accountRepo, categoryRepo, duplicateDetector, ruleEngine, csvParser, tenant, ct);
                 return Results.Ok(response);
             }
             catch (FinancialDomainException ex)
@@ -69,9 +74,19 @@ public static class CsvImportEndpoints
             IMessageBus bus,
             CancellationToken ct) =>
         {
-            var response = await bus.InvokeAsync<UploadCsvResponse?>(
-                command with { BatchId = batchId }, ct);
-            return response is null ? Results.NotFound() : Results.Ok(response);
+            try
+            {
+                var response = await bus.InvokeAsync<UploadCsvResponse?>(
+                    command with { BatchId = batchId }, ct);
+                return response is null ? Results.NotFound() : Results.Ok(response);
+            }
+            catch (FinancialDomainException ex)
+            {
+                return Results.ValidationProblem(
+                    new Dictionary<string, string[]> { ["import"] = [ex.Message] },
+                    title: "Erros de validação",
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
         });
 
         group.MapPost("{batchId:guid}/confirm", async (

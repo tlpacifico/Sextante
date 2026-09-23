@@ -34,15 +34,19 @@ public sealed class DuplicateDetector : IDuplicateDetector
             var dates = batch.Select(r => r.Date).Distinct().ToList();
             var amounts = batch.Select(r => r.Amount).Distinct().ToList();
             var currencies = batch.Select(r => r.Currency).Distinct().ToList();
+            // Phase 6.5 grupo 7 (R6) — o mesmo movimento noutra conta não é duplicado.
+            var accountIds = batch.Select(r => r.AccountId).Distinct().ToList();
 
             var candidates = await _db.Transactions
                 .Where(t => t.TenantId == tenantId
                          && dates.Contains(DateOnly.FromDateTime(t.OccurredAt.UtcDateTime))
                          && amounts.Contains(t.Amount.Amount)
-                         && currencies.Contains(t.Amount.Currency))
+                         && currencies.Contains(t.Amount.Currency)
+                         && accountIds.Contains(t.AccountId))
                 .Select(t => new
                 {
                     t.Id,
+                    t.AccountId,
                     OccurredAt = t.OccurredAt,
                     Amount = t.Amount.Amount,
                     Currency = t.Amount.Currency,
@@ -54,7 +58,8 @@ public sealed class DuplicateDetector : IDuplicateDetector
             {
                 var rowDescription = NormalizeDescription(row.Description);
                 var match = candidates.FirstOrDefault(c =>
-                    DateOnly.FromDateTime(c.OccurredAt.UtcDateTime) == row.Date
+                    c.AccountId == row.AccountId
+                    && DateOnly.FromDateTime(c.OccurredAt.UtcDateTime) == row.Date
                     && c.Amount == row.Amount
                     && c.Currency == row.Currency
                     && (c.Description is not null
