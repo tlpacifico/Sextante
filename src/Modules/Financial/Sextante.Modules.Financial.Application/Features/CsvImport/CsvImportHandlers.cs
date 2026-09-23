@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Sextante.Modules.Financial.Application.CategorizationRules;
+using Sextante.Modules.Financial.Application.Common;
 using Sextante.Modules.Financial.Application.CsvImport;
 using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Domain.Accounts;
@@ -9,6 +10,7 @@ using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Financial.Domain.ImportBatches;
 using Sextante.Modules.Financial.Domain.ImportProfiles;
 using Sextante.Modules.Financial.Domain.Transactions;
+using Sextante.Modules.Financial.PublicApi.Events;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 using Sextante.SharedKernel;
 using Wolverine.Attributes;
@@ -255,12 +257,17 @@ public static class CsvImportHandlers
         ICategoryRepository categoryRepo,
         ICategorizationRuleEngine ruleEngine,
         IExchangeRateService exchangeRateService,
+        ITenantCurrencyResolver currencyResolver,
+        IIntegrationEventPublisher events,
         ITenantContext tenant,
         CancellationToken ct)
     {
         var batch = await batchRepo.GetByIdAsync(command.BatchId, ct);
         if (batch is null)
             throw new InvalidOperationException("Lote de importação não encontrado.");
+
+        var primaryCurrency = await currencyResolver.GetPrimaryCurrencyAsync(ct);
+        var created = new List<Transaction>();
 
         batch.MarkImporting();
         batchRepo.Update(batch);
@@ -346,7 +353,6 @@ public static class CsvImportHandlers
                 var description = resolver.TryGetDescription(values, out var desc) ? desc : null;
 
                 // Resolve exchange rate if needed
-                var primaryCurrency = "EUR";
                 ExchangeRateSnapshot? exchangeRate = null;
                 if (!string.Equals(currency, primaryCurrency, StringComparison.Ordinal))
                 {
@@ -415,6 +421,7 @@ public static class CsvImportHandlers
                 }
 
                 await txRepo.AddAsync(tx, ct);
+                created.Add(tx);
                 imported++;
             }
             catch (FinancialDomainException)
@@ -432,6 +439,23 @@ public static class CsvImportHandlers
         batch.Complete(imported, autoCategorized, manualCount);
         batchRepo.Update(batch);
         await batchRepo.SaveChangesAsync(ct);
+
+        // Phase 6.5 §0.5 — orçamentos e alertas (Phase 5b) só reagem a
+        // eventos; o import tem de os publicar como qualquer outra criação.
+        foreach (var tx in created)
+        {
+            await events.PublishAsync(
+                new TransactionCreatedIntegrationEvent(
+                    tx.Id,
+                    tenant.TenantId.Value,
+                    tx.AccountId,
+                    tx.CategoryId,
+                    tx.Amount.Amount,
+                    tx.Amount.Currency,
+                    tx.OccurredAt,
+                    DateTimeOffset.UtcNow),
+                ct);
+        }
 
         return new ImportConfirmResponse(
             batch.Id,
