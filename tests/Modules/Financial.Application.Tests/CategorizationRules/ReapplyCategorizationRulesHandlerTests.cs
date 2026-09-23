@@ -1,8 +1,10 @@
 ﻿using FluentAssertions;
 using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.Features.CategorizationRules;
+using Sextante.Modules.Financial.Application.Tests.TestSupport;
 using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Financial.Domain.Transactions;
+using Sextante.Modules.Financial.PublicApi.Events;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 using Sextante.SharedKernel;
 
@@ -39,7 +41,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: true),
-            txRepo, engine, new StubTenantContext(Tenant), CancellationToken.None);
+            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.TotalProcessed.Should().Be(1, "the already-categorized one is filtered out");
         response.CategorizedCount.Should().Be(1);
@@ -63,7 +65,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), CancellationToken.None);
+            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.TotalProcessed.Should().Be(2);
         response.CategorizedCount.Should().Be(2);
@@ -87,7 +89,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), CancellationToken.None);
+            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.TotalProcessed.Should().Be(1);
         engine.LastInputs.Should().HaveCount(1);
@@ -105,7 +107,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(category, from, to, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), CancellationToken.None);
+            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         txRepo.LastFilter.Should().NotBeNull();
         txRepo.LastFilter!.DateFrom.Should().Be(from);
@@ -124,7 +126,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), CancellationToken.None);
+            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.TotalProcessed.Should().Be(2);
         response.CategorizedCount.Should().Be(0);
@@ -142,10 +144,51 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, engine, new StubTenantContext(Tenant), CancellationToken.None);
+            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
 
         response.CategorizedCount.Should().Be(0);
         response.UnchangedCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Processes_every_page_beyond_the_100_row_limit()
+    {
+        var account = Guid.NewGuid();
+        var oldCategory = Guid.NewGuid();
+        var newCategory = Guid.NewGuid();
+        var baseDate = DateTimeOffset.UtcNow.AddDays(-400);
+        var items = Enumerable.Range(0, 250)
+            .Select(i => NewTx(account, oldCategory, baseDate.AddDays(i), 10m, "Continente"))
+            .ToArray();
+        var txRepo = new StubTxRepo(items);
+        var engine = new StubEngine(matchToCategory: newCategory, matchedRule: Guid.NewGuid());
+
+        var response = await CategorizationRuleHandlers.Handle(
+            new ReapplyCategorizationRulesCommand(oldCategory, null, null, OnlyUncategorized: false),
+            txRepo, engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+
+        response.TotalProcessed.Should().Be(250);
+        response.CategorizedCount.Should().Be(250);
+        items.Should().OnlyContain(t => t.CategoryId == newCategory);
+    }
+
+    [Fact]
+    public async Task Publishes_updated_event_for_each_recategorized_transaction()
+    {
+        var newCategory = Guid.NewGuid();
+        var t1 = NewTx(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1), 10m, "Continente");
+        var t2 = NewTx(Guid.NewGuid(), newCategory, DateTimeOffset.UtcNow.AddDays(-2), 20m, "Continente");
+        var events = new StubIntegrationEventPublisher();
+
+        await CategorizationRuleHandlers.Handle(
+            new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
+            new StubTxRepo(t1, t2),
+            new StubEngine(matchToCategory: newCategory, matchedRule: Guid.NewGuid()),
+            new StubTenantContext(Tenant), events, CancellationToken.None);
+
+        events.Published.OfType<TransactionUpdatedIntegrationEvent>()
+            .Select(e => e.TransactionId)
+            .Should().BeEquivalentTo(new[] { t1.Id }, "t2 já tinha a categoria — não mudou, não publica");
     }
 
     private sealed class StubTxRepo : ITransactionRepository
@@ -162,7 +205,22 @@ public sealed class ReapplyCategorizationRulesHandlerTests
             if (filter.DateFrom.HasValue) filtered = filtered.Where(t => t.OccurredAt >= filter.DateFrom.Value);
             if (filter.DateTo.HasValue) filtered = filtered.Where(t => t.OccurredAt <= filter.DateTo.Value);
             if (filter.CategoryIds is { Count: > 0 }) filtered = filtered.Where(t => filter.CategoryIds.Contains(t.CategoryId));
-            return Task.FromResult(new TransactionPage(filtered.ToList(), null));
+
+            // Mesma paginação por cursor do TransactionRepository real
+            // (OccurredAt desc, Id desc, máx. 100 por página).
+            var ordered = filtered.OrderByDescending(t => t.OccurredAt).ThenByDescending(t => t.Id).ToList();
+            if (filter.Cursor is { } c)
+            {
+                ordered = ordered
+                    .Where(t => t.OccurredAt < c.OccurredAt
+                        || (t.OccurredAt == c.OccurredAt && t.Id.CompareTo(c.Id) < 0))
+                    .ToList();
+            }
+
+            var size = Math.Clamp(filter.PageSize, 1, 100);
+            var page = ordered.Take(size).ToList();
+            var next = ordered.Count > size ? new TransactionCursor(page[^1].OccurredAt, page[^1].Id) : null;
+            return Task.FromResult(new TransactionPage(page, next));
         }
 
         public Task<Transaction?> GetByIdAsync(Guid id, CancellationToken ct)

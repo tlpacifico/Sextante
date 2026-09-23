@@ -1,8 +1,10 @@
 using Sextante.Modules.Financial.Application.CategorizationRules;
+using Sextante.Modules.Financial.Application.Common;
 using Sextante.Modules.Financial.Domain.CategorizationRules;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Financial.Domain.Transactions;
+using Sextante.Modules.Financial.PublicApi.Events;
 using Sextante.Modules.Identity.PublicApi.Abstractions;
 using Wolverine.Attributes;
 
@@ -151,19 +153,23 @@ public static class CategorizationRuleHandlers
         ITransactionRepository txRepo,
         ICategorizationRuleEngine engine,
         ITenantContext tenant,
+        IIntegrationEventPublisher events,
         CancellationToken ct)
     {
-        var filter = new TransactionFilter(
-            command.From,
-            command.To,
-            command.CategoryId is not null ? new[] { command.CategoryId.Value } : null,
-            null,
-            null,
-            10000,
-            null);
-
-        var page = await txRepo.ListAsync(filter, ct);
-        var allTransactions = page.Items;
+        // Phase 6.5 §0.3 — o repositório limita cada página a 100 linhas;
+        // percorrer por cursor até ao fim em vez de pedir PageSize=10000.
+        var categoryIds = command.CategoryId is not null ? new[] { command.CategoryId.Value } : null;
+        var allTransactions = new List<Transaction>();
+        TransactionCursor? cursor = null;
+        do
+        {
+            var page = await txRepo.ListAsync(
+                new TransactionFilter(command.From, command.To, categoryIds, null, null, ReapplyPageSize, cursor),
+                ct);
+            allTransactions.AddRange(page.Items);
+            cursor = page.NextCursor;
+        }
+        while (cursor is not null);
 
         if (command.OnlyUncategorized)
         {
@@ -177,13 +183,13 @@ public static class CategorizationRuleHandlers
 
         var results = await engine.ApplyAsync(toProcess, tenant.TenantId, ct);
 
-        var categorizedCount = 0;
+        var byId = allTransactions.ToDictionary(t => t.Id);
+        var changed = new List<Transaction>();
         foreach (var result in results)
         {
             if (result.NewCategoryId is null) continue;
 
-            var tx = allTransactions.FirstOrDefault(t => t.Id == result.TransactionId);
-            if (tx is null) continue;
+            if (!byId.TryGetValue(result.TransactionId, out var tx)) continue;
 
             if (tx.CategoryId == result.NewCategoryId.Value) continue;
 
@@ -192,16 +198,34 @@ public static class CategorizationRuleHandlers
                 tx.MarkCategorizedByRule(result.MatchedRuleId.Value);
 
             txRepo.Update(tx);
-            categorizedCount++;
+            changed.Add(tx);
         }
 
         await txRepo.SaveChangesAsync(ct);
 
+        // Orçamentos recalculam a partir destes eventos (Phase 5b).
+        foreach (var tx in changed)
+        {
+            await events.PublishAsync(
+                new TransactionUpdatedIntegrationEvent(
+                    tx.Id,
+                    tenant.TenantId.Value,
+                    tx.AccountId,
+                    tx.CategoryId,
+                    tx.Amount.Amount,
+                    tx.Amount.Currency,
+                    tx.OccurredAt,
+                    DateTimeOffset.UtcNow),
+                ct);
+        }
+
         return new ReapplyCategorizationRulesResponse(
             toProcess.Count,
-            categorizedCount,
-            toProcess.Count - categorizedCount);
+            changed.Count,
+            toProcess.Count - changed.Count);
     }
+
+    private const int ReapplyPageSize = 100;
 
     private static CategorizationRuleResponse ToResponse(CategorizationRule rule, Category? category)
         => new(
