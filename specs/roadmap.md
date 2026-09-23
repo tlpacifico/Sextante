@@ -180,9 +180,31 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 - [~] Backups automatizados (`pg_dump` por schema, retenção 30 dias): script `infra/backup/backup.sh` escrito e verificado localmente; unidades `sextante-backup.{service,timer}` (03:00 UTC) escritas; falta instalá-las na VPS.
 - [ ] **1 restore de teste** documentado (com dumps reais da VPS; o ensaio local de 2026-09-01 está registado no runbook mas não substitui este).
 - [~] **CD automático** via GitHub Actions (build → push GHCR → SSH `docker compose pull && up -d` + smoke check) + **ADR-013**: workflow `.github/workflows/deploy.yml` escrito; falta criar os Secrets, pôr o `deployuser` no grupo `docker` e correr o primeiro deploy.
+- [→] ~~Dogfooding 1 mês~~ — movido para o fim da Phase 6.5 (replanning 2026-09-23).
+
+**Saída**: Sextante em produção na VPS, com backups verificados e CD automático.
+
+### Phase 6.5 — Transferências entre contas + cartão de crédito 🛡️
+
+> Inserida em replanning (2026-09-23, branch `replanning`). Spec em
+> `specs/2026-09-23-phase-6.5-transfers-credit-card/`. Motivo: o
+> primeiro arranque do dogfooding com dados reais (conta à ordem +
+> cartão) mostrou que o sistema não representa transferências, não
+> mostra saldo atual e não aceita dívida de cartão — o pagamento do
+> cartão contava duas vezes como despesa e nenhum saldo era
+> verificável contra o banco.
+
+- [ ] **ADR-014** (transferências e saldo de conta) + dívida técnica descoberta: RLS em falta em `categorization_rules` / `import_profiles` / `import_batches`, reaplicar regras limitado a 100, import sem eventos, totais a perder categorias arquivadas.
+- [ ] `Transaction` com direção explícita (`Inflow`/`Outflow`) e tipo (`Regular`/`Transfer`/`Adjustment`); categoria nullable; totais, donut e orçamentos só com `Regular`.
+- [ ] Saldo atual por conta (e saldo à data) + `OpeningBalanceDate`; saldo inicial negativo em cartões de crédito.
+- [ ] Transferências entre contas (par de transações ligadas), incluindo multi-moeda e "marcar como transferência".
+- [ ] Acerto de saldo (reconciliação com o banco) fora dos totais.
+- [ ] Definições e vista do cartão: limite, dia de fecho, dia de pagamento, ciclo corrente, próximo pagamento.
+- [ ] Compras em prestações (`InstallmentPlan`) com calendário e previsão de pagamento.
+- [ ] Import: conta escolhida no wizard; regras com ação "transferência para conta X"; ligação à contraperna já existente (sem duplicar); linhas anteriores ao saldo inicial excluídas; dedup por conta.
 - [ ] **Dogfooding 1 mês**: utilizador importa extrato bancário do último mês e categoriza tudo; recorrentes do mês configuradas; pelo menos 3 metas a mostrar progresso; nenhum reabrir de Excel ou outra app financeira durante 1 mês.
 
-**Saída**: critério de Done do MVP cumprido (`mission.md` §6).
+**Saída**: saldos da conta à ordem e do cartão batem ao cêntimo com o banco; pagamento do cartão não aparece como despesa; critério de Done do MVP cumprido (`mission.md` §6).
 
 ---
 

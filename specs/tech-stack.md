@@ -410,6 +410,7 @@ Sextante.sln
 ### Pendentes
 - **ADR-007 Versionamento da API**: adiado. Escrever quando se introduzir versionamento.
 - **ADR-008 Provider de cotações**: para Fase 2. Avaliação comparativa Brapi (BR) + Yahoo Finance/Alpha Vantage (intl) quando começar Sub-fase 2.2.
+- **ADR-014 Transferências e saldo de conta**: escrever no arranque da Phase 6.5 (grupo 0.1) — transferência como par de transações ligadas, direção explícita na `Transaction`, saldo on-demand.
 - **ADR-009 Soft delete vs hard delete**: **resolvido nesta Constitution** (soft-delete uniforme). Escrever ADR formal quando for tocada a primeira feature que elimine entidades (Sprint 2 ou 3) para registar o porquê.
 
 ---
