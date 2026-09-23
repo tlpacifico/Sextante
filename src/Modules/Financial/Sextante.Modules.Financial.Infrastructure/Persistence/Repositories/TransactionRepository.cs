@@ -70,9 +70,9 @@ public sealed class TransactionRepository : ITransactionRepository
 
         var rows = await query
             .Join(
-                _db.Categories,
-                t => t.CategoryId,
-                c => c.Id,
+                CategoriesIncludingArchived,
+                t => new { Id = t.CategoryId, t.TenantId },
+                c => new { c.Id, c.TenantId },
                 (t, c) => new
                 {
                     Amount = t.Amount.Amount,
@@ -98,9 +98,9 @@ public sealed class TransactionRepository : ITransactionRepository
 
         var rows = await query
             .Join(
-                _db.Categories,
-                t => t.CategoryId,
-                c => c.Id,
+                CategoriesIncludingArchived,
+                t => new { Id = t.CategoryId, t.TenantId },
+                c => new { c.Id, c.TenantId },
                 (t, c) => new
                 {
                     Amount = t.Amount.Amount,
@@ -136,9 +136,9 @@ public sealed class TransactionRepository : ITransactionRepository
                 a => a.Id,
                 (t, a) => new { Transaction = t, AccountName = a.Name })
             .Join(
-                _db.Categories,
-                x => x.Transaction.CategoryId,
-                c => c.Id,
+                CategoriesIncludingArchived,
+                x => new { Id = x.Transaction.CategoryId, x.Transaction.TenantId },
+                c => new { c.Id, c.TenantId },
                 (x, c) => new { x.Transaction, x.AccountName, Category = c })
             .OrderByDescending(x => x.Transaction.OccurredAt)
             .ThenByDescending(x => x.Transaction.Id)
@@ -172,9 +172,9 @@ public sealed class TransactionRepository : ITransactionRepository
 
         var rows = await query
             .Join(
-                _db.Categories.Where(c => c.Kind == kind),
-                t => t.CategoryId,
-                c => c.Id,
+                CategoriesIncludingArchived.Where(c => c.Kind == kind),
+                t => new { Id = t.CategoryId, t.TenantId },
+                c => new { c.Id, c.TenantId },
                 (t, c) => new
                 {
                     c.Id,
@@ -201,6 +201,14 @@ public sealed class TransactionRepository : ITransactionRepository
             .OrderByDescending(r => r.Total.Amount)
             .ToList();
     }
+
+    // Phase 6.5 §0.4 — categorias arquivadas (soft-delete) continuam a
+    // nomear e classificar as transações antigas. IgnoreQueryFilters tira
+    // também o filtro de tenant, por isso todos os joins são por
+    // (Id, TenantId) com a transação, que já vem filtrada por tenant; a
+    // RLS da DB é a segunda barreira.
+    private IQueryable<Category> CategoriesIncludingArchived
+        => _db.Categories.IgnoreQueryFilters();
 
     // Instance (não static) porque o filtro de Kind precisa de
     // _db.Categories — o kind vive na categoria, não na transação.
@@ -240,7 +248,8 @@ public sealed class TransactionRepository : ITransactionRepository
                 : CategoryKind.Expense;
 
             query = query.Where(t =>
-                _db.Categories.Any(c => c.Id == t.CategoryId && c.Kind == kind));
+                CategoriesIncludingArchived.Any(c =>
+                    c.Id == t.CategoryId && c.TenantId == t.TenantId && c.Kind == kind));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.DescriptionContains))
