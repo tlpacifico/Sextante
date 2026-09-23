@@ -3,6 +3,7 @@ using Sextante.Modules.Financial.Application.Features.Budgets;
 using Sextante.Modules.Financial.Application.Features.CategorizationRules;
 using Sextante.Modules.Financial.Application.Features.ImportProfiles;
 using Sextante.Modules.Financial.Application.Features.RecurringRules;
+using Sextante.Modules.Financial.Application.Features.Transfers;
 using Sextante.Modules.Financial.Domain.Budgets;
 using Sextante.Modules.Financial.Domain.CategorizationRules;
 using Sextante.Modules.Financial.Domain.RecurringRules;
@@ -165,5 +166,43 @@ public sealed class UpdateBudgetValidator : AbstractValidator<UpdateBudgetComman
             .MaximumLength(Budget.NotesMaxLength)
             .WithMessage($"As notas têm no máximo {Budget.NotesMaxLength} caracteres.")
             .When(c => c.Notes is not null);
+    }
+}
+
+public sealed class CreateTransferValidator : AbstractValidator<CreateTransferCommand>
+{
+    public CreateTransferValidator()
+    {
+        RuleFor(c => c.FromAccountId).NotEmpty().WithMessage("Conta de origem é obrigatória.");
+        RuleFor(c => c.ToAccountId).NotEmpty().WithMessage("Conta de destino é obrigatória.");
+        RuleFor(c => c.OccurredAt).NotEmpty().WithMessage("Data é obrigatória.");
+        RuleFor(c => c.AmountOut).GreaterThan(0m).WithMessage("O valor tem de ser maior que zero.");
+        RuleFor(c => c.AmountIn!.Value).GreaterThan(0m).WithMessage("O valor recebido tem de ser maior que zero.")
+            .When(c => c.AmountIn.HasValue);
+        RuleFor(c => c.Description!).MaximumLength(500).When(c => c.Description is not null);
+    }
+}
+
+public sealed class UpdateTransferValidator : AbstractValidator<UpdateTransferCommand>
+{
+    public UpdateTransferValidator()
+    {
+        RuleFor(c => c.TransferId).NotEmpty();
+        RuleFor(c => c.FromAccountId).NotEmpty().WithMessage("Conta de origem é obrigatória.");
+        RuleFor(c => c.ToAccountId).NotEmpty().WithMessage("Conta de destino é obrigatória.");
+        RuleFor(c => c.OccurredAt).NotEmpty().WithMessage("Data é obrigatória.");
+        RuleFor(c => c.AmountOut).GreaterThan(0m).WithMessage("O valor tem de ser maior que zero.");
+        RuleFor(c => c.AmountIn!.Value).GreaterThan(0m).WithMessage("O valor recebido tem de ser maior que zero.")
+            .When(c => c.AmountIn.HasValue);
+        RuleFor(c => c.Description!).MaximumLength(500).When(c => c.Description is not null);
+    }
+}
+
+public sealed class ConvertToTransferValidator : AbstractValidator<ConvertToTransferCommand>
+{
+    public ConvertToTransferValidator()
+    {
+        RuleFor(c => c.TransactionId).NotEmpty();
+        RuleFor(c => c.CounterpartAccountId).NotEmpty().WithMessage("Conta contraparte é obrigatória.");
     }
 }

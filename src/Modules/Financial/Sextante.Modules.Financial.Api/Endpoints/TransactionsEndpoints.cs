@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Sextante.Infrastructure.ErrorHandling;
 using Sextante.Modules.Financial.Application.Features.Transactions;
+using Sextante.Modules.Financial.Application.Features.Transfers;
 using Sextante.Modules.Financial.Domain.Common;
 using Wolverine;
 
@@ -157,8 +159,50 @@ public static class TransactionsEndpoints
 
         group.MapDelete("{id:guid}", async (Guid id, IMessageBus bus, CancellationToken ct) =>
         {
-            var archived = await bus.InvokeAsync<bool>(new ArchiveTransactionCommand(id), ct);
-            return archived ? Results.NoContent() : Results.NotFound();
+            try
+            {
+                var archived = await bus.InvokeAsync<bool>(new ArchiveTransactionCommand(id), ct);
+                return archived ? Results.NoContent() : Results.NotFound();
+            }
+            catch (FinancialDomainException ex)
+            {
+                return BadRequest(ex);
+            }
+        });
+
+        // Phase 6.5 grupo 3 — converte uma transação Regular numa perna de
+        // transferência, ligando a uma contraparte existente ou criando-a.
+        group.MapPost("{id:guid}/convert-to-transfer", async (
+            Guid id,
+            ConvertToTransferBody body,
+            IMessageBus bus,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var converted = await bus.InvokeAsync<TransferResponse>(
+                    new ConvertToTransferCommand(id, body.CounterpartAccountId, body.CounterpartTransactionId),
+                    ct);
+                return Results.Ok(converted);
+            }
+            catch (FinancialDomainException ex)
+            {
+                return BadRequest(ex);
+            }
+            catch (EntityNotFoundException ex)
+            {
+                // Grupo 3 — mesma nota de TransfersEndpoints.NotFound: o
+                // GlobalExceptionHandler não corre em Development/testes.
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
+            }
+            catch (FluentValidation.ValidationException ex)
+            {
+                return Results.ValidationProblem(
+                    ex.Errors
+                        .GroupBy(e => e.PropertyName)
+                        .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray()),
+                    title: "Erros de validação");
+            }
         });
 
         group.MapPatch("recategorize", async (RecategorizeTransactionsCommand command, IMessageBus bus, CancellationToken ct) =>
@@ -184,6 +228,8 @@ public static class TransactionsEndpoints
         decimal Amount,
         string? Description,
         IReadOnlyList<string>? Tags);
+
+    public sealed record ConvertToTransferBody(Guid CounterpartAccountId, Guid? CounterpartTransactionId);
 
     private static IResult BadRequest(FinancialDomainException ex)
         => Results.ValidationProblem(

@@ -111,6 +111,18 @@ public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
     }
 
     [Fact]
+    public async Task Create_transfer_with_empty_account_ids_returns_400_from_validator()
+    {
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-validator");
+
+        var response = await CreateTransferAsync(client, Guid.Empty, Guid.Empty, 50m, null, "ids vazios");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("errors");
+    }
+
+    [Fact]
     public async Task Summary_and_budgets_are_unchanged_by_a_transfer_but_account_balances_change()
     {
         var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-summary");
@@ -184,6 +196,7 @@ public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
         var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-single-leg");
         var fromId = await CreateAccountAsync(client);
         var toId = await CreateAccountAsync(client);
+        var categoryId = await CreateCategoryAsync(client, "Diversos", kind: 0);
         var created = await CreateTransferAsync(client, fromId, toId, 100m, null, "perna isolada");
         var transfer = await created.Content.ReadFromJsonAsync<TransferRow>();
         var outLegId = transfer!.OutLeg.Id;
@@ -191,7 +204,7 @@ public sealed class TransfersTests : IClassFixture<IdentityIntegrationFixture>
         var putResponse = await client.PutAsJsonAsync($"/api/financial/transactions/{outLegId}", new
         {
             accountId = fromId,
-            categoryId = Guid.NewGuid(),
+            categoryId,
             occurredAt = DateTimeOffset.UtcNow.AddMinutes(-1),
             amount = 100m,
             description = "tentativa direta",
