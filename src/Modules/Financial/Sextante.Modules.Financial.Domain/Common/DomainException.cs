@@ -297,3 +297,19 @@ public sealed class TransferCounterpartWrongAccountException : FinancialDomainEx
     {
     }
 }
+
+public sealed class ReconciliationDateInFutureException : FinancialDomainException
+{
+    public ReconciliationDateInFutureException()
+        : base("A data da reconciliação não pode ser no futuro.")
+    {
+    }
+}
+
+public sealed class ReconciliationBeforeOpeningBalanceException : FinancialDomainException
+{
+    public ReconciliationBeforeOpeningBalanceException()
+        : base("A data da reconciliação não pode ser anterior à data do saldo inicial da conta.")
+    {
+    }
+}

@@ -132,6 +132,23 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
             occurredAt, amount, description, null, tenantId, exchangeRate, now, null);
     }
 
+    /// <summary>
+    /// Acerto de saldo (reconciliação). Sem categoria, sem tags, sem TransferId.
+    /// Conta no saldo, não nos totais de receita/despesa.
+    /// </summary>
+    public static Transaction CreateAdjustment(
+        Guid accountId,
+        TransactionDirection direction,
+        DateTimeOffset occurredAt,
+        Money amount,
+        string? description,
+        TenantId tenantId,
+        ExchangeRateSnapshot? exchangeRate = null,
+        DateTimeOffset? now = null)
+        => Build(
+            accountId, null, direction, TransactionKind.Adjustment, null,
+            occurredAt, amount, description, null, tenantId, exchangeRate, now, null);
+
     public static TransactionDirection DirectionFor(CategoryKind kind)
         => kind == CategoryKind.Income ? TransactionDirection.Inflow : TransactionDirection.Outflow;
 
