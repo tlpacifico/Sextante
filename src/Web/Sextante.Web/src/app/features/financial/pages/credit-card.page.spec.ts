@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { MessageService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { CreditCardViewDto } from '../../../core/api/financial.types';
 import { MoneyPipe } from '../../../core/format/money.pipe';
 import { CreditCardPage } from './credit-card.page';
@@ -35,6 +35,7 @@ function view(overrides: Partial<CreditCardViewDto> = {}): CreditCardViewDto {
     nextPaymentDueDate: '2026-10-10',
     nextPaymentAmount: money(800),
     paymentAccountId: 'chk',
+    unbilledInstallmentsAtPreviousClose: money(0),
     ...overrides,
   };
 }
@@ -52,6 +53,7 @@ describe('CreditCardPage', () => {
         provideNoopAnimations(),
         provideRouter([]),
         MessageService,
+        ConfirmationService,
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 'a1' }) } } },
       ],
     });
@@ -113,5 +115,43 @@ describe('CreditCardPage', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Configure o limite');
     expect(text).toContain(pipe.transform(money(870)));
+  });
+
+  it('lists active installment plans and explains the unbilled discount', async () => {
+    const fixture = await render(view({ unbilledInstallmentsAtPreviousClose: money(500) }));
+
+    httpMock.match((req) => req.url === '/api/financial/transactions').forEach((r) => r.flush({ items: [], nextCursor: null }));
+    const plans = httpMock.expectOne((req) => req.url === '/api/financial/installment-plans');
+    expect(plans.request.params.get('accountId')).toBe('a1');
+    plans.flush([
+      {
+        id: 'p1',
+        accountId: 'a1',
+        purchaseTransactionId: null,
+        description: 'Portátil',
+        totalAmount: money(600),
+        installmentCount: 6,
+        installmentsAlreadyPaid: 0,
+        firstInstallmentDate: '2026-07-10',
+        annualRate: null,
+        installmentAmount: money(100),
+        installmentsPaidOrDue: 3,
+        remainingAmount: money(300),
+        nextInstallmentDate: '2026-10-10',
+        isActive: true,
+        schedule: [],
+        createdAt: '2026-07-10T00:00:00Z',
+        updatedAt: '2026-07-10T00:00:00Z',
+      },
+    ]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Portátil');
+    expect(text).toContain('prestação 3 de 6');
+    expect(text).toContain(pipe.transform(money(300)));
+    expect(text).toContain('prestações por faturar');
+    expect(text).toContain(pipe.transform(money(500)));
   });
 });

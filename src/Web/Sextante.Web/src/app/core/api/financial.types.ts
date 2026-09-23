@@ -62,6 +62,52 @@ export interface CreditCardViewDto {
   nextPaymentDueDate: string | null;
   nextPaymentAmount: Money | null;
   paymentAccountId: string | null;
+  /** Grupo 6 — prestações por faturar que o próximo pagamento já desconta. */
+  unbilledInstallmentsAtPreviousClose: Money | null;
+}
+
+// Phase 6.5 grupo 6 — planos de prestações.
+export interface InstallmentDto {
+  number: number;
+  date: string;
+  amount: Money;
+  paid: boolean;
+}
+
+export interface InstallmentPlanDto {
+  id: string;
+  accountId: string;
+  purchaseTransactionId: string | null;
+  description: string;
+  totalAmount: Money;
+  installmentCount: number;
+  installmentsAlreadyPaid: number;
+  /** Data da prestação n.º 1 (YYYY-MM-DD). */
+  firstInstallmentDate: string;
+  annualRate: number | null;
+  installmentAmount: Money;
+  /** O "X" de "prestação X de N". */
+  installmentsPaidOrDue: number;
+  remainingAmount: Money;
+  nextInstallmentDate: string | null;
+  isActive: boolean;
+  schedule: InstallmentDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InstallmentPlanRequest {
+  purchaseTransactionId: string | null;
+  description: string;
+  totalAmount: number;
+  installmentCount: number;
+  installmentsAlreadyPaid: number;
+  firstInstallmentDate: string;
+  annualRate: number | null;
+}
+
+export interface CreateInstallmentPlanRequest extends InstallmentPlanRequest {
+  accountId: string;
 }
 
 export interface CreateAccountRequest {

@@ -18,10 +18,13 @@ import {
   CreateImportProfileRequest,
   CreateRecurringRuleRequest,
   CreateTransactionRequest,
+  CreateInstallmentPlanRequest,
   CreateTransferRequest,
   CreditCardViewDto,
   ImportBatchDto,
   ImportProfileDto,
+  InstallmentPlanDto,
+  InstallmentPlanRequest,
   ReapplyRulesRequest,
   ReconcileAccountRequest,
   ReconcileAccountResponse,
@@ -244,6 +247,29 @@ export class FinancialApiService {
         { ids, categoryId },
       ),
     );
+  }
+
+  // Installment plans (Phase 6.5 grupo 6) -----------------------------------
+  listInstallmentPlans(accountId?: string): Promise<InstallmentPlanDto[]> {
+    let params = new HttpParams();
+    if (accountId) {
+      params = params.set('accountId', accountId);
+    }
+    return firstValueFrom(
+      this.http.get<InstallmentPlanDto[]>('/api/financial/installment-plans', { params }),
+    );
+  }
+
+  createInstallmentPlan(req: CreateInstallmentPlanRequest): Promise<InstallmentPlanDto> {
+    return firstValueFrom(this.http.post<InstallmentPlanDto>('/api/financial/installment-plans', req));
+  }
+
+  updateInstallmentPlan(id: string, req: InstallmentPlanRequest): Promise<InstallmentPlanDto> {
+    return firstValueFrom(this.http.put<InstallmentPlanDto>(`/api/financial/installment-plans/${id}`, req));
+  }
+
+  deleteInstallmentPlan(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/financial/installment-plans/${id}`));
   }
 
   // Transfers (Phase 6.5 grupo 3) --------------------------------------------

@@ -102,4 +102,42 @@ describe('TransactionsPage', () => {
     expect(kinds).toContain('Adjustment');
     expect(kinds).toContain('Transfer');
   });
+
+  it('offers "Isto foi em prestações" only for expenses on credit card accounts', async () => {
+    const fixture = TestBed.createComponent(TransactionsPage);
+    fixture.detectChanges();
+
+    httpMock.match((req) => req.url.startsWith('/api/financial/accounts')).forEach((r) =>
+      r.flush([
+        { id: 'card', name: 'Cartão', type: 'CreditCard', currency: 'EUR' },
+        { id: 'chk', name: 'Conta', type: 'Checking', currency: 'EUR' },
+      ]),
+    );
+    httpMock.match((req) => req.url.startsWith('/api/financial/categories')).forEach((r) => r.flush([]));
+    const tx = (id: string, accountId: string) => ({
+      id,
+      accountId,
+      categoryId: null,
+      occurredAt: '2026-09-20T12:00:00Z',
+      amount: { amount: 600, currency: 'EUR' },
+      description: 'Compra',
+      tags: [],
+      direction: 'Outflow',
+      kind: 'Regular',
+      transferId: null,
+      counterpartAccountId: null,
+      createdAt: '2026-09-20T00:00:00Z',
+      updatedAt: '2026-09-20T00:00:00Z',
+    });
+    httpMock.match((req) => req.url.startsWith('/api/financial/transactions')).forEach((r) =>
+      r.flush({ items: [tx('t-card', 'card'), tx('t-chk', 'chk')], nextCursor: null }),
+    );
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr');
+    expect(rows[0].querySelector('[aria-label="Isto foi em prestações"]')).toBeTruthy();
+    expect(rows[1].querySelector('[aria-label="Isto foi em prestações"]')).toBeNull();
+  });
 });

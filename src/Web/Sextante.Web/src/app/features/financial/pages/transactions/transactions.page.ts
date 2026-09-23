@@ -23,6 +23,7 @@ import { TransactionEditDialogComponent } from './transaction-edit.dialog';
 import { RecategorizeDialogComponent } from './recategorize.dialog';
 import { TransferDialogComponent } from './transfer.dialog';
 import { MarkAsTransferDialogComponent } from './mark-as-transfer.dialog';
+import { InstallmentPlanDialogComponent } from '../installment-plan.dialog';
 
 @Component({
   selector: 'app-transactions-page',
@@ -48,6 +49,7 @@ import { MarkAsTransferDialogComponent } from './mark-as-transfer.dialog';
     RecategorizeDialogComponent,
     TransferDialogComponent,
     MarkAsTransferDialogComponent,
+    InstallmentPlanDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [ConfirmationService],
@@ -259,6 +261,15 @@ import { MarkAsTransferDialogComponent } from './mark-as-transfer.dialog';
                     size="small"
                     (click)="archiveTransaction(tx)" />
                 } @else {
+                  @if (canBeInstallments(tx)) {
+                    <p-button
+                      icon="pi pi-calendar-plus"
+                      severity="secondary"
+                      [text]="true"
+                      size="small"
+                      ariaLabel="Isto foi em prestações"
+                      (click)="openInstallments(tx)" />
+                  }
                   <p-button
                     icon="pi pi-pencil"
                     severity="secondary"
@@ -292,6 +303,14 @@ import { MarkAsTransferDialogComponent } from './mark-as-transfer.dialog';
       (close)="recategorizeDialogVisible.set(false)"
       (saved)="onRecategorized()" />
 
+    <app-installment-plan-dialog
+      [visible]="installmentPurchase() !== null"
+      [accountId]="installmentPurchase()?.accountId ?? null"
+      [currency]="installmentPurchase()?.amount?.currency ?? 'EUR'"
+      [purchase]="installmentPurchase()"
+      (close)="installmentPurchase.set(null)"
+      (saved)="installmentPurchase.set(null)" />
+
     <app-transfer-dialog
       [visible]="transferDialogVisible()"
       [accounts]="accounts()"
@@ -317,7 +336,9 @@ export class TransactionsPage implements OnInit {
 
   protected readonly loading = signal(true);
   protected readonly transactions = signal<TransactionDto[]>([]);
-  protected readonly accounts = signal<{ id: string; name: string; currency: string }[]>([]);
+  protected readonly accounts = signal<{ id: string; name: string; currency: string; type?: string }[]>([]);
+  // Phase 6.5 grupo 6 — compra de cartão a transformar em plano de prestações.
+  protected readonly installmentPurchase = signal<TransactionDto | null>(null);
   protected readonly categories = signal<{ id: string; name: string; iconName: string; colorHex: string; kind: string }[]>([]);
   protected readonly selected = signal<TransactionDto[]>([]);
   protected readonly selectedTransaction = signal<TransactionDto | null>(null);
@@ -366,7 +387,7 @@ export class TransactionsPage implements OnInit {
         this.api.listAccounts(),
         this.api.listCategories(),
       ]);
-      this.accounts.set(accs.map(a => ({ id: a.id, name: a.name, currency: a.currency })));
+      this.accounts.set(accs.map(a => ({ id: a.id, name: a.name, currency: a.currency, type: a.type })));
       this.categories.set(cats.map(c => ({
         id: c.id,
         name: c.name,
@@ -431,6 +452,17 @@ export class TransactionsPage implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Só despesas regulares de cartões podem virar plano de prestações. */
+  protected canBeInstallments(tx: TransactionDto): boolean {
+    return tx.kind === 'Regular'
+      && tx.direction === 'Outflow'
+      && this.accounts().some(a => a.id === tx.accountId && a.type === 'CreditCard');
+  }
+
+  protected openInstallments(tx: TransactionDto): void {
+    this.installmentPurchase.set(tx);
   }
 
   getAccountName(id: string): string {
