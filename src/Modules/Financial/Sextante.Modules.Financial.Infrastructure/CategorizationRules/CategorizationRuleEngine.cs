@@ -35,7 +35,11 @@ public sealed class CategorizationRuleEngine : ICategorizationRuleEngine
             {
                 if (Matches(rule, tx.Description))
                 {
-                    match = new CategorizationMatchResult(tx.TransactionId, rule.Id, rule.CategoryId);
+                    match = new CategorizationMatchResult(
+                        tx.TransactionId,
+                        rule.Id,
+                        rule.Action == RuleAction.SetCategory ? rule.CategoryId : null,
+                        rule.Action == RuleAction.MarkAsTransfer ? rule.TargetAccountId : null);
                     break;
                 }
             }

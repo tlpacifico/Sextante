@@ -28,8 +28,23 @@ public sealed class CreateCategorizationRuleValidator : AbstractValidator<Create
         RuleFor(c => c.MatchType)
             .Must(mt => mt is "Contains" or "Equals" or "StartsWith")
             .WithMessage("MatchType deve ser Contains, Equals ou StartsWith.");
-        RuleFor(c => c.CategoryId)
-            .NotEmpty().WithMessage("A categoria alvo é obrigatória.");
+        RuleFor(c => c.Action)
+            .Must(a => a is nameof(RuleAction.SetCategory) or nameof(RuleAction.MarkAsTransfer))
+            .WithMessage("A ação deve ser SetCategory ou MarkAsTransfer.");
+        When(c => c.Action == nameof(RuleAction.SetCategory), () =>
+        {
+            RuleFor(c => c.CategoryId)
+                .NotEmpty().WithMessage("A categoria alvo é obrigatória.");
+            RuleFor(c => c.TargetAccountId)
+                .Null().WithMessage("Uma regra de categoria não tem conta de destino.");
+        });
+        When(c => c.Action == nameof(RuleAction.MarkAsTransfer), () =>
+        {
+            RuleFor(c => c.TargetAccountId)
+                .NotEmpty().WithMessage("A conta de destino da transferência é obrigatória.");
+            RuleFor(c => c.CategoryId)
+                .Null().WithMessage("Uma regra de transferência não tem categoria.");
+        });
         RuleFor(c => c.Priority)
             .GreaterThanOrEqualTo(0).WithMessage("A prioridade não pode ser negativa.");
     }
@@ -48,8 +63,23 @@ public sealed class UpdateCategorizationRuleValidator : AbstractValidator<Update
         RuleFor(c => c.MatchType)
             .Must(mt => mt is "Contains" or "Equals" or "StartsWith")
             .WithMessage("MatchType deve ser Contains, Equals ou StartsWith.");
-        RuleFor(c => c.CategoryId)
-            .NotEmpty().WithMessage("A categoria alvo é obrigatória.");
+        RuleFor(c => c.Action)
+            .Must(a => a is nameof(RuleAction.SetCategory) or nameof(RuleAction.MarkAsTransfer))
+            .WithMessage("A ação deve ser SetCategory ou MarkAsTransfer.");
+        When(c => c.Action == nameof(RuleAction.SetCategory), () =>
+        {
+            RuleFor(c => c.CategoryId)
+                .NotEmpty().WithMessage("A categoria alvo é obrigatória.");
+            RuleFor(c => c.TargetAccountId)
+                .Null().WithMessage("Uma regra de categoria não tem conta de destino.");
+        });
+        When(c => c.Action == nameof(RuleAction.MarkAsTransfer), () =>
+        {
+            RuleFor(c => c.TargetAccountId)
+                .NotEmpty().WithMessage("A conta de destino da transferência é obrigatória.");
+            RuleFor(c => c.CategoryId)
+                .Null().WithMessage("Uma regra de transferência não tem categoria.");
+        });
         RuleFor(c => c.Priority)
             .GreaterThanOrEqualTo(0).WithMessage("A prioridade não pode ser negativa.");
     }

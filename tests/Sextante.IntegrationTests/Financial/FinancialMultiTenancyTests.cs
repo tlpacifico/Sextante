@@ -190,6 +190,29 @@ public sealed class FinancialMultiTenancyTests : IClassFixture<IdentityIntegrati
     }
 
     [Fact]
+    public async Task Transfer_rule_target_must_belong_to_tenant()
+    {
+        // Phase 6.5 grupo 7 — uma regra de transferência não pode apontar
+        // para uma conta de outro tenant (soft reference validada no handler).
+        var (clientA, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtA-rulexfer");
+        var (clientB, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "mtB-rulexfer");
+        var cardA = await CreateAccountAsync(clientA, type: 3);
+
+        var response = await clientB.PostAsJsonAsync("/api/financial/categorization-rules", new
+        {
+            name = "Pagamento cartão",
+            pattern = "PAGAMENTO CARTAO",
+            matchType = "Contains",
+            categoryId = (Guid?)null,
+            priority = 5,
+            action = "MarkAsTransfer",
+            targetAccountId = cardA,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Installment_plans_are_isolated_between_tenants()
     {
         // Phase 6.5 grupo 6 — planos de prestações de outro tenant nunca são

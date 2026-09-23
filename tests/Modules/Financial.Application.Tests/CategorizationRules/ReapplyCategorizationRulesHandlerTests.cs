@@ -1,8 +1,9 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.Features.CategorizationRules;
 using Sextante.Modules.Financial.Application.Tests.TestSupport;
+using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Common;
 using Sextante.Modules.Financial.Domain.Transactions;
 using Sextante.Modules.Financial.PublicApi.Events;
@@ -42,7 +43,9 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: true),
-            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(),
+            new StubAccountRepository(), new StubTransferCounterpartQuery(), new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
 
         response.TotalProcessed.Should().Be(1, "the already-categorized one is filtered out");
         response.CategorizedCount.Should().Be(1);
@@ -66,7 +69,9 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(),
+            new StubAccountRepository(), new StubTransferCounterpartQuery(), new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
 
         response.TotalProcessed.Should().Be(2);
         response.CategorizedCount.Should().Be(2);
@@ -90,7 +95,9 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(),
+            new StubAccountRepository(), new StubTransferCounterpartQuery(), new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
 
         response.TotalProcessed.Should().Be(1);
         engine.LastInputs.Should().HaveCount(1);
@@ -108,7 +115,9 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(category, from, to, OnlyUncategorized: false),
-            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(),
+            new StubAccountRepository(), new StubTransferCounterpartQuery(), new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
 
         txRepo.LastFilter.Should().NotBeNull();
         txRepo.LastFilter!.DateFrom.Should().Be(from);
@@ -127,7 +136,9 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(),
+            new StubAccountRepository(), new StubTransferCounterpartQuery(), new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
 
         response.TotalProcessed.Should().Be(2);
         response.CategorizedCount.Should().Be(0);
@@ -145,7 +156,9 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: false),
-            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(),
+            new StubAccountRepository(), new StubTransferCounterpartQuery(), new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
 
         response.CategorizedCount.Should().Be(0);
         response.UnchangedCount.Should().Be(1);
@@ -166,7 +179,9 @@ public sealed class ReapplyCategorizationRulesHandlerTests
 
         var response = await CategorizationRuleHandlers.Handle(
             new ReapplyCategorizationRulesCommand(oldCategory, null, null, OnlyUncategorized: false),
-            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(), CancellationToken.None);
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(),
+            new StubAccountRepository(), new StubTransferCounterpartQuery(), new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
 
         response.TotalProcessed.Should().Be(250);
         response.CategorizedCount.Should().Be(250);
@@ -186,11 +201,90 @@ public sealed class ReapplyCategorizationRulesHandlerTests
             new StubTxRepo(t1, t2),
             new InMemoryCategoryRepository().With(newCategory, CategoryKind.Expense),
             new StubEngine(matchToCategory: newCategory, matchedRule: Guid.NewGuid()),
-            new StubTenantContext(Tenant), events, CancellationToken.None);
+            new StubTenantContext(Tenant), events,
+            new StubAccountRepository(), new StubTransferCounterpartQuery(), new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
 
         events.Published.OfType<TransactionUpdatedIntegrationEvent>()
             .Select(e => e.TransactionId)
             .Should().BeEquivalentTo(new[] { t1.Id }, "t2 já tinha a categoria — não mudou, não publica");
+    }
+
+    [Fact]
+    public async Task Transfer_rule_converts_transaction_creating_counterpart()
+    {
+        var checking = Account.Create("Conta", AccountType.Checking, "EUR", new Money(0m, "EUR"), Tenant);
+        var card = Account.Create("Cartão", AccountType.CreditCard, "EUR", new Money(0m, "EUR"), Tenant);
+        var payment = NewTx(checking.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1), 450m, "PAGAMENTO CARTAO");
+
+        var txRepo = new StubTxRepo(payment);
+        var engine = new StubEngine(matchToCategory: null, matchedRule: Guid.NewGuid(), targetAccount: card.Id);
+
+        var response = await CategorizationRuleHandlers.Handle(
+            new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: true),
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(),
+            new StubAccountRepository(checking, card), new StubTransferCounterpartQuery(),
+            new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
+
+        response.TransfersCount.Should().Be(1);
+        response.CategorizedCount.Should().Be(0);
+        payment.Kind.Should().Be(TransactionKind.Transfer);
+        var counterpart = txRepo.Items.Single(t => t.Id != payment.Id);
+        counterpart.AccountId.Should().Be(card.Id);
+        counterpart.Direction.Should().Be(TransactionDirection.Inflow);
+        counterpart.TransferId.Should().Be(payment.TransferId);
+    }
+
+    [Fact]
+    public async Task Transfer_rule_links_existing_counterpart()
+    {
+        var checking = Account.Create("Conta", AccountType.Checking, "EUR", new Money(0m, "EUR"), Tenant);
+        var card = Account.Create("Cartão", AccountType.CreditCard, "EUR", new Money(0m, "EUR"), Tenant);
+        var when = DateTimeOffset.UtcNow.AddDays(-3);
+        var payment = NewTx(checking.Id, Guid.NewGuid(), when, 450m, "PAGAMENTO CARTAO");
+        var received = Transaction.CreateRegular(
+            card.Id, Guid.NewGuid(), CategoryKind.Income, when.AddDays(2),
+            new Money(450m, "EUR"), "PAGAMENTO RECEBIDO", null, Tenant);
+        received.MarkCategorizedByRule(Guid.NewGuid()); // fica fora do OnlyUncategorized
+
+        var txRepo = new StubTxRepo(payment, received);
+        var engine = new StubEngine(matchToCategory: null, matchedRule: Guid.NewGuid(), targetAccount: card.Id);
+        var query = new StubTransferCounterpartQuery().With(
+            card.Id, TransactionKind.Regular,
+            new TransferCandidate(received.Id, DateOnly.FromDateTime(received.OccurredAt.UtcDateTime), null));
+
+        var response = await CategorizationRuleHandlers.Handle(
+            new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: true),
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(),
+            new StubAccountRepository(checking, card), query,
+            new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
+
+        response.TransfersCount.Should().Be(1);
+        txRepo.Items.Should().HaveCount(2, "liga à receita existente, não cria contraperna");
+        received.Kind.Should().Be(TransactionKind.Transfer);
+        received.TransferId.Should().Be(payment.TransferId);
+    }
+
+    [Fact]
+    public async Task Transfer_rule_targeting_own_account_is_skipped()
+    {
+        var checking = Account.Create("Conta", AccountType.Checking, "EUR", new Money(0m, "EUR"), Tenant);
+        var payment = NewTx(checking.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1), 450m, "PAGAMENTO CARTAO");
+
+        var txRepo = new StubTxRepo(payment);
+        var engine = new StubEngine(matchToCategory: null, matchedRule: Guid.NewGuid(), targetAccount: checking.Id);
+
+        var response = await CategorizationRuleHandlers.Handle(
+            new ReapplyCategorizationRulesCommand(null, null, null, OnlyUncategorized: true),
+            txRepo, CategoriesFor(engine), engine, new StubTenantContext(Tenant), new StubIntegrationEventPublisher(),
+            new StubAccountRepository(checking), new StubTransferCounterpartQuery(),
+            new StubTenantCurrencyResolver(), new StubExchangeRateService(),
+            CancellationToken.None);
+
+        response.TransfersCount.Should().Be(0);
+        payment.Kind.Should().Be(TransactionKind.Regular);
     }
 
     private static InMemoryCategoryRepository CategoriesFor(StubEngine engine)
@@ -265,14 +359,16 @@ public sealed class ReapplyCategorizationRulesHandlerTests
     {
         private readonly Guid? _matchToCategory;
         private readonly Guid? _matchedRule;
+        private readonly Guid? _targetAccount;
         public IReadOnlyList<TransactionToCategorize> LastInputs { get; private set; } = Array.Empty<TransactionToCategorize>();
 
         public Guid? MatchToCategory => _matchToCategory;
 
-        public StubEngine(Guid? matchToCategory, Guid? matchedRule)
+        public StubEngine(Guid? matchToCategory, Guid? matchedRule, Guid? targetAccount = null)
         {
             _matchToCategory = matchToCategory;
             _matchedRule = matchedRule;
+            _targetAccount = targetAccount;
         }
 
         public Task<IReadOnlyList<CategorizationMatchResult>> ApplyAsync(
@@ -280,7 +376,7 @@ public sealed class ReapplyCategorizationRulesHandlerTests
         {
             LastInputs = transactions;
             var results = transactions
-                .Select(t => new CategorizationMatchResult(t.TransactionId, _matchedRule, _matchToCategory))
+                .Select(t => new CategorizationMatchResult(t.TransactionId, _matchedRule, _matchToCategory, _targetAccount))
                 .ToList();
             return Task.FromResult<IReadOnlyList<CategorizationMatchResult>>(results);
         }

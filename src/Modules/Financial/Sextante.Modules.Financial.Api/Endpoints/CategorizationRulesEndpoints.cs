@@ -34,10 +34,21 @@ public static class CategorizationRulesEndpoints
             }
             catch (FinancialDomainException ex)
             {
+                return BadRequest(ex);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
+            }
+            catch (FluentValidation.ValidationException ex)
+            {
+                // Em Development/testes o GlobalExceptionHandler não corre
+                // (mesma nota de TransfersEndpoints).
                 return Results.ValidationProblem(
-                    new Dictionary<string, string[]> { ["categorizationRule"] = [ex.Message] },
-                    title: "Erros de validação",
-                    statusCode: StatusCodes.Status400BadRequest);
+                    ex.Errors
+                        .GroupBy(e => e.PropertyName)
+                        .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray()),
+                    title: "Erros de validação");
             }
         });
 
@@ -51,10 +62,21 @@ public static class CategorizationRulesEndpoints
             }
             catch (FinancialDomainException ex)
             {
+                return BadRequest(ex);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
+            }
+            catch (FluentValidation.ValidationException ex)
+            {
+                // Em Development/testes o GlobalExceptionHandler não corre
+                // (mesma nota de TransfersEndpoints).
                 return Results.ValidationProblem(
-                    new Dictionary<string, string[]> { ["categorizationRule"] = [ex.Message] },
-                    title: "Erros de validação",
-                    statusCode: StatusCodes.Status400BadRequest);
+                    ex.Errors
+                        .GroupBy(e => e.PropertyName)
+                        .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray()),
+                    title: "Erros de validação");
             }
         });
 
@@ -89,4 +111,11 @@ public static class CategorizationRulesEndpoints
 
         return routes;
     }
+
+    private static IResult BadRequest(FinancialDomainException ex)
+        => Results.ValidationProblem(
+            new Dictionary<string, string[]> { ["categorizationRule"] = [ex.Message] },
+            detail: ex.Message,
+            title: "Erros de validação",
+            statusCode: StatusCodes.Status400BadRequest);
 }

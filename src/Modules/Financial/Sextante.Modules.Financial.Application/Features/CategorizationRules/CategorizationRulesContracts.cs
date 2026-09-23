@@ -2,6 +2,10 @@ using Sextante.Modules.Financial.Domain.CategorizationRules;
 
 namespace Sextante.Modules.Financial.Application.Features.CategorizationRules;
 
+/// <summary>
+/// Phase 6.5 grupo 7 — <see cref="Action"/> é <c>SetCategory</c> (com
+/// categoria) ou <c>MarkAsTransfer</c> (com conta alvo, sem categoria).
+/// </summary>
 public sealed record CategorizationRuleResponse(
     Guid Id,
     string Name,
@@ -14,23 +18,30 @@ public sealed record CategorizationRuleResponse(
     int Priority,
     bool IsActive,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string Action,
+    Guid? TargetAccountId,
+    string? TargetAccountName);
 
 public sealed record CreateCategorizationRuleCommand(
     string Name,
     string Pattern,
     string MatchType,
-    Guid CategoryId,
-    int Priority);
+    Guid? CategoryId,
+    int Priority,
+    string Action = nameof(RuleAction.SetCategory),
+    Guid? TargetAccountId = null);
 
 public sealed record UpdateCategorizationRuleCommand(
     Guid Id,
     string Name,
     string Pattern,
     string MatchType,
-    Guid CategoryId,
+    Guid? CategoryId,
     int Priority,
-    bool IsActive);
+    bool IsActive,
+    string Action = nameof(RuleAction.SetCategory),
+    Guid? TargetAccountId = null);
 
 public sealed record ArchiveCategorizationRuleCommand(Guid Id);
 
@@ -49,4 +60,5 @@ public sealed record ReapplyCategorizationRulesCommand(
 public sealed record ReapplyCategorizationRulesResponse(
     int TotalProcessed,
     int CategorizedCount,
-    int UnchangedCount);
+    int UnchangedCount,
+    int TransfersCount = 0);

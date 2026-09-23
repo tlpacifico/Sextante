@@ -36,6 +36,37 @@ public sealed class CategorizationRuleEngineTests
     }
 
     [Fact]
+    public async Task Transfer_rule_returns_target_account_without_category()
+    {
+        var target = Guid.NewGuid();
+        var rule = CategorizationRule.CreateTransfer(
+            "Cartão", "PAGAMENTO CARTAO", CategorizationMatchType.Contains, target, 0, Tenant);
+        var engine = new CategorizationRuleEngine(new StubRuleRepo(rule));
+
+        var results = await engine.ApplyAsync(
+            new[] { new TransactionToCategorize(Guid.NewGuid(), "VIS PAGAMENTO CARTAO DE CREDITO") },
+            Tenant, CancellationToken.None);
+
+        results[0].MatchedRuleId.Should().Be(rule.Id);
+        results[0].NewCategoryId.Should().BeNull();
+        results[0].TargetAccountId.Should().Be(target);
+    }
+
+    [Fact]
+    public async Task Category_rule_returns_no_target_account()
+    {
+        var category = Guid.NewGuid();
+        var engine = new CategorizationRuleEngine(
+            new StubRuleRepo(Rule("Cont", "CONTINENTE", CategorizationMatchType.Contains, category, 0)));
+
+        var results = await engine.ApplyAsync(
+            new[] { new TransactionToCategorize(Guid.NewGuid(), "CONTINENTE") },
+            Tenant, CancellationToken.None);
+
+        results[0].TargetAccountId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Equals_match_is_case_insensitive()
     {
         var category = Guid.NewGuid();
