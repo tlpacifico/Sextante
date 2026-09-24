@@ -100,4 +100,38 @@
 
 ## Resultados
 
-_(preencher no grupo 8.1)_
+Reconciliação com os extratos reais feita em **2026-09-24** (grupo 8.1):
+- stack local `docker compose up -d --build` no commit do grupo 8;
+- tenants descartáveis na DB local, um por variante e por ordem de import;
+- conversão fora do repo (`Documents\Sextante\extratos\csv`), sem dados reais no repo.
+
+**Conversão (controlo antes de importar)**
+- **Conta à ordem (XLSX):** 95 movimentos. O saldo encadeado bate linha a linha: 1 589,87 € antes do 1.º movimento, 588,81 € no fim de 27/08 e 137,82 € no fim.
+- **Cartão (PDF, agosto):** 54 movimentos (53 débitos + 1 pagamento). Débitos 746,30 € e créditos 837,13 €, iguais ao "Resumo de movimentos" do extrato; −2 500,00 − 746,30 + 837,13 = −2 409,17 €. O texto do PDF não separa as colunas Débito/Crédito: o sinal vem do descritivo (pagamento = crédito), validado pelos totais do resumo.
+
+**Regras:** só uma, "PAGAMENTO CARTAO" → transferência para o cartão (o exemplo da spec). Restantes linhas com a categoria do fallback.
+
+| # | Resultado | Obtido |
+|---|---|---|
+| 1 | ✅ | Variante 28/08 (588,81 €): saldo atual da conta **137,82 €**; 57 linhas anteriores ao saldo inicial excluídas por defeito. |
+| 2 | ✅ | Variante 01/08 (1 589,87 €): saldo atual da conta **137,82 €**. |
+| 3 | ✅ | Cartão −2 500,00 € a 01/08: saldo a 31/08 **−2 409,17 €**, nas duas variantes e nas duas ordens de import. |
+| 4 | ✅ | Com o pagamento de 1 135,24 € (11/09, data valor 14/09) como transferência: dívida atual **−1 273,93 €**. |
+| 5 | ⏳ | Pendente: o saldo real do cartão à data não está nos ficheiros. Mecânica verificada com um valor sintético (−1 300,00 € a 23/09): um só `Adjustment` de −26,07 €, o saldo à data fica igual ao indicado e os totais não mudam. Fechar no arranque do dogfooding com o valor da app do banco. |
+| 6 | ✅ | Setembro: despesa 409,47 € e receita 797,92 €, sem os 1 135,24 € em nenhum dos lados. |
+| 7 | ✅ | Orçamento de setembro na categoria das despesas: gasto 409,47 € = soma das despesas regulares, sem o pagamento do cartão. |
+| 8 | ✅ | Export: tipos `Despesa`/`Receita`/`Transferência`; as 4 linhas `Transferência` (2 pagamentos × 2 pernas) têm `Conta contraparte`. |
+
+**Pernas:** na variante 01/08, 4 pernas (2 pagamentos), com qualquer ordem de import, sem nenhuma receita regular no cartão.
+- **Conta primeiro:** a linha do cartão fica "já registada".
+- **Cartão primeiro:** a linha da conta liga-se à entrada do cartão.
+
+**Divergência encontrada e corrigida (R4):** no extrato do cartão o pagamento aparece como ">PAGAMENTO CARTAO DE CREDITO" e casa com a regra da conta, cujo alvo é o próprio cartão. Era importado como **receita normal**: na variante 01/08 o cartão ficava errado em exatamente 837,13 €.
+- **Correção:** uma regra cujo alvo é a conta da linha não se aplica a essa linha, que segue o caminho das linhas sem regra e reconhece a perna já registada.
+- **Teste:** `CsvImportTransferEdgeTests.Rule_targeting_the_imported_account_still_recognises_the_recorded_leg`.
+
+**Limitação conhecida (variante 28/08):** o pagamento de 12/08 do cartão não tem contraperna, porque o lado da conta é anterior ao saldo inicial. Fica como receita regular do cartão em agosto. Os saldos batem; os totais de agosto contam-no como receita. Para o limpar: "Marcar como transferência" com contraperna na conta à ordem; a perna criada, anterior a 28/08, não mexe no saldo da conta.
+
+**Open questions**
+- **2 (janela de 7 dias):** pagamento de agosto com Δ 0 dias entre a data valor da conta (12/08) e a do cartão (12/08). A data de movimento do cartão (01/08) é a do extrato, não a do débito, e por isso o perfil usa `Data Valor`. O pagamento de setembro fica por confirmar com o extrato do cartão de setembro. 7 dias chegam para o caso observado.
+- **4 (extrato do cartão em CSV):** o ActivoBank dá o cartão só em PDF. O PDF tem texto extraível (sem OCR), mas a conversão é feita fora da app com um script. Até existir import de PDF (Maybe pile), o dogfooding do cartão depende dessa conversão mensal.
