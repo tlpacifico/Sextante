@@ -58,7 +58,7 @@ import { InstallmentPlanDialogComponent } from '../installment-plan.dialog';
 
     <!-- Filters -->
     <form [formGroup]="filterForm" class="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-col gap-1 min-w-0">
         <span class="text-xs font-medium text-neutral-500">Intervalo</span>
         <p-datepicker
           formControlName="dateRange"
@@ -68,7 +68,7 @@ import { InstallmentPlanDialogComponent } from '../installment-plan.dialog';
           styleClass="w-full text-sm" />
       </div>
 
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-col gap-1 min-w-0">
         <span class="text-xs font-medium text-neutral-500">Conta</span>
         <p-multiSelect
           formControlName="accountIds"
@@ -80,7 +80,7 @@ import { InstallmentPlanDialogComponent } from '../installment-plan.dialog';
           styleClass="w-full" />
       </div>
 
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-col gap-1 min-w-0">
         <span class="text-xs font-medium text-neutral-500">Categoria</span>
         <p-multiSelect
           formControlName="categoryIds"
@@ -92,29 +92,30 @@ import { InstallmentPlanDialogComponent } from '../installment-plan.dialog';
           styleClass="w-full" />
       </div>
 
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-col gap-1 min-w-0 md:col-span-2">
         <span class="text-xs font-medium text-neutral-500">Tipo</span>
         <p-selectbutton
           formControlName="kind"
           [options]="kindOptions"
           optionLabel="label"
           optionValue="value"
+          class="sxt-selectbutton-wrap"
           styleClass="text-sm" />
       </div>
 
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-col gap-1 min-w-0">
         <span class="text-xs font-medium text-neutral-500">Descrição</span>
         <input pInputText formControlName="description" placeholder="Pesquisar..." class="text-sm w-full" />
       </div>
 
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-col gap-1 min-w-0">
         <span class="text-xs font-medium text-neutral-500">Valor mín.</span>
-        <p-inputnumber formControlName="amountMin" mode="currency" currency="EUR" styleClass="w-full text-sm" />
+        <p-inputnumber formControlName="amountMin" mode="currency" currency="EUR" styleClass="w-full text-sm" inputStyleClass="w-full min-w-0" />
       </div>
 
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-col gap-1 min-w-0">
         <span class="text-xs font-medium text-neutral-500">Valor máx.</span>
-        <p-inputnumber formControlName="amountMax" mode="currency" currency="EUR" styleClass="w-full text-sm" />
+        <p-inputnumber formControlName="amountMax" mode="currency" currency="EUR" styleClass="w-full text-sm" inputStyleClass="w-full min-w-0" />
       </div>
     </form>
 

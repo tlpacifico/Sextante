@@ -251,20 +251,24 @@ function creditCardSettingsAllOrNone(group: AbstractControl): ValidationErrors |
                 ></p-inputNumber>
               </div>
               <div class="grid grid-cols-2 gap-3">
-                <div class="flex flex-col gap-1">
+                <div class="flex flex-col gap-1 min-w-0">
                   <label for="account-closing-day">Dia de fecho</label>
                   <p-inputNumber
                     inputId="account-closing-day"
+                    styleClass="w-full"
+                    inputStyleClass="w-full min-w-0"
                     [min]="1"
                     [max]="31"
                     [useGrouping]="false"
                     formControlName="statementClosingDay"
                   ></p-inputNumber>
                 </div>
-                <div class="flex flex-col gap-1">
+                <div class="flex flex-col gap-1 min-w-0">
                   <label for="account-due-day">Dia de pagamento</label>
                   <p-inputNumber
                     inputId="account-due-day"
+                    styleClass="w-full"
+                    inputStyleClass="w-full min-w-0"
                     [min]="1"
                     [max]="31"
                     [useGrouping]="false"

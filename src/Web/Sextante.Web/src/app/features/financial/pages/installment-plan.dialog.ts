@@ -67,13 +67,15 @@ import { InstallmentPlanDto, InstallmentPlanRequest, TransactionDto } from '../.
         }
 
         <div class="grid grid-cols-2 gap-3">
-          <div class="flex flex-col gap-1">
+          <div class="flex flex-col gap-1 min-w-0">
             <label for="ip-count" class="text-sm font-medium">N.º de prestações</label>
-            <p-inputNumber inputId="ip-count" formControlName="installmentCount" [min]="2" [max]="120" [useGrouping]="false" />
+            <p-inputNumber inputId="ip-count" formControlName="installmentCount" [min]="2" [max]="120" [useGrouping]="false"
+              styleClass="w-full" inputStyleClass="w-full min-w-0" />
           </div>
-          <div class="flex flex-col gap-1">
+          <div class="flex flex-col gap-1 min-w-0">
             <label for="ip-paid" class="text-sm font-medium">Já pagas</label>
-            <p-inputNumber inputId="ip-paid" formControlName="installmentsAlreadyPaid" [min]="0" [useGrouping]="false" />
+            <p-inputNumber inputId="ip-paid" formControlName="installmentsAlreadyPaid" [min]="0" [useGrouping]="false"
+              styleClass="w-full" inputStyleClass="w-full min-w-0" />
           </div>
         </div>
         <small class="text-[var(--p-text-muted-color)] -mt-2">"Já pagas" é para planos que começaram antes de usar o Sextante.</small>

@@ -409,3 +409,59 @@ h1, h2, h3 {
     color: var(--p-surface-800);
   }
 }
+
+// Phase 6.5 grupo 8 — touch targets ≥ 44 px em ecrãs táteis (AGENTS.md §2.7,
+// tech-stack §19.5). Os tamanhos base do PrimeNG (42 px; ícones 32–40 px;
+// checkbox 20 px) ficam iguais com rato; num ecrã tátil crescem até 44 px.
+// A checkbox mantém o desenho de 20 px: só a área clicável (o input
+// invisível por cima) cresce.
+@media (pointer: coarse) {
+  .p-button,
+  .p-togglebutton,
+  .p-select,
+  .p-inputtext,
+  .p-datepicker-dropdown,
+  .p-paginator .p-paginator-page,
+  .p-paginator .p-paginator-first,
+  .p-paginator .p-paginator-prev,
+  .p-paginator .p-paginator-next,
+  .p-paginator .p-paginator-last {
+    min-height: 44px;
+  }
+
+  .p-button.p-button-icon-only,
+  .p-datepicker-dropdown,
+  .p-select-dropdown,
+  .p-paginator .p-paginator-page,
+  .p-paginator .p-paginator-first,
+  .p-paginator .p-paginator-prev,
+  .p-paginator .p-paginator-next,
+  .p-paginator .p-paginator-last {
+    min-width: 44px;
+  }
+
+  .p-checkbox {
+    position: relative;
+  }
+
+  .p-checkbox .p-checkbox-input {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+// Phase 6.5 grupo 8 — o filtro "Tipo" das transações ganhou Transferências e
+// Acertos: os botões quebram de linha em vez de encolherem o texto.
+.p-selectbutton.sxt-selectbutton-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+
+  .p-togglebutton {
+    flex: 0 0 auto;
+  }
+}

@@ -241,6 +241,13 @@ interface NavGroup {
         transition: background-color 120ms ease, color 120ms ease;
       }
 
+      @media (pointer: coarse) {
+        .icon-btn {
+          width: 2.75rem;
+          height: 2.75rem;
+        }
+      }
+
       .icon-btn:hover {
         background-color: var(--color-neutral-100);
         color: var(--color-neutral-900);
