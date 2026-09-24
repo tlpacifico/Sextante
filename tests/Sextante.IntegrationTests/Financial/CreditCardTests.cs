@@ -192,6 +192,47 @@ public sealed class CreditCardTests : IClassFixture<IdentityIntegrationFixture>
     }
 
     [Fact]
+    public async Task Card_started_after_the_last_close_has_no_previous_statement_or_next_payment()
+    {
+        // Revisão da phase (I1) — cartão criado hoje com a dívida atual: o
+        // último fecho é anterior ao saldo inicial, por isso a dívida nesse
+        // fecho é desconhecida. Um pagamento anterior ao saldo inicial já está
+        // refletido nele e não conta como pagamento recebido.
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "cc-late-start");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var current = CreditCardCalendar.CycleContaining(today, ClosingDay, DueDay);
+
+        var checkingId = await CreateAccountAsync(client, Checking, 5000m, openingBalanceDate: current.Start.AddDays(-40));
+        var cardId = await CreateAccountAsync(
+            client, CreditCard, -1300m, openingBalanceDate: today,
+            creditCard: new { creditLimit = 2500m, statementClosingDay = ClosingDay, paymentDueDay = DueDay, paymentAccountId = checkingId });
+
+        if (current.Start < today)
+        {
+            var paid = await client.PostAsJsonAsync("/api/financial/transfers", new
+            {
+                fromAccountId = checkingId,
+                toAccountId = cardId,
+                occurredAt = new DateTimeOffset(current.Start.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc)),
+                amountOut = 1135.24m,
+                amountIn = (decimal?)null,
+                description = "Pagamento do cartão",
+            });
+            paid.StatusCode.Should().Be(HttpStatusCode.Created);
+        }
+
+        var view = await client.GetFromJsonAsync<CreditCardViewRow>($"/api/financial/accounts/{cardId}/credit-card");
+
+        view!.CurrentDebt.Amount.Should().Be(1300m);
+        view.CurrentCycle.Should().NotBeNull();
+        view.CurrentCycle!.PaymentsReceived.Amount.Should().Be(0m);
+        view.PreviousCycle.Should().BeNull();
+        view.PreviousClosingDebt.Should().BeNull();
+        view.NextPaymentAmount.Should().BeNull();
+        view.NextPaymentDueDate.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Credit_card_view_aggregates_cycles_and_next_payment()
     {
         var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "cc-view");

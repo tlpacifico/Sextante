@@ -117,6 +117,17 @@ describe('CreditCardPage', () => {
     expect(text).toContain(pipe.transform(money(870)));
   });
 
+  it('explains the missing previous statement when the card started after the last close', async () => {
+    const fixture = await render(
+      view({ previousCycle: null, previousClosingDebt: null, nextPaymentDueDate: null, nextPaymentAmount: null }),
+    );
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Sem extrato anterior');
+    expect(text).not.toContain('Próximo pagamento');
+  });
+
   it('lists active installment plans and explains the unbilled discount', async () => {
     const fixture = await render(view({ unbilledInstallmentsAtPreviousClose: money(500) }));
 

@@ -82,6 +82,17 @@ import { InstallmentPlanDialogComponent } from './installment-plan.dialog';
               }
             </section>
           }
+
+          @if (v.settings && !v.previousCycle) {
+            <section class="p-4 rounded-lg border border-[var(--p-content-border-color)]">
+              <h2 class="text-sm font-medium text-[var(--p-text-muted-color)] mb-2">Sem extrato anterior</h2>
+              <p class="text-sm">
+                O saldo inicial do cartão é posterior ao último fecho, por isso a dívida nesse fecho e o
+                próximo pagamento ainda não se conhecem. Aparecem a partir do próximo fecho, ou já, se a
+                data do saldo inicial for anterior ao último fecho.
+              </p>
+            </section>
+          }
         </div>
 
         @if (!v.settings) {

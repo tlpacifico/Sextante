@@ -314,8 +314,18 @@ public static class AccountHandlers
             return null;
         }
 
-        var movements = await activity.GetMovementsAsync(
-            account.Id, previousCycle.Start, currentCycle.End, cancellationToken);
+        // Revisão da phase (I1) — movimentos anteriores ao saldo inicial já estão
+        // refletidos nele (como no saldo da conta): não contam nos ciclos.
+        var movements = (await activity.GetMovementsAsync(
+                account.Id, previousCycle.Start, currentCycle.End, cancellationToken))
+            .Where(m => m.Date >= account.OpeningBalanceDate)
+            .ToList();
+
+        // Último fecho anterior ao saldo inicial (ex.: cartão criado hoje com a
+        // dívida atual): a dívida nesse fecho é desconhecida, logo também o
+        // próximo pagamento. A UI pede um cartão com saldo inicial anterior ao
+        // fecho ou um acerto.
+        var hasPreviousStatement = previousCycle.End >= account.OpeningBalanceDate;
 
         // Grupo 6 — prestações ainda por faturar no último fecho, só de
         // compras que já estavam na dívida desse fecho (revisão profunda).
@@ -348,12 +358,12 @@ public static class AccountHandlers
             ToSettingsResponse(settings),
             InCurrency(statement.Available),
             ToCycleResponse(statement.CurrentCycle),
-            ToCycleResponse(statement.PreviousCycle),
-            InCurrency(statement.PreviousClosingDebt),
-            statement.NextPaymentDueDate,
-            InCurrency(statement.NextPaymentAmount),
+            hasPreviousStatement ? ToCycleResponse(statement.PreviousCycle) : null,
+            hasPreviousStatement ? InCurrency(statement.PreviousClosingDebt) : null,
+            hasPreviousStatement ? statement.NextPaymentDueDate : null,
+            hasPreviousStatement ? InCurrency(statement.NextPaymentAmount) : null,
             paymentAccountId,
-            InCurrency(statement.UnbilledInstallmentsAtPreviousClose));
+            hasPreviousStatement ? InCurrency(statement.UnbilledInstallmentsAtPreviousClose) : null);
     }
 
     /// <summary>
