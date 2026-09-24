@@ -264,7 +264,9 @@ public static class CsvImportHandlers
             // planeou): o preview pode estar desatualizado (achado I1).
             ImportTransferResolution? resolution = null;
             Account? target = null;
-            if (ruleResult?.TargetAccountId is { } targetId)
+            // Regra com alvo na própria conta não se aplica a esta linha (ver
+            // ImportPreviewBuilder): segue o caminho das linhas sem regra.
+            if (ruleResult?.TargetAccountId is { } targetId && targetId != account.Id)
             {
                 accountsById.TryGetValue(targetId, out target);
                 resolution = await ImportTransferResolver.ResolveAsync(

@@ -146,6 +146,33 @@ public sealed class CsvImportTransferEdgeTests : IClassFixture<IdentityIntegrati
         (await ListTransactionsAsync(s.Client)).Should().HaveCount(2);
     }
 
+    [Fact]
+    public async Task Rule_targeting_the_imported_account_still_recognises_the_recorded_leg()
+    {
+        // Grupo 8 (reconciliação real) — no extrato do cartão o pagamento
+        // aparece como ">PAGAMENTO CARTAO DE CREDITO": casa com a regra da
+        // conta, cujo alvo é o próprio cartão. Não pode virar receita normal.
+        var s = await SetupAsync("imp-edge-selfrule", cardRule: false);
+        await ImportAsync(s.Client, CheckingCsv, s.Checking, s.Profile);
+        var cardCsv = ActivoHeader + "\n"
+            + "11/09/2026;11/09/2026;>PAGAMENTO CARTAO DE CREDITO;450,00;\n"
+            + "18/09/2026;18/09/2026;COMPRA RESTAURANTE EXEMPLO;-35,50;\n";
+
+        var upload = await UploadAsync(s.Client, cardCsv, s.Card, s.Profile);
+        var payment = PreviewRows(upload).First();
+        payment.GetProperty("transferStatus").GetString().Should().Be("AlreadyRecorded");
+        payment.GetProperty("isDuplicate").GetBoolean().Should().BeTrue();
+
+        var result = await ConfirmAsync(s.Client, upload);
+
+        result.GetProperty("transfersAlreadyRecorded").GetInt32().Should().Be(1);
+        result.GetProperty("importedRows").GetInt32().Should().Be(1);
+        (await ListTransactionsAsync(s.Client, s.Card))
+            .Should().NotContain(t => t.GetProperty("kind").GetString() == "Regular"
+                && t.GetProperty("direction").GetString() == "Inflow");
+        (await CurrentBalanceAsync(s.Client, s.Card)).Should().Be(-500m + 450m - 35.50m);
+    }
+
     private static async Task<Guid> CreateMultiAccountProfileAsync(HttpClient client)
     {
         var response = await client.PostAsJsonAsync("/api/financial/import-profiles", new

@@ -110,7 +110,11 @@ public static class ImportPreviewBuilder
             var currency = row.Currency ?? account.Currency;
             resultByRow.TryGetValue(i, out var result);
 
-            if (result?.TargetAccountId is { } targetId)
+            // Uma regra cujo alvo é a própria conta da linha não se lhe aplica
+            // (ex.: ">PAGAMENTO CARTAO DE CREDITO" no extrato do cartão casa com
+            // a regra da conta à ordem): a linha segue como se não tivesse regra.
+            var selfTarget = result?.TargetAccountId == account.Id;
+            if (result?.TargetAccountId is { } targetId && !selfTarget)
             {
                 accountsById.TryGetValue(targetId, out var target);
                 var resolution = await ImportTransferResolver.ResolveAsync(
@@ -165,6 +169,17 @@ public static class ImportPreviewBuilder
             }
 
             pending.AddRegular(Guid.NewGuid(), account.Id, row.Direction, row.AbsAmount, currency, row.Date);
+
+            if (selfTarget)
+            {
+                rows[i] = rows[i] with
+                {
+                    TransferStatus = nameof(ImportTransferStatus.InvalidTarget),
+                    TransferTargetAccountId = account.Id,
+                    TransferTargetAccountName = account.Name,
+                };
+                continue;
+            }
 
             if (result?.NewCategoryId is not { } categoryId
                 || !byId.TryGetValue(categoryId, out var category)
