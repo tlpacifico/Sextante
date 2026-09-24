@@ -179,4 +179,20 @@ public sealed class TransactionTransferTests
 
         act.Should().Throw<TransactionNotRegularException>();
     }
+
+    [Fact]
+    public void New_transactions_are_not_statement_confirmed_until_marked()
+    {
+        // Revisão da phase (C1) — só uma perna que nenhum extrato da própria
+        // conta confirmou pode ser "já registada" por uma linha importada.
+        var leg = Transaction.CreateTransferLeg(
+            Guid.NewGuid(), Guid.NewGuid(), TransactionDirection.Inflow, DateTimeOffset.UtcNow.AddDays(-1),
+            Eur10, "Transferência", Tenant);
+
+        leg.StatementConfirmed.Should().BeFalse();
+
+        leg.MarkStatementConfirmed();
+
+        leg.StatementConfirmed.Should().BeTrue();
+    }
 }

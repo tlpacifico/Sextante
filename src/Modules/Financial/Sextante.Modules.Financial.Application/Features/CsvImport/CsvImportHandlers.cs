@@ -288,17 +288,30 @@ public static class CsvImportHandlers
                 if (resolution is { Status: ImportTransferStatus.AlreadyRecorded, TransactionId: { } legId }
                     && (createdById.GetValueOrDefault(legId) ?? await txRepo.GetByIdAsync(legId, ct)) is { } leg)
                 {
-                    if (DateOnly.FromDateTime(leg.OccurredAt.UtcDateTime) != row.Date)
+                    try
                     {
-                        leg.UpdateTransferLeg(leg.AccountId, occurredAt, leg.Amount, leg.Description);
+                        if (DateOnly.FromDateTime(leg.OccurredAt.UtcDateTime) != row.Date)
+                        {
+                            leg.UpdateTransferLeg(leg.AccountId, occurredAt, leg.Amount, leg.Description);
+                        }
+
+                        // C1 — este extrato confirmou a perna: não volta a
+                        // ser "já registada" por outra linha.
+                        leg.MarkStatementConfirmed();
                         if (!createdById.ContainsKey(leg.Id))
                         {
                             txRepo.Update(leg);
                             updated.Add(leg);
                         }
-                    }
 
-                    transfersAlreadyRecorded++;
+                        transfersAlreadyRecorded++;
+                    }
+                    catch (FinancialDomainException)
+                    {
+                        // Revisão da phase (I3) — ex.: data valor no futuro;
+                        // conta como linha com erro em vez de abortar o lote.
+                        errorRows++;
+                    }
                 }
 
                 continue;
@@ -339,6 +352,7 @@ public static class CsvImportHandlers
                         account.Id, transferId, row.Direction, occurredAt, money, row.Description,
                         tenant.TenantId, exchangeRate);
                     leg.MarkCategorizedByRule(ruleResult!.MatchedRuleId!.Value);
+                    leg.MarkStatementConfirmed();
 
                     if (resolution.Status == ImportTransferStatus.LinkExisting)
                     {
@@ -368,14 +382,17 @@ public static class CsvImportHandlers
                         created.Add(counterpartLeg);
                         createdById[counterpartLeg.Id] = counterpartLeg;
                         pending.AddTransferLeg(
-                            counterpartLeg.Id, target.Id, opposite, row.AbsAmount, currency, row.Date, account.Id);
+                            counterpartLeg.Id, target.Id, opposite, row.AbsAmount, currency, row.Date, account.Id,
+                            statementConfirmed: false);
                         transfersCreated++;
                     }
 
                     await txRepo.AddAsync(leg, ct);
                     created.Add(leg);
                     createdById[leg.Id] = leg;
-                    pending.AddTransferLeg(leg.Id, account.Id, row.Direction, row.AbsAmount, currency, row.Date, target!.Id);
+                    pending.AddTransferLeg(
+                        leg.Id, account.Id, row.Direction, row.AbsAmount, currency, row.Date, target!.Id,
+                        statementConfirmed: true);
                     imported++;
                     continue;
                 }
@@ -413,6 +430,7 @@ public static class CsvImportHandlers
                     tenant.TenantId,
                     exchangeRate);
 
+                tx.MarkStatementConfirmed();
                 if (fromRule)
                 {
                     tx.MarkCategorizedByRule(ruleResult!.MatchedRuleId!.Value);

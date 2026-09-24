@@ -12,14 +12,21 @@ public sealed class ImportPendingLegs
 {
     private readonly List<Entry> _entries = new();
 
+    /// <param name="statementConfirmed">
+    /// <c>true</c> para a perna da própria linha (veio deste extrato);
+    /// <c>false</c> para a contraperna criada na outra conta, que uma linha
+    /// dessa conta pode depois reconhecer como "já registada".
+    /// </param>
     public void AddTransferLeg(
         Guid id, Guid accountId, TransactionDirection direction, decimal amount, string currency, DateOnly date,
-        Guid counterpartAccountId)
-        => _entries.Add(new Entry(id, accountId, TransactionKind.Transfer, direction, amount, currency, date, counterpartAccountId));
+        Guid counterpartAccountId, bool statementConfirmed)
+        => _entries.Add(new Entry(
+            id, accountId, TransactionKind.Transfer, direction, amount, currency, date, counterpartAccountId, statementConfirmed));
 
+    /// <summary>Linha regular do lote — veio do extrato, por isso confirmada.</summary>
     public void AddRegular(
         Guid id, Guid accountId, TransactionDirection direction, decimal amount, string currency, DateOnly date)
-        => _entries.Add(new Entry(id, accountId, TransactionKind.Regular, direction, amount, currency, date, null));
+        => _entries.Add(new Entry(id, accountId, TransactionKind.Regular, direction, amount, currency, date, null, true));
 
     /// <summary>Uma regular do lote passou a perna (LinkExisting).</summary>
     public void MarkAsTransferLeg(Guid id, Guid counterpartAccountId)
@@ -45,7 +52,10 @@ public sealed class ImportPendingLegs
                 && e.Amount == amount
                 && e.Currency == currency
                 && e.Date >= from
-                && e.Date <= to)
+                && e.Date <= to
+                // Revisão da phase (C1): como na DB, só pernas por confirmar
+                // podem ser "já registadas".
+                && (kind != TransactionKind.Transfer || !e.StatementConfirmed))
             .Select(e => new TransferCandidate(e.Id, e.Date, e.CounterpartAccountId));
 
     private sealed record Entry(
@@ -56,5 +66,6 @@ public sealed class ImportPendingLegs
         decimal Amount,
         string Currency,
         DateOnly Date,
-        Guid? CounterpartAccountId);
+        Guid? CounterpartAccountId,
+        bool StatementConfirmed);
 }

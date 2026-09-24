@@ -169,6 +169,7 @@ public sealed class FinancialDbContext : DbContext
             b.Property(t => t.Kind).HasColumnName("kind").HasConversion<short>().IsRequired();
             b.Property(t => t.TransferId).HasColumnName("transfer_id");
             b.Property(t => t.OccurredAt).HasColumnName("occurred_at").IsRequired();
+            b.Property(t => t.StatementConfirmed).HasColumnName("statement_confirmed").IsRequired();
             b.OwnsOne(t => t.Amount, money =>
             {
                 money.Property(m => m.Amount)

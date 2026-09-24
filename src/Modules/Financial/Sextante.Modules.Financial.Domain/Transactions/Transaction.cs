@@ -55,6 +55,15 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
     public Guid? RecurringRuleId { get; private set; }
 
     /// <summary>
+    /// Phase 6.5 (revisão da phase, C1) — <c>true</c> quando a transação veio
+    /// do extrato da própria conta (import) ou uma linha importada a
+    /// confirmou. Uma perna só pode ser "já registada" por uma linha do
+    /// extrato enquanto nenhum extrato desta conta a confirmou (contrapernas
+    /// criadas automaticamente, transferências manuais).
+    /// </summary>
+    public bool StatementConfirmed { get; private set; }
+
+    /// <summary>
     /// Valor com sinal para somas de saldo: positivo à entrada, negativo à saída.
     /// </summary>
     public decimal SignedAmount
@@ -296,6 +305,8 @@ public sealed class Transaction : ITenantOwned, IAuditable, IFinancialAggregate
         EnsureTransfer();
         DeletedAt = DateTimeOffset.UtcNow;
     }
+
+    public void MarkStatementConfirmed() => StatementConfirmed = true;
 
     public void MarkCategorizedByRule(Guid ruleId)
     {

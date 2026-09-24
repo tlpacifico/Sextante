@@ -116,7 +116,7 @@ public sealed class ImportTransferResolverTests
         // do mesmo lote conta como "já registada".
         var pending = new ImportPendingLegs();
         var legId = Guid.NewGuid();
-        pending.AddTransferLeg(legId, _checking.Id, TransactionDirection.Outflow, 450m, "EUR", Date.AddDays(2), _card.Id);
+        pending.AddTransferLeg(legId, _checking.Id, TransactionDirection.Outflow, 450m, "EUR", Date.AddDays(2), _card.Id, statementConfirmed: false);
 
         var resolution = await ResolveAsync(_card, new StubTransferCounterpartQuery(), pending: pending);
 
@@ -158,6 +158,22 @@ public sealed class ImportTransferResolverTests
         var found = await ImportTransferResolver.FindRecordedLegAsync(
             _card, TransactionDirection.Inflow, 450m, "EUR", Date, new StubTransferCounterpartQuery(),
             new ImportPendingLegs(), new HashSet<Guid>(), CancellationToken.None);
+
+        found.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Own_leg_planned_earlier_in_the_batch_is_not_already_recorded()
+    {
+        // Revisão da phase (C1) — a perna que uma linha anterior deste extrato
+        // criou nesta conta já está confirmada: outra linha igual é outro movimento.
+        var pending = new ImportPendingLegs();
+        pending.AddTransferLeg(Guid.NewGuid(), _checking.Id, TransactionDirection.Outflow, 450m, "EUR", Date.AddDays(-2),
+            _card.Id, statementConfirmed: true);
+
+        var found = await ImportTransferResolver.FindRecordedLegAsync(
+            _checking, TransactionDirection.Outflow, 450m, "EUR", Date, new StubTransferCounterpartQuery(),
+            pending, new HashSet<Guid>(), CancellationToken.None);
 
         found.Should().BeNull();
     }

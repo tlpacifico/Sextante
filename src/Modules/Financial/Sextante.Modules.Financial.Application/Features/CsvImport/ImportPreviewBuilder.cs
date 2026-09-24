@@ -204,13 +204,15 @@ public static class ImportPreviewBuilder
         ImportPendingLegs pending, ParsedImportRow row, Account account, string currency, Account target,
         bool createCounterpart)
     {
-        pending.AddTransferLeg(Guid.NewGuid(), account.Id, row.Direction, row.AbsAmount, currency, row.Date, target.Id);
+        pending.AddTransferLeg(
+            Guid.NewGuid(), account.Id, row.Direction, row.AbsAmount, currency, row.Date, target.Id, statementConfirmed: true);
         if (createCounterpart)
         {
             var opposite = row.Direction == TransactionDirection.Outflow
                 ? TransactionDirection.Inflow
                 : TransactionDirection.Outflow;
-            pending.AddTransferLeg(Guid.NewGuid(), target.Id, opposite, row.AbsAmount, currency, row.Date, account.Id);
+            pending.AddTransferLeg(
+                Guid.NewGuid(), target.Id, opposite, row.AbsAmount, currency, row.Date, account.Id, statementConfirmed: false);
         }
     }
 }

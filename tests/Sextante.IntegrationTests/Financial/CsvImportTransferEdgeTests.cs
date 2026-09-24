@@ -173,6 +173,72 @@ public sealed class CsvImportTransferEdgeTests : IClassFixture<IdentityIntegrati
         (await CurrentBalanceAsync(s.Client, s.Card)).Should().Be(-500m + 450m - 35.50m);
     }
 
+    [Fact]
+    public async Task Same_amount_row_near_a_transfer_in_the_same_batch_is_still_imported()
+    {
+        // Revisão da phase (C1) — um levantamento de 50 € dois dias depois de
+        // uma transferência de 50 € para a poupança não é "já registado".
+        var s = await SetupAsync("imp-edge-c1-batch", cardRule: false);
+        var savings = await CreateAccountAsync(s.Client, "Poupança", type: 1);
+        await CreateTransferRuleAsync(s.Client, "TRF POUPANCA", savings, priority: 3);
+        var csv = ActivoHeader + "\n"
+            + "01/09/2026;01/09/2026;TRF POUPANCA;-50,00;950,00\n"
+            + "03/09/2026;03/09/2026;LEV ATM LISBOA;-50,00;900,00\n";
+
+        var upload = await UploadAsync(s.Client, csv, s.Checking, s.Profile);
+        PreviewRows(upload).Should().OnlyContain(r => !r.GetProperty("isDuplicate").GetBoolean());
+        var result = await ConfirmAsync(s.Client, upload);
+
+        result.GetProperty("importedRows").GetInt32().Should().Be(2);
+        result.GetProperty("transfersAlreadyRecorded").GetInt32().Should().Be(0);
+        (await CurrentBalanceAsync(s.Client, s.Checking)).Should().Be(1000m - 100m);
+        var leg = (await ListTransactionsAsync(s.Client, s.Checking)).Single(t => t.GetProperty("kind").GetString() == "Transfer");
+        DateOnly.FromDateTime(leg.GetProperty("occurredAt").GetDateTimeOffset().UtcDateTime).Should().Be(new DateOnly(2026, 9, 1));
+    }
+
+    [Fact]
+    public async Task Weekly_transfers_of_the_same_amount_are_all_imported()
+    {
+        // C1 — transferências semanais iguais, no mesmo lote e no lote seguinte.
+        var s = await SetupAsync("imp-edge-c1-weekly", cardRule: false);
+        var savings = await CreateAccountAsync(s.Client, "Poupança", type: 1);
+        await CreateTransferRuleAsync(s.Client, "TRF POUPANCA", savings, priority: 3);
+        var september = ActivoHeader + "\n"
+            + "01/09/2026;01/09/2026;TRF POUPANCA;-50,00;950,00\n"
+            + "08/09/2026;08/09/2026;TRF POUPANCA;-50,00;900,00\n";
+        var nextStatement = ActivoHeader + "\n"
+            + "15/09/2026;15/09/2026;TRF POUPANCA;-50,00;850,00\n";
+
+        var first = await ImportAsync(s.Client, september, s.Checking, s.Profile);
+        var second = await ImportAsync(s.Client, nextStatement, s.Checking, s.Profile);
+
+        first.GetProperty("transfersCreated").GetInt32().Should().Be(2);
+        second.GetProperty("transfersCreated").GetInt32().Should().Be(1);
+        second.GetProperty("transfersAlreadyRecorded").GetInt32().Should().Be(0);
+        (await CurrentBalanceAsync(s.Client, s.Checking)).Should().Be(1000m - 150m);
+        (await CurrentBalanceAsync(s.Client, savings)).Should().Be(150m);
+    }
+
+    [Fact]
+    public async Task Future_dated_recorded_row_is_an_error_row_not_a_failed_import()
+    {
+        // Revisão da phase (I3) — data valor futura numa linha "já registada".
+        var s = await SetupAsync("imp-edge-i3", cardRule: false);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var checkingCsv = ActivoHeader + "\n"
+            + $"{today.AddDays(-2):dd/MM/yyyy};{today.AddDays(-2):dd/MM/yyyy};VIS PAGAMENTO CARTAO DE CREDITO;-450,00;550,00\n";
+        await ImportAsync(s.Client, checkingCsv, s.Checking, s.Profile);
+        var cardCsv = ActivoHeader + "\n"
+            + $"{today.AddDays(2):dd/MM/yyyy};{today.AddDays(2):dd/MM/yyyy};>PAGAMENTO CARTAO DE CREDITO;450,00;\n"
+            + $"{today.AddDays(-1):dd/MM/yyyy};{today.AddDays(-1):dd/MM/yyyy};COMPRA LOJA EXEMPLO;-20,00;\n";
+
+        var result = await ImportAsync(s.Client, cardCsv, s.Card, s.Profile);
+
+        result.GetProperty("importedRows").GetInt32().Should().Be(1);
+        result.GetProperty("errorRows").GetInt32().Should().Be(1);
+        (await ListTransactionsAsync(s.Client, kind: "Transfer")).Should().HaveCount(2);
+    }
+
     private static async Task<Guid> CreateMultiAccountProfileAsync(HttpClient client)
     {
         var response = await client.PostAsJsonAsync("/api/financial/import-profiles", new

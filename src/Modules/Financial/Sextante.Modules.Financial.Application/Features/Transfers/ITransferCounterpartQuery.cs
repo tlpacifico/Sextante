@@ -14,7 +14,8 @@ public interface ITransferCounterpartQuery
     /// em [<paramref name="from"/>, <paramref name="to"/>].
     /// <paramref name="kind"/> = Regular → só as que ainda não têm TransferId
     /// (CounterpartAccountId = null). Transfer → pernas, com
-    /// CounterpartAccountId = conta da outra perna.
+    /// CounterpartAccountId = conta da outra perna, e só as que nenhum extrato
+    /// desta conta confirmou ainda (<see cref="Transaction.StatementConfirmed"/>).
     /// </summary>
     Task<IReadOnlyList<TransferCandidate>> FindAsync(
         Guid accountId,

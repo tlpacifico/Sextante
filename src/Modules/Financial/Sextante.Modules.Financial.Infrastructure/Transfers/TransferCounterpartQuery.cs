@@ -45,8 +45,10 @@ public sealed class TransferCounterpartQuery : ITransferCounterpartQuery
                 .ToList();
         }
 
+        // Revisão da phase (C1) — pernas já confirmadas por um extrato desta
+        // conta não são candidatas a "já registada".
         var legs = await (
-            from t1 in matching
+            from t1 in matching.Where(t => !t.StatementConfirmed)
             join t2 in _db.Transactions on t1.TransferId equals t2.TransferId
             where t1.Id != t2.Id
             select new { t1.Id, t1.OccurredAt, CounterpartAccountId = t2.AccountId })
