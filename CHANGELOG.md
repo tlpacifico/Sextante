@@ -1,5 +1,129 @@
 # Changelog
 
+## 2026-09-24
+
+- Vista do cartão sem extrato anterior quando o saldo inicial é posterior ao fecho
+- Editar uma transferência mantém a diferença de datas entre as pernas
+- Formatação de ImportPendingLegs
+- Import: "já registada" só casa com pernas por confirmar pelo extrato
+- Responsive audit da Phase 6.5
+- UI: correções do responsive audit da Phase 6.5
+- Registar a reconciliação com os extratos reais
+- Import: regra com alvo na própria conta não transforma o pagamento em receita
+- Testes de arquitetura das transferências
+- Escrever plano do grupo 8 (fecho da phase)
+
+## 2026-09-23
+
+- Corrigir achados da revisão profunda do grupo 7 (import de transferências)
+- Testes do grupo 7: formatação e multi-tenancy numa classe própria
+- UI: conta de destino e transferências no import, ação nas regras
+- Import: transferências por regra com ligação à contraperna existente
+- Import: conta de destino obrigatória, definições do preview e saldo inicial
+- Regras de transferência: contratos, endpoints e reaplicar
+- Migration: ação de transferência nas regras e conta no lote de importação
+- Domínio: regras com ação de transferência e matcher de contraperna
+- Escrever plano do grupo 7 (transferências na importação CSV)
+- Corrigir achados da revisão profunda do grupo 6 (prestações)
+- UI: planos de prestações no cartão e nas transações
+- Próximo pagamento do cartão desconta prestações por faturar
+- Planos de prestações: comandos, endpoints e testes
+- Migration: tabela de planos de prestações com RLS
+- Domínio: planos de prestações e calendário
+- Escrever plano do grupo 6 (compras em prestações)
+- Corrigir achados Important da revisão profunda do grupo 5 (cartão)
+- Corrigir testes dos CHECKs do cartão (coluna repetida no SET) e formatação
+- UI: definições do cartão e página do cartão de crédito
+- Definições de cartão no CRUD de conta e endpoint da vista do cartão
+- Migration: definições de cartão de crédito na conta
+- Domínio: calendário e cálculo do extrato do cartão
+- Domínio: definições de cartão de crédito na conta
+- Escrever plano do grupo 5 (definições e vista do cartão)
+- Corrigir achados Important da revisão final do grupo 4 (acerto de saldo)
+- UI de reconciliação de conta e acertos nas transações
+- Reconciliação de conta: comando, endpoint e testes
+- Domínio: fábrica de acerto de saldo e exceções de reconciliação
+- Escrever plano do grupo 4 (acerto de saldo)
+- Corrigir achados Important da revisão final do grupo 3 (transferências)
+- Devolver a conta contraparte logo na resposta de criar/atualizar/converter
+- Contratos, export e UI de transferências
+- Endpoints de transferências e validação de forma
+- Comandos de transferência: criar, atualizar, apagar e converter
+- Domínio: fábricas e guardas de pernas de transferência
+- Escrever plano do grupo 3 (transferências entre contas)
+- Corrigir no plano do grupo 2 a formatação de data que causava o bug crítico
+- Evita saldo nulo forçado em corrida de arquivamento de conta
+- Torna explícito o UTC no backfill de opening_balance_date
+- Rejeita mudança de tipo inválida e data do saldo inicial no futuro
+- Corrige data do saldo inicial enviada com deslocamento UTC
+- Saldo atual e data do saldo inicial na UI de contas
+- Saldo atual por conta, on-demand e por todos os tipos de transação
+- Migration: data do saldo inicial e saldo negativo restrito a cartão de crédito
+- Escrever plano do grupo 2 (saldo de conta, OpeningBalanceDate, dívida em cartão)
+- Conta ganha data do saldo inicial e aceita dívida inicial em cartão de crédito Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>
+- Transferências e acertos deixam de ser mutáveis por categorização
+- Mostrar "Sem categoria" na tabela de transações do dashboard
+- Recorrente com categoria arquivada mantém o sentido da categoria
+- Expor direção e tipo da transação na API e na UI
+- Totais, filtros, export e orçamentos pela direção e tipo da transação
+- Migration: direção, tipo e transfer_id nas transações, com backfill
+- Tornar direção e tipo explícitos na Transaction
+- Ajustar spec da Phase 6.5: transações regulares podem não ter categoria
+- Cobrir RLS por tabela e reaplicar regras com o repositório real
+- Alinhar spec da Phase 6.5 com a convenção 400 para regras de domínio
+- Normalizar Designer da migration de RLS para LF
+- Recusar arquivar conta com transações e publicar evento ao arquivar transação
+- Import publica eventos de criação e usa a moeda primária do tenant
+- Manter transações de categorias arquivadas nos totais e no export
+- Reaplicar regras em todas as transações e publicar eventos
+- Ativar RLS nas tabelas do import e semear perfil com tenant
+- Escrever ADR-014 (transferências e saldo de conta)
+- Inserir Phase 6.5 (transferências + cartão de crédito) no roadmap
+
+## 2026-09-22
+
+- Logs detalhados no passo de testes do CI e do deploy
+- Normalizar fins de linha mistos para LF (corrige dotnet format no CI)
+- Registar Coolify no backlog como gestao da VPS pos-MVP
+- Retirar IPs da VPS dos ficheiros versionados
+- Disparar deploy tambem na branch da Phase 6 (temporario)
+
+## 2026-09-21
+
+- Deploy na VPS partilhada + CD via GitHub Actions (Phase 6 - grupos 4 e 5)
+
+## 2026-09-01
+
+- Marcar no roadmap os itens da Phase 6 ja entregues
+- ADR-013 — CD automatico via GitHub Actions (Phase 6 - 5.1)
+- Script de backup por schema + runbook de restore (Phase 6 - grupo 3)
+- Email real via relay SMTP + banner de confirmacao (Phase 6 - grupo 2)
+- Export CSV das transacoes (Phase 6 - 1.2 a 1.6)
+- Tornar asserção de NextOccurrence independente da data actual
+- Registar recurring jobs via IRecurringJobManager do host
+- Aplicar dotnet format a testes com formatacao pendente
+- Sincronizar package-lock com package.json
+- Aplicar filtros de tipo, descricao e valor no servidor (Phase 6 - 1.1)
+- Corrigir NU1903: pinar Microsoft.OpenApi 2.12.2 e SSH.NET 2026.0.0
+
+## 2026-08-26
+
+- Scaffold Phase 6 feature spec (polish + deploy + dogfooding)
+
+## 2026-05-04
+
+- Mark phase 5.5 as complete
+- Melhorar contraste do tema escuro em tabelas, inputs e cards; corrigir botão hamburger em desktop
+- feat: redesign auth shell layout and styles for improved user experience
+
+## 2026-05-03
+
+- Corrigir compilação Angular, GlobalExceptionHandler, Sentry v10 types e testes
+- Implementar Phase 5.5 — observability, Sentry, design system, UX e correcções
+- Scaffold Phase 5.5 feature spec (refinement)
+- Implement authentication, TLS, and recurring job configurations; update launch settings and add proxy configuration
+- Adicionar Phase 5.5 (Refinement) ao roadmap
+
 ## 2026-05-02
 
 - Phase 5b — Budgets + alertas + metas em moeda específica. Fecha bullets 5–8 da Phase 5 do roadmap; gateway para Phase 6 (dogfooding) que exige ≥3 metas com progresso
@@ -32,6 +156,7 @@
 - Mark phase 5b (Budgets) as complete
 - Marcar Phase 5a como completa no roadmap
 - Resolver findings da validação da Phase 5a
+- Resolver gap multi-tenancy em subscribers Wolverine (Phase 5b)
 
 ## 2026-05-02
 

@@ -194,15 +194,15 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 > cartão contava duas vezes como despesa e nenhum saldo era
 > verificável contra o banco.
 
-- [ ] **ADR-014** (transferências e saldo de conta) + dívida técnica descoberta: RLS em falta em `categorization_rules` / `import_profiles` / `import_batches`, reaplicar regras limitado a 100, import sem eventos, totais a perder categorias arquivadas.
-- [ ] `Transaction` com direção explícita (`Inflow`/`Outflow`) e tipo (`Regular`/`Transfer`/`Adjustment`); categoria nullable; totais, donut e orçamentos só com `Regular`.
-- [ ] Saldo atual por conta (e saldo à data) + `OpeningBalanceDate`; saldo inicial negativo em cartões de crédito.
-- [ ] Transferências entre contas (par de transações ligadas), incluindo multi-moeda e "marcar como transferência".
-- [ ] Acerto de saldo (reconciliação com o banco) fora dos totais.
-- [ ] Definições e vista do cartão: limite, dia de fecho, dia de pagamento, ciclo corrente, próximo pagamento.
-- [ ] Compras em prestações (`InstallmentPlan`) com calendário e previsão de pagamento.
-- [ ] Import: conta escolhida no wizard; regras com ação "transferência para conta X"; ligação à contraperna já existente (sem duplicar); linhas anteriores ao saldo inicial excluídas; dedup por conta.
-- [ ] **Dogfooding 1 mês**: utilizador importa extrato bancário do último mês e categoriza tudo; recorrentes do mês configuradas; pelo menos 3 metas a mostrar progresso; nenhum reabrir de Excel ou outra app financeira durante 1 mês.
+- [x] **ADR-014** (transferências e saldo de conta) + dívida técnica descoberta: RLS em falta em `categorization_rules` / `import_profiles` / `import_batches`, reaplicar regras limitado a 100, import sem eventos, totais a perder categorias arquivadas.
+- [x] `Transaction` com direção explícita (`Inflow`/`Outflow`) e tipo (`Regular`/`Transfer`/`Adjustment`); categoria nullable; totais, donut e orçamentos só com `Regular`.
+- [x] Saldo atual por conta (e saldo à data) + `OpeningBalanceDate`; saldo inicial negativo em cartões de crédito.
+- [x] Transferências entre contas (par de transações ligadas), incluindo multi-moeda e "marcar como transferência".
+- [x] Acerto de saldo (reconciliação com o banco) fora dos totais.
+- [x] Definições e vista do cartão: limite, dia de fecho, dia de pagamento, ciclo corrente, próximo pagamento.
+- [x] Compras em prestações (`InstallmentPlan`) com calendário e previsão de pagamento.
+- [x] Import: conta escolhida no wizard; regras com ação "transferência para conta X"; ligação à contraperna já existente (sem duplicar); linhas anteriores ao saldo inicial excluídas; dedup por conta.
+- [ ] **Dogfooding 1 mês**: utilizador importa extrato bancário do último mês e categoriza tudo; recorrentes do mês configuradas; pelo menos 3 metas a mostrar progresso; nenhum reabrir de Excel ou outra app financeira durante 1 mês. _Arranque previsto após o merge da Phase 6.5 (2026-09-24); falta fechar o acerto do cartão com o saldo real (validation 5)._
 
 **Saída**: saldos da conta à ordem e do cartão batem ao cêntimo com o banco; pagamento do cartão não aparece como despesa; critério de Done do MVP cumprido (`mission.md` §6).
 
