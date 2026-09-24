@@ -42,6 +42,10 @@ public sealed class ImportPendingLegs
         }
     }
 
+    /// <summary>
+    /// Revisão da phase (C1): como na DB, só pernas Transfer por confirmar pelo
+    /// extrato podem ser "já registadas".
+    /// </summary>
     public IEnumerable<TransferCandidate> Find(
         Guid accountId, TransactionKind kind, TransactionDirection direction, decimal amount, string currency,
         DateOnly from, DateOnly to)
@@ -53,8 +57,6 @@ public sealed class ImportPendingLegs
                 && e.Currency == currency
                 && e.Date >= from
                 && e.Date <= to
-                // Revisão da phase (C1): como na DB, só pernas por confirmar
-                // podem ser "já registadas".
                 && (kind != TransactionKind.Transfer || !e.StatementConfirmed))
             .Select(e => new TransferCandidate(e.Id, e.Date, e.CounterpartAccountId));
 
