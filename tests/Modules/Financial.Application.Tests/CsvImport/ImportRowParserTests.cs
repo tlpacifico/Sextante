@@ -95,4 +95,17 @@ public sealed class ImportRowParserTests
         resolver.TryGetDate(["11/09/2026", "desc", "10,00", ""], out var date).Should().BeTrue();
         date.Should().Be("desc");
     }
+
+    [Fact]
+    public void Ambiguous_date_with_wrong_format_is_read_day_first()
+    {
+        // Revisão do dogfooding — o wizard pré-seleciona AAAA-MM-DD; um extrato
+        // português com 12/08/2026 não pode virar 8 de dezembro.
+        var settings = Settings with { DateFormat = "yyyy-MM-dd" };
+        var resolver = ImportRowParser.ResolverFor(Headers, settings, profile: null);
+
+        var row = ImportRowParser.Parse(["12/08/2026", "PAGAMENTO", "-10,00", ""], resolver, settings, out _);
+
+        row!.Date.Should().Be(new DateOnly(2026, 8, 12));
+    }
 }

@@ -106,6 +106,7 @@ public static class CsvImportHandlers
     public static async Task<UploadCsvResponse?> Handle(
         UpdatePreviewCommand command,
         IImportBatchRepository batchRepo,
+        IImportProfileRepository profileRepo,
         IAccountRepository accountRepo,
         ICategoryRepository categoryRepo,
         IDuplicateDetector duplicateDetector,
@@ -124,8 +125,18 @@ public static class CsvImportHandlers
         var storedHeaders = previewWrapper?.Headers ?? new List<string>();
 
         // Q3 — as definições escolhidas no passo 2 passam a ser as do lote.
-        var settings = new ImportParseSettings(command.ColumnMappings, command.DateFormat, command.DecimalSeparator);
-        var resolver = ImportRowParser.ResolverFor(storedHeaders, settings, profile: null);
+        // Sem nenhuma coluna mapeada (o passo 2 começa todo em "Ignorar" quando
+        // não há perfil), mantém-se o mapeamento do upload — perfil ou
+        // auto-deteção — em vez de o apagar.
+        var hasMapping = command.ColumnMappings.Any(m => !string.IsNullOrWhiteSpace(m.TransactionField));
+        var settings = new ImportParseSettings(
+            hasMapping ? command.ColumnMappings : previewWrapper?.Settings?.ColumnMappings,
+            command.DateFormat,
+            command.DecimalSeparator);
+        ImportProfile? profile = null;
+        if (!hasMapping && batch.ImportProfileId is not null)
+            profile = await profileRepo.GetByIdAsync(batch.ImportProfileId.Value, ct);
+        var resolver = ImportRowParser.ResolverFor(storedHeaders, settings, profile);
 
         var rows = await ImportPreviewBuilder.BuildAsync(
             storedRows.Select(r => r.Values).ToList(),
