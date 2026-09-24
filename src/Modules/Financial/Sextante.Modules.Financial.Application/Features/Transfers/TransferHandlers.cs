@@ -101,6 +101,12 @@ public static class TransferHandlers
         var outLeg = legs.Single(l => l.Direction == TransactionDirection.Outflow);
         var inLeg = legs.Single(l => l.Direction == TransactionDirection.Inflow);
 
+        // Revisão da phase (I2) — o import deixa cada perna na data do seu
+        // extrato (a entrada no cartão pode ser dias depois da saída da conta).
+        // A data do comando é a da perna de saída; a de entrada desloca-se o
+        // mesmo, para não se perder a diferença entre as duas.
+        var inOccurredAt = inLeg.OccurredAt + (command.OccurredAt - outLeg.OccurredAt);
+
         // Achado da revisão final do grupo 3: mudar a conta de uma perna pode
         // mudar a moeda — recalcular sempre o câmbio (como Create já faz),
         // nunca deixar ExchangeRateToPrimary congelado na moeda antiga.
@@ -108,7 +114,7 @@ public static class TransferHandlers
         var outSnapshot = await exchangeRates.ResolveAsync(
             fromAccount.Currency, primaryCurrency, command.OccurredAt, cancellationToken);
         var inSnapshot = await exchangeRates.ResolveAsync(
-            toAccount.Currency, primaryCurrency, command.OccurredAt, cancellationToken);
+            toAccount.Currency, primaryCurrency, inOccurredAt, cancellationToken);
 
         outLeg.UpdateTransferLeg(
             fromAccount.Id,
@@ -119,7 +125,7 @@ public static class TransferHandlers
 
         inLeg.UpdateTransferLeg(
             toAccount.Id,
-            command.OccurredAt,
+            inOccurredAt,
             new Money(amountIn, toAccount.Currency),
             command.Description,
             inSnapshot);

@@ -204,6 +204,68 @@ public sealed class TransferConversionTests : IClassFixture<IdentityIntegrationF
         convertResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task Updating_a_transfer_keeps_the_gap_between_leg_dates()
+    {
+        // Revisão da phase (I2) — o import deixa cada perna na data do seu
+        // extrato (ex.: conta 11/09, cartão 14/09). Editar a transferência não
+        // pode pôr as duas na mesma data.
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "xfer-update-gap");
+        var accountA = await CreateAccountAsync(client);
+        var accountB = await CreateAccountAsync(client);
+        var expenseCategory = await CreateCategoryAsync(client, "Diversos", kind: 0);
+        var incomeCategory = await CreateCategoryAsync(client, "Diversos In", kind: 1);
+        var outDate = DateTimeOffset.UtcNow.Date.AddDays(-10);
+        var expenseId = await CreateAsync(client, "/api/financial/transactions", new
+        {
+            accountId = accountA,
+            categoryId = expenseCategory,
+            occurredAt = new DateTimeOffset(outDate, TimeSpan.Zero),
+            amount = 100m,
+            currency = (string?)null,
+            description = "saída A",
+            tags = (string[]?)null,
+        });
+        var incomeId = await CreateAsync(client, "/api/financial/transactions", new
+        {
+            accountId = accountB,
+            categoryId = incomeCategory,
+            occurredAt = new DateTimeOffset(outDate.AddDays(3), TimeSpan.Zero),
+            amount = 100m,
+            currency = (string?)null,
+            description = "entrada B",
+            tags = (string[]?)null,
+        });
+        var convert = await client.PostAsJsonAsync(
+            $"/api/financial/transactions/{expenseId}/convert-to-transfer",
+            new { counterpartAccountId = accountB, counterpartTransactionId = incomeId });
+        convert.EnsureSuccessStatusCode();
+        var transfer = (await convert.Content.ReadFromJsonAsync<TransferRow>())!;
+
+        async Task<TransferRow> PutAsync(DateTimeOffset occurredAt, string description)
+        {
+            var put = await client.PutAsJsonAsync($"/api/financial/transfers/{transfer.TransferId}", new
+            {
+                fromAccountId = accountA,
+                toAccountId = accountB,
+                occurredAt,
+                amountOut = 100m,
+                amountIn = (decimal?)null,
+                description,
+            });
+            put.EnsureSuccessStatusCode();
+            return (await put.Content.ReadFromJsonAsync<TransferRow>())!;
+        }
+
+        var sameDate = await PutAsync(new DateTimeOffset(outDate, TimeSpan.Zero), "só a descrição");
+        sameDate.OutLeg.OccurredAt.UtcDateTime.Date.Should().Be(outDate);
+        sameDate.InLeg.OccurredAt.UtcDateTime.Date.Should().Be(outDate.AddDays(3));
+
+        var moved = await PutAsync(new DateTimeOffset(outDate.AddDays(1), TimeSpan.Zero), "um dia depois");
+        moved.OutLeg.OccurredAt.UtcDateTime.Date.Should().Be(outDate.AddDays(1));
+        moved.InLeg.OccurredAt.UtcDateTime.Date.Should().Be(outDate.AddDays(4));
+    }
+
     private static Task<Guid> CreateAccountAsync(HttpClient client, string currency = "EUR", decimal openingBalanceAmount = 0m)
         => CreateAsync(client, "/api/financial/accounts", new
         {
@@ -249,6 +311,7 @@ public sealed class TransferConversionTests : IClassFixture<IdentityIntegrationF
     private sealed record TransactionRow(
         Guid Id,
         Guid AccountId,
+        DateTimeOffset OccurredAt,
         Guid? CategoryId,
         MoneyValue Amount,
         string? Description,
