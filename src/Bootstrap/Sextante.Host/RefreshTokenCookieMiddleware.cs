@@ -21,7 +21,7 @@ namespace Sextante.Host;
 /// passa a depender exclusivamente do cookie.
 ///
 /// Phase 5.5 — suporte a "Manter-me ligado" (extended session):
-/// lê <c>extendedSession</c> do body do login para decidir o <c>Max-Age</c>
+/// lê <c>extendedSession</c> do body do login e do refresh para decidir o <c>Max-Age</c>
 /// do cookie (default 7 dias vs 30 dias estendido).
 /// </remarks>
 internal static class RefreshTokenCookieMiddleware
@@ -47,19 +47,17 @@ internal static class RefreshTokenCookieMiddleware
             var path = context.Request.Path;
 
             if (HttpMethods.IsPost(context.Request.Method)
-                && path.Equals(RefreshPath, StringComparison.OrdinalIgnoreCase))
-            {
-                await EnsureRefreshBodyAsync(context);
-            }
-
-            if (HttpMethods.IsPost(context.Request.Method)
                 && (path.Equals(LoginPath, StringComparison.OrdinalIgnoreCase)
                     || path.Equals(RefreshPath, StringComparison.OrdinalIgnoreCase)))
             {
-                var isExtended = false;
-                if (path.Equals(LoginPath, StringComparison.OrdinalIgnoreCase))
+                // Lido antes de EnsureRefreshBodyAsync, que substitui o body do
+                // refresh. O frontend reenvia a flag em cada refresh para o
+                // cookie renovado manter o Max-Age estendido.
+                var isExtended = await DetectExtendedSessionAsync(context);
+
+                if (path.Equals(RefreshPath, StringComparison.OrdinalIgnoreCase))
                 {
-                    isExtended = await DetectExtendedSessionAsync(context);
+                    await EnsureRefreshBodyAsync(context);
                 }
 
                 await CaptureAndForwardAsync(context, next, emitCookieOnSuccess: true, isExtended);

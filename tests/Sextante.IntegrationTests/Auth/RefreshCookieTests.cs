@@ -81,6 +81,29 @@ public sealed class RefreshCookieTests : IClassFixture<IdentityIntegrationFixtur
             "refresh deve renovar também o cookie para roll forward do refresh token.");
     }
 
+    [Theory]
+    [InlineData(true, "max-age=2592000")]
+    [InlineData(false, "max-age=604800")]
+    public async Task Refresh_keeps_cookie_lifetime_from_extended_session_flag(bool extended, string expectedMaxAge)
+    {
+        var (client, refreshCookie) = await SignupAndLogin($"refresh-ext-{extended}".ToLowerInvariant());
+
+        using var refreshRequest = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh")
+        {
+            Content = JsonContent.Create(new { extendedSession = extended }),
+        };
+        refreshRequest.Headers.Add("Cookie", $"{CookieName}={refreshCookie}");
+
+        var refreshResponse = await client.SendAsync(refreshRequest);
+        refreshResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var renewed = refreshResponse.Headers.GetValues("Set-Cookie")
+            .First(c => c.StartsWith($"{CookieName}=", StringComparison.OrdinalIgnoreCase))
+            .ToLowerInvariant();
+        renewed.Should().Contain(expectedMaxAge,
+            "o refresh tem de manter o lifetime escolhido no login (\"Manter-me ligado\").");
+    }
+
     [Fact]
     public async Task Refresh_with_invalid_cookie_returns_401()
     {

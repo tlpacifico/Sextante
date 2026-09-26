@@ -177,6 +177,44 @@ describe('AuthService', () => {
     expect(after.tenantName).toBe(before!.tenantName, 'tenantName kept');
   });
 
+  it('refresh re-sends the extended-session flag so the cookie keeps its lifetime', async () => {
+    localStorage.setItem('sextante.extended-session', 'true');
+    try {
+      const promise = service.refresh();
+      const req = httpMock.expectOne('/api/auth/refresh');
+      expect(req.request.body).toEqual({ extendedSession: true });
+      req.flush({
+        tokenType: 'Bearer',
+        accessToken: 'access-ext',
+        expiresIn: 900,
+        refreshToken: 'refresh-ext',
+      });
+      await waitForMicrotasks();
+      httpMock.expectOne('/api/auth/me').flush({
+        userId: 'u', email: 'e@x.com', emailConfirmed: true,
+        tenantId: 't', tenantName: 'T', tenantRole: 'Owner',
+      });
+      await promise;
+      expect(localStorage.getItem('sextante.extended-session')).toBe('true');
+    } finally {
+      localStorage.removeItem('sextante.access');
+      localStorage.removeItem('sextante.refresh');
+      localStorage.removeItem('sextante.extended-session');
+    }
+  });
+
+  it('transient refresh error keeps the stored session flag', async () => {
+    localStorage.setItem('sextante.extended-session', 'true');
+    try {
+      const promise = service.refresh();
+      httpMock.expectOne('/api/auth/refresh').flush(null, { status: 502, statusText: 'Bad Gateway' });
+      await expectAsync(promise).toBeRejected();
+      expect(localStorage.getItem('sextante.extended-session')).toBe('true');
+    } finally {
+      localStorage.removeItem('sextante.extended-session');
+    }
+  });
+
   it('refresh storm: 5 concurrent calls produce a single HTTP request', async () => {
     await primeSession(service, httpMock);
 
