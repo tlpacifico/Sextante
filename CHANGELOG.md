@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-26
+
+- "Manter-me ligado": sessão sobrevive aos deploys
+- Transações: selecionar todas e recategorizar em massa sobre a lista completa
+
 ## 2026-09-24
 
 - Vista do cartão sem extrato anterior quando o saldo inicial é posterior ao fecho
@@ -12,6 +17,8 @@
 - Import: regra com alvo na própria conta não transforma o pagamento em receita
 - Testes de arquitetura das transferências
 - Escrever plano do grupo 8 (fecho da phase)
+- Mark phase 6.5 as complete
+- Import: passo 2 sem mapeamento mantém a auto-deteção; datas dia/mês primeiro
 
 ## 2026-09-23
 
