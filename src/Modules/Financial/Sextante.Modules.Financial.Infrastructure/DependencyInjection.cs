@@ -91,6 +91,7 @@ public static class DependencyInjection
         services.AddScoped<IImportBatchRepository, ImportBatchRepository>();
         services.AddScoped<ICsvParser, CsvParser>();
         services.AddSingleton<IStatementConverter, ActivoBankAccountXlsxConverter>();
+        services.AddSingleton<IStatementConverter, ActivoBankCardPdfConverter>();
         services.AddScoped<IDuplicateDetector, DuplicateDetector>();
         services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();
 
