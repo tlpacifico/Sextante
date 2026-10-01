@@ -11,6 +11,8 @@ using Sextante.Modules.Financial.Domain.Transactions;
 using Sextante.Modules.Financial.Domain.RecurringRules;
 using Sextante.Modules.Financial.Application.Common;
 using Sextante.Modules.Financial.Application.CsvImport;
+using Sextante.Modules.Financial.Application.StatementConversion;
+using Sextante.Modules.Financial.Infrastructure.StatementConversion;
 using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.ExchangeRates;
 using Sextante.Modules.Financial.Application.Features.Budgets;
@@ -88,6 +90,7 @@ public static class DependencyInjection
         services.AddScoped<IImportProfileRepository, ImportProfileRepository>();
         services.AddScoped<IImportBatchRepository, ImportBatchRepository>();
         services.AddScoped<ICsvParser, CsvParser>();
+        services.AddSingleton<IStatementConverter, ActivoBankAccountXlsxConverter>();
         services.AddScoped<IDuplicateDetector, DuplicateDetector>();
         services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();
 
