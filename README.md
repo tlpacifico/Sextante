@@ -61,6 +61,7 @@ O sistema **não** tenta ser:
 - CRUD de **categorias** (1 nível, com seed no signup, ícone+cor+isExpense/isIncome, "arquivar" em vez de eliminar).
 - CRUD de **contas** e CRUD manual de **transações**.
 - **Importação CSV** com `ImportProfile` reutilizável por banco/cartão + deduplicação (heurística data+valor+descrição normalizada) + pré-visualização.
+- **Importação de extratos** XLSX (conta à ordem ActivoBank), PDF (cartão de crédito ActivoBank) e JSON (Coverflex), validados contra os números do próprio banco, com corte de overlap — ver [`docs/importacao-extratos.md`](docs/importacao-extratos.md).
 - **Regras de categorização** (Contains/Equals/StartsWith) com ordem de prioridade e re-execução sobre transações existentes.
 - **Recorrentes** (Daily/Weekly/Monthly/Yearly) com Hangfire, preview de futuras, edição "só futuras vs todas pendentes".
 - **Metas** mensais por categoria com alertas em 80% e 100%.

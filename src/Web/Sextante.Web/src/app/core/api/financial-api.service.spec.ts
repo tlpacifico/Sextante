@@ -177,6 +177,23 @@ describe('FinancialApiService', () => {
     await promise;
   });
 
+  it('uploadCsv also uploads statements (xlsx/pdf/json) and exposes the statement summary', async () => {
+    const file = new File(['x'], 'mov.xlsx');
+    const promise = service.uploadCsv(file, 'acc-1');
+    const req = httpMock.expectOne('/api/financial/imports/upload?accountId=acc-1');
+    req.flush({
+      batchId: 'b1', headers: [], previewRows: [], totalRowCount: 0, truncated: false,
+      detectedDelimiter: ';', detectedHasHeader: true, errors: [],
+      statement: {
+        format: 'ActivoBankAccountXlsx', currency: 'EUR', periodStart: '2026-09-01', periodEnd: '2026-10-01',
+        balanceBefore: 884.61, balanceAfter: 1216.36, checks: [], rowsTrimmed: 0, pendingIgnored: 0, cancelledIgnored: 0,
+      },
+    });
+    const response = await promise;
+    expect(response.statement?.format).toBe('ActivoBankAccountXlsx');
+    expect(response.statement?.balanceAfter).toBe(1216.36);
+  });
+
   it('confirmImport POSTs includeDuplicates list', async () => {
     const promise = service.confirmImport('batch-1', ['tx-1', 'tx-2']);
     const req = httpMock.expectOne('/api/financial/imports/batch-1/confirm');

@@ -32,8 +32,19 @@ import {
   TRANSACTION_FIELD_LABELS,
 } from '../../../core/api/financial.types';
 import { FinancialStore } from '../state/financial.store';
+import { StatementValidationCardComponent } from '../components/statement-validation-card.component';
 
 type WizardStep = 1 | 2 | 3 | 4;
+
+/** Phase 6.6 — CSV continua com mapeamento; XLSX/PDF/JSON são convertidos e validados no backend. */
+const CSV_EXTENSION = '.csv';
+const STATEMENT_EXTENSIONS = ['.xlsx', '.pdf', '.json'];
+const ACCEPTED_EXTENSIONS = [CSV_EXTENSION, ...STATEMENT_EXTENSIONS];
+
+function hasExtension(fileName: string, extensions: string[]): boolean {
+  const name = fileName.toLowerCase();
+  return extensions.some(ext => name.endsWith(ext));
+}
 
 const DELIMITER_OPTIONS = [
   { value: ',', label: 'Vírgula (,)' },
@@ -70,6 +81,7 @@ const DECIMAL_SEPARATOR_OPTIONS = [
     TagModule,
     ToastModule,
     StepsModule,
+    StatementValidationCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [MessageService],
@@ -78,7 +90,7 @@ const DECIMAL_SEPARATOR_OPTIONS = [
       <h1 class="text-xl md:text-2xl font-semibold mb-6">Nova importação</h1>
 
       <div class="mb-8">
-        <p-steps [model]="steps()" [activeIndex]="activeStep() - 1" [readonly]="true"></p-steps>
+        <p-steps [model]="steps()" [activeIndex]="stepIndex()" [readonly]="true"></p-steps>
       </div>
 
       <!-- Step 1 – Upload -->
@@ -103,6 +115,7 @@ const DECIMAL_SEPARATOR_OPTIONS = [
               </small>
             </div>
 
+            @if (!isStatementFile()) {
             <div class="flex flex-col gap-1">
               <label for="wiz-profile">Perfil de importação (opcional)</label>
               <p-select
@@ -116,6 +129,7 @@ const DECIMAL_SEPARATOR_OPTIONS = [
                 [showClear]="true"
               ></p-select>
             </div>
+            }
 
             <div
               class="border-2 border-dashed border-[var(--p-surface-300)] dark:border-[var(--p-surface-600)]
@@ -127,15 +141,15 @@ const DECIMAL_SEPARATOR_OPTIONS = [
               (drop)="onDrop($event)"
               (click)="fileInput.click()"
             >
-              <input #fileInput type="file" accept=".csv" class="hidden" (change)="onFileSelected($event)" />
+              <input #fileInput type="file" accept=".csv,.xlsx,.pdf,.json" class="hidden" (change)="onFileSelected($event)" />
               @if (!selectedFile()) {
                 <div class="flex flex-col items-center gap-3">
                   <i class="pi pi-file-import text-3xl text-[var(--p-text-muted-color)]"></i>
                   <span class="text-[var(--p-text-muted-color)]">
-                    Arraste um ficheiro CSV ou clique para selecionar
+                    Arraste um ficheiro ou clique para selecionar
                   </span>
                   <span class="text-xs text-[var(--p-text-muted-color)]">
-                    Formatos aceites: CSV (delimitado por vírgula, ponto-e-vírgula, tab ou pipe)
+                    Formatos aceites: CSV, XLSX da conta à ordem, PDF do cartão de crédito ou JSON da Coverflex
                   </span>
                 </div>
               } @else {
@@ -168,6 +182,18 @@ const DECIMAL_SEPARATOR_OPTIONS = [
               ></p-button>
             </div>
           </div>
+
+          @if (uploadError(); as message) {
+            <div
+              role="alert"
+              class="mt-4 p-3 rounded border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950
+                     text-sm text-red-700 dark:text-red-300 flex items-start gap-2 break-words"
+              data-testid="upload-error"
+            >
+              <i class="pi pi-exclamation-triangle mt-0.5" aria-hidden="true"></i>
+              <span class="min-w-0">{{ message }}</span>
+            </div>
+          }
 
           @if (uploadResponse()?.errors?.length) {
             <div class="mt-4 p-3 rounded border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950">
@@ -297,7 +323,18 @@ const DECIMAL_SEPARATOR_OPTIONS = [
       <!-- Step 3 – Preview + Confirm -->
       @if (activeStep() === 3 && uploadResponse(); as response) {
         <div>
-          <h2 class="text-lg font-medium mb-4">3. Confirmar importação</h2>
+          <h2 class="text-lg font-medium mb-4">{{ isStatementFlow() ? '2. Confirmar importação' : '3. Confirmar importação' }}</h2>
+
+          @if (response.statement; as statement) {
+            <sxt-statement-validation-card [statement]="statement"></sxt-statement-validation-card>
+          }
+
+          @if (isStatementFlow() && response.totalRowCount === 0) {
+            <div class="mb-4 p-3 rounded border border-[var(--p-surface-300)] dark:border-[var(--p-surface-700)] text-sm" data-testid="nothing-new">
+              <i class="pi pi-info-circle mr-1" aria-hidden="true"></i>
+              Não há linhas novas: todas as linhas deste extrato já estão importadas.
+            </div>
+          }
 
           <div class="flex flex-wrap gap-4 mb-4 text-sm">
             <div class="px-3 py-2 rounded bg-[var(--p-surface-100)] dark:bg-[var(--p-surface-800)]">
@@ -419,12 +456,12 @@ const DECIMAL_SEPARATOR_OPTIONS = [
               severity="secondary"
               [text]="true"
               type="button"
-              (onClick)="goToStep(2)"
+              (onClick)="goToStep(isStatementFlow() ? 1 : 2)"
             ></p-button>
             <p-button
               label="Confirmar importação"
               icon="pi pi-check"
-              [disabled]="confirming()"
+              [disabled]="confirming() || (isStatementFlow() && response.totalRowCount === 0)"
               [loading]="confirming()"
               (onClick)="confirmImport()"
             ></p-button>
@@ -521,7 +558,17 @@ export class ImportWizardPage implements OnInit {
   protected readonly uploading = signal(false);
 
   protected readonly uploadResponse = signal<UploadCsvResponse | null>(null);
+  protected readonly uploadError = signal<string | null>(null);
   protected readonly activeStep = signal<WizardStep>(1);
+
+  /** O ficheiro escolhido é um extrato (XLSX/PDF/JSON): converte-se no backend, sem perfil. */
+  protected readonly isStatementFile = computed(() => {
+    const file = this.selectedFile();
+    return !!file && hasExtension(file.name, STATEMENT_EXTENSIONS);
+  });
+
+  /** A resposta trouxe `statement`: o passo de mapeamento não existe (D9). */
+  protected readonly isStatementFlow = computed(() => !!this.uploadResponse()?.statement);
 
   protected readonly updating = signal(false);
   protected readonly confirming = signal(false);
@@ -576,12 +623,14 @@ export class ImportWizardPage implements OnInit {
     return entries;
   };
 
-  protected readonly steps = (): MenuItem[] => [
-    { label: 'Ficheiro' },
-    { label: 'Mapeamento' },
-    { label: 'Confirmação' },
-    { label: 'Resultado' },
-  ];
+  protected readonly steps = computed((): MenuItem[] => this.isStatementFlow()
+    ? [{ label: 'Ficheiro' }, { label: 'Confirmação' }, { label: 'Resultado' }]
+    : [{ label: 'Ficheiro' }, { label: 'Mapeamento' }, { label: 'Confirmação' }, { label: 'Resultado' }]);
+
+  protected readonly stepIndex = computed(() => {
+    const step = this.activeStep();
+    return this.isStatementFlow() && step > 2 ? step - 2 : step - 1;
+  });
 
   protected readonly uploadForm = this.fb.nonNullable.group({
     accountId: ['', Validators.required],
@@ -652,16 +701,22 @@ export class ImportWizardPage implements OnInit {
   }
 
   private setFile(file: File): void {
-    if (!file.name.endsWith('.csv')) {
-      this.toast.add({ severity: 'warn', summary: 'Formato', detail: 'Selecione um ficheiro CSV.' });
+    if (!hasExtension(file.name, ACCEPTED_EXTENSIONS)) {
+      this.toast.add({
+        severity: 'warn',
+        summary: 'Formato',
+        detail: 'Selecione um ficheiro CSV, XLSX, PDF ou JSON.',
+      });
       return;
     }
+    this.uploadError.set(null);
     this.selectedFile.set(file);
   }
 
   protected clearFile(): void {
     this.selectedFile.set(null);
     this.uploadResponse.set(null);
+    this.uploadError.set(null);
     this.activeStep.set(1);
   }
 
@@ -671,10 +726,20 @@ export class ImportWizardPage implements OnInit {
     if (!file || !accountId) return;
 
     this.uploading.set(true);
+    this.uploadError.set(null);
     try {
-      const profileId = this.uploadForm.controls.importProfileId.value || null;
+      const isStatement = hasExtension(file.name, STATEMENT_EXTENSIONS);
+      const profileId = isStatement ? null : (this.uploadForm.controls.importProfileId.value || null);
       const response = await this.api.uploadCsv(file, accountId, profileId);
       this.uploadResponse.set(response);
+
+      if (response.statement) {
+        // Extrato convertido: as definições já vêm gravadas no lote; segue direto para a confirmação.
+        this.duplicateSelection.set({});
+        this.includeBeforeOpeningBalance.set(false);
+        this.activeStep.set(3);
+        return;
+      }
 
       this.mappingForm.patchValue({
         delimiter: response.detectedDelimiter,
@@ -689,7 +754,9 @@ export class ImportWizardPage implements OnInit {
 
       this.activeStep.set(2);
     } catch (error) {
-      this.toast.add({ severity: 'error', summary: 'Erro', detail: firstProblemMessage(error) ?? 'Erro ao analisar o ficheiro.' });
+      // Validação do extrato que falha (400): mensagem do backend em destaque, sem preview.
+      this.uploadResponse.set(null);
+      this.uploadError.set(firstProblemMessage(error) ?? 'Erro ao analisar o ficheiro.');
     } finally {
       this.uploading.set(false);
     }
@@ -808,6 +875,7 @@ export class ImportWizardPage implements OnInit {
   protected reset(): void {
     this.selectedFile.set(null);
     this.uploadResponse.set(null);
+    this.uploadError.set(null);
     this.confirmResult.set(null);
     this.duplicateSelection.set({});
     this.includeBeforeOpeningBalance.set(false);
