@@ -55,6 +55,11 @@
     <!-- CSV parsing (Phase 4) -->
     <PackageVersion Include="CsvHelper" Version="33.0.1" />
 
+    <!-- Conversores de extratos (Phase 6.6): XLSX (MIT) e PDF (Apache-2.0).
+         O package id do PdfPig passou de UglyToad.PdfPig para PdfPig. -->
+    <PackageVersion Include="ExcelDataReader" Version="3.9.0" />
+    <PackageVersion Include="PdfPig" Version="0.1.16" />
+
     <!-- Validation (Phase 3) -->
     <PackageVersion Include="FluentValidation" Version="12.0.0" />
     <PackageVersion Include="FluentValidation.AspNetCore" Version="11.3.1" />
