@@ -212,6 +212,50 @@ Critério de saída do MVP: **utilizador usa o sistema 1 mês completo sem reabr
 
 Detalhe destas phases é tentativo. Cada uma é revisitada em Replanning antes de arrancar.
 
+### Fase 1.5 — Importação assistida por IA
+
+> Inserida em replanning (2026-10-01). Nasceu do dogfooding da Phase 6.5:
+> hoje o processo de importar extratos é feito à mão numa sessão do Claude
+> Code, fora do Sextante. Arranca **depois** do dogfooding da Phase 6.5 e
+> **antes** da Fase 2. Design aprovado em
+> `backlog/2026-10-01-chat-ai-design.md`; processo atual descrito em
+> `backlog/2026-10-01-chat-ai-importacoes.md`. Numeração decimal para não
+> renumerar as phases 7–20.
+
+#### Phase 6.6 — Conversores de extratos no backend
+
+- [ ] Conversor XLSX da conta à ordem (ActivoBank), com validação de saldo encadeado.
+- [ ] Conversor PDF do cartão de crédito (ActivoBank), com os 2 layouts (até agosto/2026 e desde setembro/2026), validação dos totais do "RESUMO DE MOVIMENTOS" e encadeamento da dívida anterior.
+- [ ] Conversor JSON da Coverflex.
+- [ ] Corte de overlap com os movimentos já importados.
+- [ ] Wizard de importação aceita estes formatos diretamente, sem chat.
+- [ ] Testes unitários com extratos reais anonimizados e casos de falha.
+
+**Saída**: o utilizador importa o XLSX, o PDF do cartão e o JSON da Coverflex pelo wizard, e uma validação que falha não importa nada.
+
+#### Phase 6.7 — Chat com IA: núcleo + importação 🛡️
+
+- [ ] Módulo `Assistant` (5 projetos), a falar com os outros módulos só via `*.PublicApi` / HTTP loopback.
+- [ ] `IChatModel` sobre o OpenCode Go (`https://opencode.ai/zen/go/v1/`), com `User-Agent` próprio e `x-opencode-session`. API key como secret.
+- [ ] Teste comparativo de 2–3 modelos contra merchants reais, em PT-PT, incluindo suporte a tool calling; escolha do modelo.
+- [ ] Protocolo de mensagens com partes tipadas (`text`, `proposal`, `result`, `validation`) e regra de que a IA nunca grava.
+- [ ] Capacidade de importação com workflow fixo, inferência da conta por tipo de ficheiro + continuidade de saldo, e escolha final do utilizador.
+- [ ] Categorização em lote com aprovação linha a linha.
+- [ ] Painel lateral Angular; estado no cliente, sem histórico.
+- [ ] Tratamento de quota esgotada e de resposta inválida do modelo.
+
+**Saída**: o utilizador importa um extrato pelo painel lateral, de ponta a ponta, e nada é gravado sem a sua confirmação.
+
+#### Phase 6.8 — Chat com IA: histórico 🛡️
+
+- [ ] Schema `assistant`, `DbContext` e migrations próprios, com `TenantId` e RLS.
+- [ ] `Conversation`, `Message` e `WorkflowState`; conversas retomáveis; ficheiros originais não se guardam.
+- [ ] Apagar uma conversa é definitivo; consumo de tokens por conversa, sem conteúdo.
+- [ ] Contexto enviado ao modelo limitado, com resumo das mensagens antigas.
+- [ ] Testes de multi-tenancy do schema `assistant`.
+
+**Saída**: o utilizador fecha o painel a meio de uma importação e retoma-a depois; um tenant nunca vê as conversas de outro.
+
 ### Fase 2 — Módulo de Investimento
 
 #### Phase 7 — Modelo de carteira (Sub-fase 2.1)
