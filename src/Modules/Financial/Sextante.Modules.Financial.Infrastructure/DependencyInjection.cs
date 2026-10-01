@@ -71,6 +71,8 @@ public static class DependencyInjection
 
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<IAccountBalanceQuery, AccountBalanceQuery>();
+        services.AddScoped<IAccountLastMovementQuery, AccountLastMovementQuery>();
+        services.AddScoped<StatementOverlapTrimmer>();
         services.AddScoped<ICreditCardActivityQuery, CreditCardActivityQuery>();
         services.AddScoped<ITransferCounterpartQuery, TransferCounterpartQuery>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
