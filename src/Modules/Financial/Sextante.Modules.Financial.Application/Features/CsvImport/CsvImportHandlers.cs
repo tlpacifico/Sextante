@@ -552,7 +552,7 @@ public static class CsvImportHandlers
         bool Forced,
         bool AlreadyRecorded);
 
-    private static List<string> RowErrors(IReadOnlyList<PreviewRowDto> rows)
+    internal static List<string> RowErrors(IReadOnlyList<PreviewRowDto> rows)
         => rows
             .Where(r => r.Error is not null)
             .Select(r => $"Linha {r.RowIndex + 1}: {r.Error}")

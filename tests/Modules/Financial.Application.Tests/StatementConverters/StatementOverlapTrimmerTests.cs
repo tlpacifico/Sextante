@@ -1,8 +1,7 @@
 using FluentAssertions;
-using Sextante.Modules.Financial.Application.Features.Accounts;
 using Sextante.Modules.Financial.Application.StatementConversion;
+using Sextante.Modules.Financial.Application.Tests.TestSupport;
 using Sextante.Modules.Financial.Domain.Common;
-using Sextante.SharedKernel;
 
 namespace Sextante.Modules.Financial.Application.Tests.StatementConverters;
 
@@ -10,23 +9,9 @@ public sealed class StatementOverlapTrimmerTests
 {
     private static readonly Guid AccountId = Guid.NewGuid();
 
-    /// <summary>Conta falsa: saldo inicial + movimentos com data; implementa as 2 consultas do trimmer.</summary>
-    private sealed class FakeLedger(decimal opening, params (DateOnly Date, decimal Amount)[] movements)
-        : IAccountBalanceQuery, IAccountLastMovementQuery
-    {
-        public Task<IReadOnlyDictionary<Guid, Money>> GetCurrentBalancesAsync(CancellationToken ct) => throw new NotSupportedException();
-
-        public Task<Money?> GetBalanceAsync(Guid accountId, DateOnly? at, CancellationToken ct)
-            => Task.FromResult<Money?>(new Money(
-                opening + movements.Where(m => at is null || m.Date <= at).Sum(m => m.Amount), "EUR"));
-
-        public Task<DateOnly?> GetLastMovementDateAsync(Guid accountId, CancellationToken ct)
-            => Task.FromResult(movements.Length == 0 ? (DateOnly?)null : movements.Max(m => m.Date));
-    }
-
     private static DateOnly D(int month, int day) => new(2026, month, day);
 
-    private static StatementConversionResult Trim(FakeLedger ledger, StatementConversionResult result)
+    private static StatementConversionResult Trim(FakeAccountLedger ledger, StatementConversionResult result)
         => new StatementOverlapTrimmer(ledger, ledger).TrimAsync(result, AccountId, CancellationToken.None).GetAwaiter().GetResult();
 
     private static StatementRow Row(DateOnly date, string description, decimal amount, decimal? balance)
@@ -49,7 +34,7 @@ public sealed class StatementOverlapTrimmerTests
     [Fact]
     public void Account_without_movements_has_nothing_to_trim()
     {
-        var trimmed = Trim(new FakeLedger(1000.00m), AccountStatement());
+        var trimmed = Trim(new FakeAccountLedger(1000.00m), AccountStatement());
 
         trimmed.Rows.Should().HaveCount(4);
         trimmed.RowsTrimmed.Should().Be(0);
@@ -58,7 +43,7 @@ public sealed class StatementOverlapTrimmerTests
     [Fact]
     public void Reimporting_the_same_statement_leaves_zero_rows()
     {
-        var ledger = new FakeLedger(1000.00m,
+        var ledger = new FakeAccountLedger(1000.00m,
             (D(9, 1), -20.00m), (D(9, 7), -90.96m), (D(9, 7), -90.96m), (D(9, 15), -8.08m));
 
         var trimmed = Trim(ledger, AccountStatement());
@@ -71,7 +56,7 @@ public sealed class StatementOverlapTrimmerTests
     [Fact]
     public void Partially_overlapping_statement_keeps_only_the_new_rows()
     {
-        var ledger = new FakeLedger(1000.00m, (D(9, 1), -20.00m), (D(9, 7), -90.96m), (D(9, 7), -90.96m));
+        var ledger = new FakeAccountLedger(1000.00m, (D(9, 1), -20.00m), (D(9, 7), -90.96m), (D(9, 7), -90.96m));
 
         var trimmed = Trim(ledger, AccountStatement());
 
@@ -84,7 +69,7 @@ public sealed class StatementOverlapTrimmerTests
     public void Two_identical_same_day_movements_are_not_mistaken_for_duplicates()
     {
         // Só a 1.ª das duas transferências idênticas está na conta: a 2.ª tem de ficar.
-        var ledger = new FakeLedger(1000.00m, (D(9, 1), -20.00m), (D(9, 7), -90.96m));
+        var ledger = new FakeAccountLedger(1000.00m, (D(9, 1), -20.00m), (D(9, 7), -90.96m));
 
         var trimmed = Trim(ledger, AccountStatement());
 
@@ -96,7 +81,7 @@ public sealed class StatementOverlapTrimmerTests
     [Fact]
     public void Statement_that_starts_after_the_last_movement_is_untouched()
     {
-        var ledger = new FakeLedger(1000.00m, (D(8, 30), -5.00m));
+        var ledger = new FakeAccountLedger(1000.00m, (D(8, 30), -5.00m));
 
         var trimmed = Trim(ledger, AccountStatement());
 
@@ -107,7 +92,7 @@ public sealed class StatementOverlapTrimmerTests
     [Fact]
     public void Balance_that_matches_no_statement_row_fails_with_an_explanation()
     {
-        var ledger = new FakeLedger(1000.00m, (D(9, 1), -20.00m), (D(9, 7), -91.00m));
+        var ledger = new FakeAccountLedger(1000.00m, (D(9, 1), -20.00m), (D(9, 7), -91.00m));
 
         var act = () => Trim(ledger, AccountStatement());
 
@@ -126,7 +111,7 @@ public sealed class StatementOverlapTrimmerTests
                 Row(D(1, 8), "COMPRA Y", -2.00m, 200.08m),
             ],
             0.25m, 200.08m, D(1, 6), D(1, 8), []);
-        var ledger = new FakeLedger(0.25m, (D(1, 6), 211.20m), (D(1, 7), -9.37m));
+        var ledger = new FakeAccountLedger(0.25m, (D(1, 6), 211.20m), (D(1, 7), -9.37m));
 
         var trimmed = Trim(ledger, coverflex);
 
@@ -150,7 +135,7 @@ public sealed class StatementOverlapTrimmerTests
     public void Card_statement_after_the_last_movement_checks_the_previous_debt_and_keeps_every_row()
     {
         // Janeiro importado: dívida 300,00 e último movimento a 30/01 (= data do 1.º movimento de fevereiro).
-        var ledger = new FakeLedger(-250.00m, (D(1, 15), -50.00m), (D(1, 30), 0m));
+        var ledger = new FakeAccountLedger(-250.00m, (D(1, 15), -50.00m), (D(1, 30), 0m));
 
         var trimmed = Trim(ledger, CardStatement());
 
@@ -162,7 +147,7 @@ public sealed class StatementOverlapTrimmerTests
     [Fact]
     public void Card_statement_whose_previous_debt_does_not_match_the_account_fails()
     {
-        var ledger = new FakeLedger(-250.00m, (D(1, 15), -40.00m), (D(1, 30), 0m));
+        var ledger = new FakeAccountLedger(-250.00m, (D(1, 15), -40.00m), (D(1, 30), 0m));
 
         var act = () => Trim(ledger, CardStatement());
 
@@ -174,7 +159,7 @@ public sealed class StatementOverlapTrimmerTests
     public void Card_statement_already_imported_is_trimmed_to_zero_rows_without_a_debt_check()
     {
         // O movimento de 30/01 já foi importado com este extrato (por isso o saldo a 31/01 ≠ dívida anterior).
-        var ledger = new FakeLedger(-300.00m, (D(1, 30), -4.99m), (D(2, 3), -10.00m), (D(2, 20), 100.00m));
+        var ledger = new FakeAccountLedger(-300.00m, (D(1, 30), -4.99m), (D(2, 3), -10.00m), (D(2, 20), 100.00m));
 
         var trimmed = Trim(ledger, CardStatement());
 
@@ -185,7 +170,7 @@ public sealed class StatementOverlapTrimmerTests
     [Fact]
     public void Card_statement_partially_imported_keeps_only_rows_after_the_last_movement()
     {
-        var ledger = new FakeLedger(-300.00m, (D(1, 30), -4.99m), (D(2, 3), -10.00m));
+        var ledger = new FakeAccountLedger(-300.00m, (D(1, 30), -4.99m), (D(2, 3), -10.00m));
 
         var trimmed = Trim(ledger, CardStatement());
 
@@ -196,7 +181,7 @@ public sealed class StatementOverlapTrimmerTests
     [Fact]
     public void Card_account_without_movements_has_nothing_to_trim()
     {
-        var trimmed = Trim(new FakeLedger(-300.00m), CardStatement());
+        var trimmed = Trim(new FakeAccountLedger(-300.00m), CardStatement());
 
         trimmed.Rows.Should().HaveCount(3);
         trimmed.Checks.Should().BeEmpty();
