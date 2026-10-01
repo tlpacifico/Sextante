@@ -227,12 +227,12 @@ Detalhe destas phases é tentativo. Cada uma é revisitada em Replanning antes d
 > Branch: `phase-6.6-statement-converters`. Spec em
 > `specs/2026-10-01-phase-6.6-statement-converters/`.
 
-- [ ] Conversor XLSX da conta à ordem (ActivoBank), com validação de saldo encadeado.
-- [ ] Conversor PDF do cartão de crédito (ActivoBank), com os 2 layouts (até agosto/2026 e desde setembro/2026), validação dos totais do "RESUMO DE MOVIMENTOS" e encadeamento da dívida anterior.
-- [ ] Conversor JSON da Coverflex.
-- [ ] Corte de overlap com os movimentos já importados.
-- [ ] Wizard de importação aceita estes formatos diretamente, sem chat.
-- [ ] Testes unitários com extratos reais anonimizados e casos de falha.
+- [x] Conversor XLSX da conta à ordem (ActivoBank), com validação de saldo encadeado.
+- [x] Conversor PDF do cartão de crédito (ActivoBank), com os 2 layouts (até agosto/2026 e desde setembro/2026), validação dos totais do "RESUMO DE MOVIMENTOS" e encadeamento da dívida anterior.
+- [x] Conversor JSON da Coverflex.
+- [x] Corte de overlap com os movimentos já importados.
+- [x] Wizard de importação aceita estes formatos diretamente, sem chat.
+- [x] Testes unitários com extratos reais anonimizados e casos de falha.
 
 **Saída**: o utilizador importa o XLSX, o PDF do cartão e o JSON da Coverflex pelo wizard, e uma validação que falha não importa nada.
 
