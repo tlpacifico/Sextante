@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-10-01
+
+- Marcar Phase 6.6 como concluída
+- Wizard de importação aceita XLSX, PDF e JSON com cartão de validação; documentação e auditoria responsiva
+- Upload de extratos XLSX/PDF/JSON pelo endpoint de importação, com validação, corte de overlap e testes de integração
+- Corte de overlap dos extratos ancorado no saldo da conta
+- Conversor JSON da Coverflex: cêntimos, só confirmados, data em Lisboa e identidade global de saldos
+- Conversor PDF do cartão ActivoBank (2 layouts) com validação do resumo de movimentos
+- Conversor XLSX da conta à ordem ActivoBank com validação de saldo encadeado
+- Conversores de extratos: contrato, exceções e adaptador para CSV canónico
+- Especificar Phase 6.6: conversores de extratos no backend
+- Planear importação assistida por IA (Fase 1.5)
+
+## 2026-09-27
+
+- Atualizar CHANGELOG
+
+## 2026-09-26
+
+- "Manter-me ligado": sessão sobrevive aos deploys
+- Transações: selecionar todas e recategorizar em massa sobre a lista completa
+
 ## 2026-09-24
 
 - Vista do cartão sem extrato anterior quando o saldo inicial é posterior ao fecho
@@ -12,6 +34,8 @@
 - Import: regra com alvo na própria conta não transforma o pagamento em receita
 - Testes de arquitetura das transferências
 - Escrever plano do grupo 8 (fecho da phase)
+- Mark phase 6.5 as complete
+- Import: passo 2 sem mapeamento mantém a auto-deteção; datas dia/mês primeiro
 
 ## 2026-09-23
 

@@ -5,6 +5,7 @@ using Sextante.Modules.Financial.Application.CategorizationRules;
 using Sextante.Modules.Financial.Application.CsvImport;
 using Sextante.Modules.Financial.Application.Features.CsvImport;
 using Sextante.Modules.Financial.Application.Features.Transfers;
+using Sextante.Modules.Financial.Application.StatementConversion;
 using Sextante.Modules.Financial.Domain.Accounts;
 using Sextante.Modules.Financial.Domain.Categories;
 using Sextante.Modules.Financial.Domain.Common;
@@ -33,17 +34,20 @@ public static class CsvImportEndpoints
             ICategorizationRuleEngine ruleEngine,
             ITransferCounterpartQuery transferQuery,
             ICsvParser csvParser,
+            IEnumerable<IStatementConverter> statementConverters,
+            StatementOverlapTrimmer overlapTrimmer,
             ITenantContext tenant,
             CancellationToken ct) =>
         {
             if (file is null || file.Length == 0)
                 return Results.ValidationProblem(
-                    new Dictionary<string, string[]> { ["file"] = ["Ficheiro CSV obrigatório."] },
+                    new Dictionary<string, string[]> { ["file"] = ["Ficheiro obrigatório."] },
                     title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
-            if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            var isStatement = StatementFileSniffer.IsStatementFile(file.FileName);
+            if (!isStatement && !file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
                 return Results.ValidationProblem(
-                    new Dictionary<string, string[]> { ["file"] = ["Apenas ficheiros .csv são aceites."] },
+                    new Dictionary<string, string[]> { ["file"] = ["Apenas ficheiros .csv, .xlsx, .pdf e .json são aceites."] },
                     title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
             const int maxSize = 5 * 1024 * 1024;
@@ -52,6 +56,34 @@ public static class CsvImportEndpoints
                     new Dictionary<string, string[]> { ["file"] = ["O ficheiro excede o tamanho máximo de 5 MB."] },
                     title: "Erros de validação",
                     statusCode: StatusCodes.Status400BadRequest);
+
+            if (isStatement)
+            {
+                // XLSX/PDF precisam de stream com posição: o ficheiro (≤ 5 MB) vai para memória.
+                using var buffer = new MemoryStream((int)file.Length);
+                await file.CopyToAsync(buffer, ct);
+                if (!StatementFileSniffer.ContentMatchesExtension(file.FileName, buffer.GetBuffer().AsSpan(0, (int)Math.Min(buffer.Length, 16))))
+                    return Results.ValidationProblem(
+                        new Dictionary<string, string[]> { ["file"] = ["O conteúdo do ficheiro não corresponde à extensão."] },
+                        title: "Erros de validação",
+                        statusCode: StatusCodes.Status400BadRequest);
+                buffer.Position = 0;
+
+                try
+                {
+                    var statementResponse = await StatementUploadService.UploadAsync(
+                        buffer, file.FileName, accountId, statementConverters, overlapTrimmer,
+                        batchRepo, accountRepo, categoryRepo, ruleEngine, transferQuery, tenant, ct);
+                    return Results.Ok(statementResponse);
+                }
+                catch (FinancialDomainException ex)
+                {
+                    return Results.ValidationProblem(
+                        new Dictionary<string, string[]> { ["file"] = [ex.Message] },
+                        title: "Erros de validação",
+                        statusCode: StatusCodes.Status400BadRequest);
+                }
+            }
 
             try
             {

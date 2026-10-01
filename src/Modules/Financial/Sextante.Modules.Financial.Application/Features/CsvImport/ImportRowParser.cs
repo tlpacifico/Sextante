@@ -123,10 +123,12 @@ public static class ImportRowParser
         if (DateOnly.TryParseExact(dateStr.Trim(), format, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
             return true;
 
-        if (DateOnly.TryParse(dateStr.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
+        // Extratos portugueses: dia antes do mês. A cultura invariante (mês
+        // primeiro) só entra se pt-PT não conseguir — senão 12/08 seria 8 de dezembro.
+        if (DateOnly.TryParse(dateStr.Trim(), new CultureInfo("pt-PT"), DateTimeStyles.None, out date))
             return true;
 
-        if (DateOnly.TryParse(dateStr.Trim(), new CultureInfo("pt-PT"), DateTimeStyles.None, out date))
+        if (DateOnly.TryParse(dateStr.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
             return true;
 
         return false;

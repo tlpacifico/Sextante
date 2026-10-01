@@ -459,3 +459,32 @@ public sealed class InstallmentPlanPurchaseAlreadyLinkedException : FinancialDom
     {
     }
 }
+
+// Statement conversion exceptions (Phase 6.6)
+public sealed class StatementValidationException : FinancialDomainException
+{
+    public StatementValidationException(string message) : base(message) { }
+}
+
+public sealed class StatementUnreadableException : FinancialDomainException
+{
+    public StatementUnreadableException(string detail) : base($"Não foi possível ler o extrato: {detail}") { }
+}
+
+public sealed class StatementLayoutNotSupportedException : FinancialDomainException
+{
+    public StatementLayoutNotSupportedException(string detail) : base($"Layout de extrato não suportado: {detail}") { }
+}
+
+public sealed class StatementCurrencyMismatchException : FinancialDomainException
+{
+    public StatementCurrencyMismatchException(string statementCurrency, string accountCurrency)
+        : base($"O extrato está em {statementCurrency} mas a conta de destino está em {accountCurrency}. Escolha uma conta na mesma moeda do extrato.")
+    {
+    }
+}
+
+public sealed class StatementTimeoutException : FinancialDomainException
+{
+    public StatementTimeoutException() : base("A leitura do extrato excedeu o tempo limite de 30 segundos. Use um ficheiro mais pequeno.") { }
+}

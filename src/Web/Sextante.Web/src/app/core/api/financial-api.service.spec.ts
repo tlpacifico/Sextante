@@ -76,6 +76,21 @@ describe('FinancialApiService', () => {
     await promise;
   });
 
+  it('listTransactionsSimple follows the cursor until the last page', async () => {
+    // A API limita cada página a 100 linhas: a lista tem de pedir as seguintes.
+    const promise = service.listTransactionsSimple({});
+    const first = httpMock.expectOne((r) => r.url === '/api/financial/transactions' && !r.params.has('cursor'));
+    expect(first.request.params.get('pageSize')).toBe('100');
+    first.flush({ items: [{ id: 't1' }], nextCursor: 'c1' });
+    await new Promise((resolve) => setTimeout(resolve));
+    const second = httpMock.expectOne((r) => r.url === '/api/financial/transactions' && r.params.get('cursor') === 'c1');
+    second.flush({ items: [{ id: 't2' }], nextCursor: null });
+
+    const items = await promise;
+
+    expect(items.map((i) => i.id)).toEqual(['t1', 't2']);
+  });
+
   it('exportTransactions requests a blob from /export with the active filters', async () => {
     const promise = service.exportTransactions({
       descriptionContains: 'supermercado',
@@ -160,6 +175,23 @@ describe('FinancialApiService', () => {
     expect(req.request.method).toBe('POST');
     req.flush({ batchId: 'b1', headers: [], rows: [], totalRowCount: 0, truncated: false });
     await promise;
+  });
+
+  it('uploadCsv also uploads statements (xlsx/pdf/json) and exposes the statement summary', async () => {
+    const file = new File(['x'], 'mov.xlsx');
+    const promise = service.uploadCsv(file, 'acc-1');
+    const req = httpMock.expectOne('/api/financial/imports/upload?accountId=acc-1');
+    req.flush({
+      batchId: 'b1', headers: [], previewRows: [], totalRowCount: 0, truncated: false,
+      detectedDelimiter: ';', detectedHasHeader: true, errors: [],
+      statement: {
+        format: 'ActivoBankAccountXlsx', currency: 'EUR', periodStart: '2026-09-01', periodEnd: '2026-10-01',
+        balanceBefore: 884.61, balanceAfter: 1216.36, checks: [], rowsTrimmed: 0, pendingIgnored: 0, cancelledIgnored: 0,
+      },
+    });
+    const response = await promise;
+    expect(response.statement?.format).toBe('ActivoBankAccountXlsx');
+    expect(response.statement?.balanceAfter).toBe(1216.36);
   });
 
   it('confirmImport POSTs includeDuplicates list', async () => {

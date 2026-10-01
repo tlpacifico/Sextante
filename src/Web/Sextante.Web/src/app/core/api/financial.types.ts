@@ -470,6 +470,31 @@ export interface UploadCsvResponse {
   detectedDelimiter: string;
   detectedHasHeader: boolean;
   errors: string[];
+  /** Phase 6.6 — só nos extratos XLSX/PDF/JSON; `null`/ausente nos CSV. */
+  statement?: StatementSummary | null;
+}
+
+export type StatementFormat = 'ActivoBankAccountXlsx' | 'ActivoBankCardPdf' | 'CoverflexJson';
+
+export interface StatementCheck {
+  name: string;
+  passed: boolean;
+  expected: string;
+  actual: string;
+}
+
+/** O que o conversor do backend garantiu sobre o extrato (datas `yyyy-MM-dd`). */
+export interface StatementSummary {
+  format: StatementFormat;
+  currency: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  balanceBefore: number | null;
+  balanceAfter: number | null;
+  checks: StatementCheck[];
+  rowsTrimmed: number;
+  pendingIgnored: number;
+  cancelledIgnored: number;
 }
 
 export interface ColumnMappingInput {

@@ -196,12 +196,21 @@ export class FinancialApiService {
     }
     if (filter.amountMin != null) params = params.set('amountMin', String(filter.amountMin));
     if (filter.amountMax != null) params = params.set('amountMax', String(filter.amountMax));
-    params = params.set('pageSize', '500'); // fetch all in one call for MVP
+    // A API limita cada página a 100 linhas: segue o cursor até à última,
+    // para a lista (e a seleção em massa) cobrir tudo o que o filtro devolve.
+    params = params.set('pageSize', '100');
 
-    const page = await firstValueFrom(
-      this.http.get<TransactionsPageResponse>('/api/financial/transactions', { params }),
-    );
-    return page.items;
+    const items: TransactionDto[] = [];
+    let cursor: string | null = null;
+    do {
+      const pageParams: HttpParams = cursor ? params.set('cursor', cursor) : params;
+      const page: TransactionsPageResponse = await firstValueFrom(
+        this.http.get<TransactionsPageResponse>('/api/financial/transactions', { params: pageParams }),
+      );
+      items.push(...page.items);
+      cursor = page.nextCursor ?? null;
+    } while (cursor);
+    return items;
   }
 
   /**

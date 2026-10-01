@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -18,6 +19,19 @@ internal static class AuthenticationSetup
         this WebApplicationBuilder builder)
     {
         EnsureJwtSigningKey(builder.Configuration, builder.Environment);
+
+        // Os access/refresh tokens do MapIdentityApi são tickets cifrados com
+        // Data Protection. Sem key ring persistido, as chaves vivem no
+        // filesystem do container e perdem-se a cada `compose up -d` — todas
+        // as sessões ("Manter-me ligado" incluído) morrem em cada deploy.
+        // Em Development o default (%LOCALAPPDATA%) já persiste.
+        var dataProtection = builder.Services.AddDataProtection()
+            .SetApplicationName("Sextante");
+        var keysPath = builder.Configuration["DataProtection:KeysPath"];
+        if (!string.IsNullOrWhiteSpace(keysPath))
+        {
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+        }
 
         builder.Services.AddAuthentication(IdentityConstants.BearerScheme)
             .AddBearerToken(IdentityConstants.BearerScheme, options =>

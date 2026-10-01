@@ -52,7 +52,7 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_RUNNING_IN_CONTAINER=true
 
 # Volume mount points (declared via docker-compose)
-RUN mkdir -p /var/letsencrypt-certs /app/logs
+RUN mkdir -p /var/letsencrypt-certs /app/logs /app/dp-keys
 
 COPY --from=dotnet-build /publish ./
 

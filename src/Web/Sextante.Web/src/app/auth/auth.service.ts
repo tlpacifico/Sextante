@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { HttpClient, HttpContext, HttpContextToken } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpContextToken, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, lastValueFrom } from 'rxjs';
 import {
   AuthState,
@@ -140,8 +140,13 @@ export class AuthService {
       // Tenta refresh via cookie httpOnly.
       await this.refresh();
       return true;
-    } catch {
-      this.clearStorage();
+    } catch (err) {
+      // Um erro transitório (502 durante um deploy, rede em baixo) não pode
+      // apagar a sessão: o cookie continua válido e a flag extended tem de
+      // sobreviver para o próximo refresh.
+      if (isSessionRejected(err)) {
+        this.clearStorage();
+      }
       this.state.set(null);
       return false;
     }
@@ -158,17 +163,21 @@ export class AuthService {
 
   private async doRefresh(): Promise<string> {
     const ctx = new HttpContext().set(SKIP_AUTH, true).set(WITH_REFRESH_COOKIE, true);
+    const extendedSession = this.readExtendedSession();
     let tokens: TokenResponse;
     try {
       tokens = await lastValueFrom(
         this.http.post<TokenResponse>(
           '/api/auth/refresh',
-          {},
+          // O backend usa a flag para renovar o cookie com o Max-Age estendido.
+          { extendedSession },
           { context: ctx, withCredentials: true },
         ),
       );
     } catch (err) {
-      this.clearStorage();
+      if (isSessionRejected(err)) {
+        this.clearStorage();
+      }
       this.state.set(null);
       throw err;
     }
@@ -185,7 +194,7 @@ export class AuthService {
       });
     }
 
-    this.persistTokens(tokens, localStorage.getItem(STORAGE_KEYS.extendedSession) === 'true');
+    this.persistTokens(tokens, extendedSession);
     return tokens.accessToken;
   }
 
@@ -248,6 +257,14 @@ export class AuthService {
     }
   }
 
+  private readExtendedSession(): boolean {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.extendedSession) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
   private persistLastLoginEmail(email: string): void {
     try {
       localStorage.setItem(STORAGE_KEYS.lastLoginEmail, email);
@@ -266,4 +283,9 @@ export class AuthService {
       // localStorage pode não estar disponível.
     }
   }
+}
+
+/** Só 400/401 do refresh significam que a sessão acabou de facto. */
+function isSessionRejected(err: unknown): boolean {
+  return err instanceof HttpErrorResponse && (err.status === 400 || err.status === 401);
 }

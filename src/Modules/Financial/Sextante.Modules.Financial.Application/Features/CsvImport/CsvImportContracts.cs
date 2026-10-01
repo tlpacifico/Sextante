@@ -8,7 +8,27 @@ public sealed record UploadCsvResponse(
     bool Truncated,
     string DetectedDelimiter,
     bool DetectedHasHeader,
-    IReadOnlyList<string> Errors);
+    IReadOnlyList<string> Errors,
+    StatementSummary? Statement = null);
+
+/// <summary>
+/// Phase 6.6 (D8) — o que o conversor garantiu sobre um extrato XLSX/PDF/JSON;
+/// <c>null</c> nos uploads CSV e em lotes anteriores (default no fim do record).
+/// Datas <c>yyyy-MM-dd</c>. Sem o identificador da conta do ficheiro (D12).
+/// </summary>
+public sealed record StatementSummary(
+    string Format,
+    string Currency,
+    string? PeriodStart,
+    string? PeriodEnd,
+    decimal? BalanceBefore,
+    decimal? BalanceAfter,
+    IReadOnlyList<StatementCheckDto> Checks,
+    int RowsTrimmed,
+    int PendingIgnored,
+    int CancelledIgnored);
+
+public sealed record StatementCheckDto(string Name, bool Passed, string Expected, string Actual);
 
 /// <summary>
 /// Campos da Phase 6.5 (grupo 7) no fim e com default: o JSON de lotes já

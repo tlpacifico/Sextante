@@ -167,6 +167,41 @@ public sealed class CsvImportAccountTests : IClassFixture<IdentityIntegrationFix
     }
 
     [Fact]
+    public async Task Preview_with_no_column_mapped_keeps_the_detected_columns()
+    {
+        // Dogfooding (2026-09-24) — sem perfil, o passo 2 começa com todas as
+        // colunas em "Ignorar". Atualizar a pré-visualização assim não pode
+        // apagar a auto-deteção do upload (todas as linhas davam "Data em falta").
+        var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "imp-acc-nomap");
+        var account = await CreateAccountAsync(client, "Conta", openingBalanceDate: new DateOnly(2026, 8, 1));
+        await CreateCategoryAsync(client, "Diversos", kind: 0);
+        await CreateCategoryAsync(client, "Entradas", kind: 1);
+
+        var upload = await UploadAsync(client, Csv, account, profileId: null);
+        var batchId = upload.GetProperty("batchId").GetString();
+        var preview = await client.PutAsJsonAsync($"/api/financial/imports/{batchId}/preview", new
+        {
+            columnMappings = new[] { "Data Lanc.", "Data Valor", "Descrição", "Valor", "Saldo" }
+                .Select(c => new { csvColumnName = c, transactionField = (string?)null }),
+            delimiter = ";",
+            hasHeaderRow = true,
+            dateFormat = "dd/MM/yyyy",
+            decimalSeparator = ",",
+            skipRows = 0,
+        });
+        await EnsureSuccessAsync(preview);
+        var updated = await preview.Content.ReadFromJsonAsync<JsonElement>();
+
+        PreviewRows(updated).Should().OnlyContain(r => r.GetProperty("error").ValueKind == JsonValueKind.Null);
+        var result = await ConfirmAsync(client, updated);
+        result.GetProperty("importedRows").GetInt32().Should().Be(3);
+        var tx = (await ListTransactionsAsync(client, account))
+            .Single(t => t.GetProperty("description").GetString() == "COMPRA SUPERMERCADO EXEMPLO");
+        tx.GetProperty("amount").GetProperty("amount").GetDecimal().Should().Be(62.35m);
+        tx.GetProperty("occurredAt").GetDateTimeOffset().UtcDateTime.Date.Should().Be(new DateTime(2026, 9, 15));
+    }
+
+    [Fact]
     public async Task Unknown_account_name_in_column_is_row_error()
     {
         var (client, _, _) = await FinancialTestHelpers.SignupAndLoginAsync(_fixture, "imp-acc-col");

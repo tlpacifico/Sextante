@@ -151,8 +151,14 @@ import { InstallmentPlanDialogComponent } from '../installment-plan.dialog';
           icon="pi pi-tags"
           severity="secondary"
           size="small"
-          [disabled]="!allSelectedRegular()"
+          [disabled]="recategorizableIds().length === 0"
           (click)="openRecategorize()" />
+        @if (skippedFromRecategorize() > 0) {
+          <span class="text-xs text-neutral-500">
+            {{ skippedFromRecategorize() }}
+            {{ skippedFromRecategorize() === 1 ? 'transferência/acerto fica de fora' : 'transferências/acertos ficam de fora' }}
+          </span>
+        }
         @if (selectedIds().length === 1 && selected()[0].kind === 'Regular') {
           <p-button
             label="Marcar como transferência"
@@ -193,7 +199,7 @@ import { InstallmentPlanDialogComponent } from '../installment-plan.dialog';
           (selectionChange)="onSelectionChange()">
           <ng-template pTemplate="header">
             <tr>
-              <th style="width: 3rem"></th>
+              <th style="width: 3rem"><p-tableHeaderCheckbox ariaLabel="Selecionar todas as transações filtradas" /></th>
               <th pSortableColumn="occurredAt">Data <p-sortIcon field="occurredAt" /></th>
               <th>Conta</th>
               <th>Categoria</th>
@@ -299,8 +305,8 @@ import { InstallmentPlanDialogComponent } from '../installment-plan.dialog';
 
     <app-recategorize-dialog
       [visible]="recategorizeDialogVisible()"
-      [transactionIds]="selectedIds()"
-      [categories]="categories()"
+      [transactionIds]="recategorizableIds()"
+      [categories]="recategorizeCategories()"
       (close)="recategorizeDialogVisible.set(false)"
       (saved)="onRecategorized()" />
 
@@ -344,8 +350,16 @@ export class TransactionsPage implements OnInit {
   protected readonly selected = signal<TransactionDto[]>([]);
   protected readonly selectedTransaction = signal<TransactionDto | null>(null);
   // Recategorizar só se aplica a transações regulares — a API recusa
-  // transferências e acertos (400 a meio do lote).
-  protected readonly allSelectedRegular = computed(() => this.selected().every(t => t.kind === 'Regular'));
+  // transferências e acertos (400 a meio do lote). Numa seleção mista (ex.:
+  // "selecionar tudo" com filtros), recategorizam-se só as regulares.
+  protected readonly recategorizableIds = computed(() =>
+    this.selected().filter(t => t.kind === 'Regular').map(t => t.id));
+  protected readonly skippedFromRecategorize = computed(() =>
+    this.selected().length - this.recategorizableIds().length);
+  // Uma categoria de receita inverte a direção das transações: fica marcada
+  // para não se trocar despesas por receitas sem querer.
+  protected readonly recategorizeCategories = computed(() =>
+    this.categories().map(c => ({ id: c.id, name: c.kind === 'Income' ? `${c.name} (receita)` : c.name })));
   protected readonly editDialogVisible = signal(false);
   protected readonly recategorizeDialogVisible = signal(false);
   protected readonly exporting = signal(false);

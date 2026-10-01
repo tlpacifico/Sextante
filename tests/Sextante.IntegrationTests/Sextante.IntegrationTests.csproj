@@ -31,6 +31,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Phase 6.6: fixtures sintéticas de extratos partilhadas com os testes unitários dos conversores. -->
+    <Compile Include="..\Modules\Financial.Application.Tests\StatementConverters\XlsxFixtureBuilder.cs" Link="Financial\StatementFixtures\XlsxFixtureBuilder.cs" />
+    <Compile Include="..\Modules\Financial.Application.Tests\StatementConverters\CardPdfFixtureBuilder.cs" Link="Financial\StatementFixtures\CardPdfFixtureBuilder.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

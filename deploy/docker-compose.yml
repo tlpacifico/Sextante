@@ -39,6 +39,10 @@ services:
       ConnectionStrings__Migration: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_migrations;Password=${SEXTANTE_MIGRATIONS_PASSWORD:?SEXTANTE_MIGRATIONS_PASSWORD must be set}
       ConnectionStrings__App: Host=postgres;Port=5432;Database=${POSTGRES_DB:-sextante};Username=sextante_app;Password=${SEXTANTE_APP_PASSWORD:?SEXTANTE_APP_PASSWORD must be set}
       JWT__SIGNING_KEY: ${JWT__SIGNING_KEY:?JWT__SIGNING_KEY must be set}
+      # Key ring do Data Protection (cifra os tokens de sessão). Tem de
+      # sobreviver à recriação do container, senão cada deploy termina
+      # todas as sessões. Ver Configuration/AuthenticationSetup.cs.
+      DataProtection__KeysPath: /app/dp-keys
       # SMTP e Sentry sem `:?` de propósito — ausência de configuração é um
       # estado válido (a app arranca, emails descartados com Warning,
       # Sentry desligado). mission.md §4.4.
@@ -57,6 +61,7 @@ services:
       - "127.0.0.1:8090:8080"
     volumes:
       - logs:/app/logs
+      - dp-keys:/app/dp-keys
     networks:
       - internal
     # Sem healthcheck de container: a imagem dotnet/aspnet:10.0 não traz
@@ -91,6 +96,7 @@ services:
 volumes:
   pgdata:
   logs:
+  dp-keys:
 
 networks:
   internal:

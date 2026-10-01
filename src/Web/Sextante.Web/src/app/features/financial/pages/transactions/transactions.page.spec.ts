@@ -140,4 +140,54 @@ describe('TransactionsPage', () => {
     expect(rows[0].querySelector('[aria-label="Isto foi em prestações"]')).toBeTruthy();
     expect(rows[1].querySelector('[aria-label="Isto foi em prestações"]')).toBeNull();
   });
+
+  function tx(id: string, kind: 'Regular' | 'Transfer' | 'Adjustment', description: string) {
+    return {
+      id, accountId: 'a1', categoryId: kind === 'Regular' ? 'c1' : null,
+      occurredAt: '2026-09-20T00:00:00Z', amount: { amount: 10, currency: 'EUR' },
+      description, tags: [], direction: 'Outflow', kind,
+      transferId: kind === 'Transfer' ? 'x1' : null, counterpartAccountId: kind === 'Transfer' ? 'a2' : null,
+      createdAt: '2026-09-20T00:00:00Z', updatedAt: '2026-09-20T00:00:00Z',
+    };
+  }
+
+  async function renderWith(items: unknown[]) {
+    const fixture = TestBed.createComponent(TransactionsPage);
+    fixture.detectChanges();
+    httpMock.match((req) => req.url.startsWith('/api/financial/accounts')).forEach((r) => r.flush([]));
+    httpMock.match((req) => req.url.startsWith('/api/financial/categories')).forEach((r) =>
+      r.flush([{ id: 'c1', name: 'Alimentação', kind: 'Expense', iconName: 'pi-tag', colorHex: '#000' },
+               { id: 'c2', name: 'Salário', kind: 'Income', iconName: 'pi-tag', colorHex: '#000' }]));
+    httpMock.match((req) => req.url.startsWith('/api/financial/transactions')).forEach((r) =>
+      r.flush({ items, nextCursor: null }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('has a header checkbox to select every filtered transaction', async () => {
+    const fixture = await renderWith([tx('t1', 'Regular', 'PINGO DOCE'), tx('t2', 'Regular', 'LIDL')]);
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('p-tableheadercheckbox')).not.toBeNull();
+  });
+
+  it('recategorizes only the regular transactions of a mixed selection and says how many were left out', async () => {
+    const fixture = await renderWith([tx('t1', 'Regular', 'PINGO DOCE'), tx('t2', 'Transfer', 'PAGAMENTO CARTAO')]);
+    const page = fixture.componentInstance as any;
+    page.selected.set(page.transactions());
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const button = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.includes('Recategorizar'));
+    expect(button?.disabled).toBeFalse();
+    expect(el.textContent).toContain('1 transferência/acerto fica de fora');
+    expect(page.recategorizableIds()).toEqual(['t1']);
+  });
+
+  it('labels income categories in the recategorize options so a batch is not flipped by mistake', async () => {
+    const fixture = await renderWith([tx('t1', 'Regular', 'PINGO DOCE')]);
+    const page = fixture.componentInstance as any;
+
+    expect(page.recategorizeCategories().map((c: { name: string }) => c.name)).toEqual(['Alimentação', 'Salário (receita)']);
+  });
 });
